@@ -1,7 +1,0 @@
-node_modules/
-.env
-.env.*.local
-request.http
-coverage/
-*.log
-.DS_Store
