@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import {
   sequelize, Registration, RegistrationItem, CourseSection, Course, Schedule, Semester, Student, User, Program, ProgramCourse, Lecturer,
+  AcademicYear,
 } from '../models/index.js';
 import { buildPagination } from '../utils/pagination.js';
 import {
@@ -73,8 +74,31 @@ const priorityContext = async (student, semester, transaction) => {
   return { opensAt: priority.opensAt, priority };
 };
 
-const isInProgram = async (student, courseId, transaction) =>
-  Boolean(await ProgramCourse.findOne({ where: { programId: student.programId, courseId }, attributes: ['id'], transaction }));
+/**
+ * The course's entry on the student's curriculum, shaped for the semesterEligibility rule, or null when
+ * it isn't on the programme. `notYetInEffect`: the entry's academic year starts after this semester's.
+ */
+const toCurriculum = (entry, entryYear, semesterYear) => ({
+  semester: entry.semester ?? null,
+  effectiveYear: entryYear?.name ?? null,
+  notYetInEffect: Boolean(entryYear && semesterYear && entryYear.startDate > semesterYear.startDate),
+});
+
+const curriculumFor = async (student, courseId, semester, transaction) => {
+  const entry = await ProgramCourse.findOne({
+    where: { programId: student.programId, courseId },
+    attributes: ['id', 'semester', 'academicYearId'],
+    transaction,
+  });
+  if (!entry) return null;
+  const [entryYear, semesterYear] = entry.academicYearId
+    ? await Promise.all([
+      AcademicYear.findByPk(entry.academicYearId, { attributes: ['name', 'startDate'], transaction }),
+      AcademicYear.findByPk(semester.academicYearId, { attributes: ['name', 'startDate'], transaction }),
+    ])
+    : [null, null];
+  return toCurriculum(entry, entryYear, semesterYear);
+};
 
 /** A full section offers a waitlist only if waitlists are enabled globally AND for that section. */
 const isWaitlistOffered = async (section, transaction) =>
@@ -194,7 +218,7 @@ export const getAvailableCourses = async (userId, query = {}) => {
           as: 'programs',
           where: { id: student.programId },
           attributes: ['id'],
-          through: { attributes: ['type'] },
+          through: { attributes: ['type', 'semester', 'academicYearId'] },
         }],
       },
       { model: Schedule, as: 'schedules', attributes: ['id', 'day', 'startTime', 'endTime', 'room'] },
@@ -212,6 +236,7 @@ export const getAvailableCourses = async (userId, query = {}) => {
   });
   const priority = await priorityService.resolveOpensAt(student, semester);
   const waitlistsOn = Boolean(await settingService.get('registration.waitlistEnabled'));
+  const years = new Map((await AcademicYear.findAll({ attributes: ['id', 'name', 'startDate'] })).map((y) => [y.id, y]));
 
   const courses = new Map();
   for (const section of sections) {
@@ -226,6 +251,11 @@ export const getAvailableCourses = async (userId, query = {}) => {
       otherItems,
       maxCredits,
       inProgram: true,
+      curriculum: toCurriculum(
+        section.course.programs[0].ProgramCourse,
+        years.get(section.course.programs[0].ProgramCourse.academicYearId),
+        years.get(semester.academicYearId),
+      ),
       programName: student.program?.name,
       waitlistOffered,
       requirements: requirements.get(section.courseId),
@@ -314,10 +344,11 @@ const addSection = async (student, courseSectionId, { actor, override = false, r
         transaction,
       }),
       ...(await priorityContext(student, semester, transaction)),
-      inProgram: await isInProgram(student, lockedSection.courseId, transaction),
       programName: student.program?.name,
       waitlistOffered: await isWaitlistOffered(lockedSection, transaction),
     };
+    context.curriculum = await curriculumFor(student, lockedSection.courseId, semester, transaction);
+    context.inProgram = Boolean(context.curriculum);
 
     const failures = runRules(byStaff ? ADD_RULES.filter((rule) => rule !== registrationWindow) : ADD_RULES, context);
     let overridden = [];
@@ -549,9 +580,10 @@ export const submit = async (userId, req) => {
         // Only compare with later items so each clashing pair is reported once.
         otherItems: items.slice(index + 1),
         requirements: requirements.get(item.courseId),
-        inProgram: await isInProgram(student, item.courseId, transaction),
         programName: student.program?.name,
       };
+      context.curriculum = await curriculumFor(student, item.courseId, semester, transaction);
+      context.inProgram = Boolean(context.curriculum);
       for (const failure of runRules(SUBMIT_ITEM_RULES, context)) {
         // A check staff overrode when adding this course (on either side of a clash) doesn't block submit.
         const clashOverridden = failure.rule === 'TIMETABLE_CONFLICT' && (failure.details?.conflictingCourses ?? [])

@@ -20,6 +20,7 @@ const yearSchema = z.object({
 const semesterSchema = z.object({
   academicYearId: requiredNumber(z.number().int().positive('Choose an academic year'), 'Choose an academic year'),
   name: z.string().trim().min(2, 'At least 2 characters').max(50),
+  term: optionalNumber(z.number().int().min(1).max(3)),
   startDate: z.string().min(1, 'Required'),
   endDate: z.string().min(1, 'Required'),
   registrationStart: z.string().min(1, 'Required'),
@@ -88,6 +89,8 @@ export function SemesterForm({ editing, onClose, onSaved }) {
   })
   const toBody = (v) => ({
     ...v,
+    term: v.term ?? null, // blank clears it
+
     registrationStart: fromLocalInput(v.registrationStart),
     registrationEnd: fromLocalInput(v.registrationEnd),
     addDropEnd: fromLocalInput(v.addDropEnd),
@@ -102,6 +105,7 @@ export function SemesterForm({ editing, onClose, onSaved }) {
       defaultValues={{
         academicYearId: editing?.academicYearId ?? '',
         name: editing?.name ?? '',
+        term: editing?.term ?? '',
         startDate: editing?.startDate ?? '',
         endDate: editing?.endDate ?? '',
         registrationStart: toLocalInput(editing?.registrationStart),
@@ -123,8 +127,13 @@ export function SemesterForm({ editing, onClose, onSaved }) {
               <option value="">Select year</option>
               {years.data?.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
             </Select>
-            <Input label="Name" className="sm:col-span-2" placeholder="e.g. First Semester" error={errors.name?.message} {...register('name')} />
+            <Input label="Name" placeholder="e.g. First Semester" error={errors.name?.message} {...register('name')} />
+            <Select label="Term of the year" error={errors.term?.message} {...register('term')}>
+              <option value="">Not set</option>
+              {[1, 2, 3].map((t) => <option key={t} value={t}>Semester {t}</option>)}
+            </Select>
           </div>
+          <p className="-mt-2 text-xs text-slate-500">Courses a curriculum places in a specific semester are only offered to students when this matches.</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Input label="Classes start" type="date" error={errors.startDate?.message} {...register('startDate')} />
             <Input label="Classes end" type="date" error={errors.endDate?.message} {...register('endDate')} />

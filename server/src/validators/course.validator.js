@@ -11,6 +11,7 @@ export const listCoursesQuery = z.object({
   departmentId: id.optional(),
   level: z.coerce.number().int().optional(),
   semesterId: id.optional(),
+  programId: id.optional(),
   status: z.enum(Object.values(COURSE_STATUS)).optional(),
 });
 

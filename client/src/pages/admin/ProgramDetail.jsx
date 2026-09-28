@@ -33,7 +33,12 @@ export default function ProgramDetail() {
   const retype = useApiMutation(async (c) => {
     await http.delete(`/programs/${id}/courses/${c.id}`)
     return http.post(`/programs/${id}/courses`, {
-      courseId: c.id, type: c.entry.type === 'core' ? 'elective' : 'core', ...(c.entry.recommendedLevel ? { recommendedLevel: c.entry.recommendedLevel } : {}),
+      courseId: c.id,
+      type: c.entry.type === 'core' ? 'elective' : 'core',
+      // Keep the rest of the entry (level, term, effective year) as it was.
+      ...(c.entry.recommendedLevel ? { recommendedLevel: c.entry.recommendedLevel } : {}),
+      ...(c.entry.semester ? { semester: c.entry.semester } : {}),
+      ...(c.entry.academicYearId ? { academicYearId: c.entry.academicYearId } : {}),
     })
   }, { success: (_d, c) => `${c.code} is now ${c.entry.type === 'core' ? 'an elective' : 'a core course'}` })
 
@@ -72,6 +77,7 @@ export default function ProgramDetail() {
             { key: 'credits', header: 'Credits' },
             { key: 'level', header: 'Level' },
             { key: 'recommended', header: 'Recommended level', render: (c) => c.entry.recommendedLevel ?? '—' },
+            { key: 'semester', header: 'Semester', render: (c) => c.entry.semester ?? 'Any' },
             { key: 'type', header: 'Type', render: (c) => <Badge tone={c.entry.type === 'core' ? 'blue' : 'slate'}>{c.entry.type}</Badge> },
             {
               key: 'actions', header: '', className: 'text-right', render: (c) => (

@@ -46,7 +46,7 @@ export const LECTURER_NAV = [
 const ACADEMIC_ITEMS = [
   { to: '/staff/programs', label: 'Programmes', icon: Library, permission: PERMS.COURSE_MANAGE },
   { to: '/staff/departments', label: 'Departments', icon: Building2, permission: PERMS.COURSE_MANAGE },
-  { to: '/staff/courses', label: 'Courses', icon: BookOpen, permission: PERMS.COURSE_MANAGE },
+  { to: '/staff/courses', label: 'Courses', icon: BookOpen, permission: [PERMS.COURSE_MANAGE, PERMS.COURSE_CATALOG] },
   { to: '/staff/sections', label: 'Course Offerings', icon: Layers, permission: PERMS.SECTION_MANAGE },
   { to: '/staff/semesters', label: 'Academic Years & Semesters', icon: CalendarRange, permission: PERMS.SEMESTER_MANAGE },
 ]
@@ -148,6 +148,6 @@ export const SEGMENT_LABELS = {
   assessments: 'Assessments', registrations: 'Registrations', reports: 'Reports', departments: 'Departments',
   programs: 'Programmes', semesters: 'Semesters', sections: 'Course Offerings', users: 'Users', 'audit-log': 'Audit Log',
   'sign-ins': 'Sign-in Activity', 'account-requests': 'Account Requests', 'results-import': 'Import Results', 'data-import': 'Import Data',
-  roles: 'Roles & Permissions', class: 'Class',
+  roles: 'Roles & Permissions', class: 'Class', import: 'Import',
   applicant: 'Applicant', applications: 'Applications', 'timetable-issues': 'Timetable Issues',
 }

@@ -109,3 +109,12 @@ export const sendInvitesSchema = z.object({
   // Invites are emailed one by one, so a large backlog is sent in batches; `remaining` says how many are left.
   limit: z.coerce.number().int().min(1).max(1000).default(200),
 });
+
+/**
+ * Course-catalogue rows are validated row by row in course-import/validate.js (so one bad row is
+ * reported, not a 422 for the whole file); here only the envelope and the row count are checked.
+ */
+export const importCourseCatalogSchema = z.object({
+  rows: z.array(z.record(z.string(), z.unknown())).min(1, 'The file has no rows').max(MAX_ROWS, `At most ${MAX_ROWS} rows per import`),
+  dryRun: z.boolean().default(true),
+});

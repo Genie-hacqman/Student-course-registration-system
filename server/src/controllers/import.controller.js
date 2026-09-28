@@ -1,4 +1,5 @@
 import * as importService from '../services/import.service.js';
+import * as courseImportService from '../services/course-import.service.js';
 import { ok } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
 
@@ -12,6 +13,7 @@ export const prerequisites = handle(importService.importPrerequisites);
 export const lecturers = handle(importService.importLecturers);
 export const sections = handle(importService.importSections);
 export const invites = handle(importService.sendPendingInvites);
+export const courseCatalog = async (req, res) => ok(res, await courseImportService.importCatalog(req.validated.body, req.user, req));
 
 /** Students are admitted by the school now, with a Student ID and PIN rather than an emailed invite. */
 export const studentsMoved = () => {

@@ -19,6 +19,8 @@ export const updateAcademicYearSchema = z
 const semesterFields = {
   academicYearId: id,
   name: z.string().trim().min(2).max(50),
+  // Term of the academic year (1-3), matched against a curriculum entry's semester; null = not set.
+  term: z.coerce.number().int().min(1).max(3).nullable().optional(),
   startDate: dateOnly,
   endDate: dateOnly,
   registrationStart: isoDate,

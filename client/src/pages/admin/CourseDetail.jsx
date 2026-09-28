@@ -9,6 +9,8 @@ import FormModal from '../../components/admin/FormModal'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import { CoursePicker } from '../../components/admin/Pickers'
 import { lecturerName } from '../../lib/format'
+import { useAuth } from '../../auth/AuthProvider'
+import { PERMS, can } from '../../lib/roles'
 import { CourseForm } from './Courses'
 
 const GRADES = ['A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E']
@@ -107,10 +109,13 @@ export default function CourseDetail() {
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState(null)
   const [toggling, setToggling] = useState(false)
+  const { user } = useAuth()
+  // Viewing is open to course:manage (admins); changing the catalogue is the registry's (course:catalog).
+  const canEdit = can(user, PERMS.COURSE_CATALOG)
 
   const removeReq = useApiMutation((courseId) => http.delete(`/courses/${id}/prerequisites/${courseId}`), { success: 'Requirement removed' })
   const setActive = useApiMutation((active) => (active ? http.patch(`/courses/${id}`, { status: 'active' }) : http.delete(`/courses/${id}`)), {
-    success: (_d, active) => (active ? 'Course reactivated' : 'Course deactivated'),
+    success: (_d, active) => (active ? 'Course restored' : 'Course archived'),
   })
 
   if (course.isPending) return <Loading />
@@ -134,13 +139,15 @@ export default function CourseDetail() {
               <Badge tone="blue">{c.credits} credits</Badge>
               <Badge>Level {c.level}</Badge>
               {c.department && <Badge>{c.department.name}</Badge>}
-              <Badge tone={active ? 'green' : 'slate'}>{c.status}</Badge>
+              <Badge tone={active ? 'green' : 'slate'}>{active ? 'Active' : 'Archived'}</Badge>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setToggling(true)}><Power className="size-4" /> {active ? 'Deactivate' : 'Reactivate'}</Button>
-            <Button variant="secondary" onClick={() => setEditing(c)}><Pencil className="size-4" /> Edit</Button>
-          </div>
+          {canEdit && (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setToggling(true)}><Power className="size-4" /> {active ? 'Archive' : 'Restore'}</Button>
+              <Button variant="secondary" onClick={() => setEditing(c)}><Pencil className="size-4" /> Edit</Button>
+            </div>
+          )}
         </div>
         <p className="mt-4 text-sm whitespace-pre-line text-slate-600">{c.description || 'No description.'}</p>
       </Card>
@@ -149,7 +156,7 @@ export default function CourseDetail() {
         <CardHeader
           title="Requirements"
           subtitle="Every line is required. Courses on one line are alternatives — passing any one of them is enough."
-          action={<Button size="sm" onClick={() => setAdding(true)}><Plus className="size-4" /> Add requirement</Button>}
+          action={canEdit && <Button size="sm" onClick={() => setAdding(true)}><Plus className="size-4" /> Add requirement</Button>}
         />
         {groups.length ? (
           <ul className="divide-y divide-slate-100">
@@ -162,9 +169,11 @@ export default function CourseDetail() {
                     {i > 0 && <span className="text-slate-400">or</span>}
                     <Link to={`/staff/courses/${r.id}`} className="font-medium hover:text-brand-700">{r.code}</Link>
                     <span className="text-slate-500">{r.title}</span>
-                    <button className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${r.code}`} onClick={() => setRemoving(r)}>
-                      <Trash2 className="size-3.5" />
-                    </button>
+                    {canEdit && (
+                      <button className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${r.code}`} onClick={() => setRemoving(r)}>
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
                   </span>
                 ))}
                 {g.minGrade && <span className="text-slate-500">· minimum grade {g.minGrade}</span>}
@@ -206,8 +215,8 @@ export default function CourseDetail() {
       <ConfirmDialog
         open={toggling}
         onClose={() => setToggling(false)}
-        title={active ? `Deactivate ${c.code}?` : `Reactivate ${c.code}?`}
-        confirmLabel={active ? 'Deactivate' : 'Reactivate'}
+        title={active ? `Archive ${c.code}?` : `Restore ${c.code}?`}
+        confirmLabel={active ? 'Archive' : 'Restore'}
         danger={active}
         onConfirm={() => setActive.mutateAsync(!active)}
       >

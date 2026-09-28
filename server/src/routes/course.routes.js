@@ -3,15 +3,17 @@ import * as courses from '../controllers/course.controller.js';
 import * as prerequisites from '../controllers/prerequisite.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/role.middleware.js';
+import { requirePermission } from '../middleware/permission.middleware.js';
 import { validate } from '../middleware/validation.middleware.js';
 import { idParam } from '../validators/common.validator.js';
 import {
   listCoursesQuery, createCourseSchema, updateCourseSchema, courseIdParam, prerequisiteParams, addPrerequisiteSchema,
 } from '../validators/course.validator.js';
-import { ADMIN_ROLES, ROLES } from '../utils/constants.js';
+import { PERMISSIONS, ROLES } from '../utils/constants.js';
 
 const router = Router();
-const academicStaff = authorize(...ADMIN_ROLES);
+// Creating, editing and archiving courses (and their prerequisites) is the registry's job: course:catalog.
+const academicStaff = requirePermission(PERMISSIONS.COURSE_CATALOG);
 
 router.use(authenticate);
 

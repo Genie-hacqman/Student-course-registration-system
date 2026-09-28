@@ -1,4 +1,4 @@
-import { Program, Department, Course, ProgramCourse } from '../models/index.js';
+import { Program, Department, Course, ProgramCourse, AcademicYear } from '../models/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import * as audit from './audit.service.js';
 
@@ -40,18 +40,19 @@ export const listCourses = async (programId) => {
   const program = await getById(programId);
   return program.getCourses({
     attributes: ['id', 'code', 'title', 'credits', 'level', 'status'],
-    joinTableAttributes: ['type', 'recommendedLevel'],
+    joinTableAttributes: ['type', 'recommendedLevel', 'semester', 'academicYearId'],
     order: [['code', 'ASC']],
   });
 };
 
-export const addCourse = async (programId, { courseId, type, recommendedLevel }, actor) => {
+export const addCourse = async (programId, { courseId, type, recommendedLevel, semester, academicYearId }, actor) => {
   await getById(programId);
   if (!(await Course.findByPk(courseId))) throw new BadRequestError('Course does not exist');
+  if (academicYearId && !(await AcademicYear.findByPk(academicYearId))) throw new BadRequestError('Academic year does not exist');
   if (await ProgramCourse.findOne({ where: { programId, courseId } })) {
     throw new ConflictError('Course is already on this program');
   }
-  await ProgramCourse.create({ programId, courseId, type, recommendedLevel });
+  await ProgramCourse.create({ programId, courseId, type, recommendedLevel, semester, academicYearId });
   await audit.log({ userId: actor.id, action: 'program.course_add', entityType: 'Program', entityId: programId, metadata: { courseId, type } });
   return listCourses(programId);
 };

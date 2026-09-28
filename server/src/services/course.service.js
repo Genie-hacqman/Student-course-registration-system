@@ -33,14 +33,20 @@ export const list = async (query, actor) => {
     where.status = COURSE_STATUS.ACTIVE;
   }
 
+  const idFilters = [];
   if (query.semesterId) {
     const statusFilter = isAdmin(actor) ? '' : ` AND status <> ${sequelize.escape(SECTION_STATUS.CANCELLED)}`;
-    where.id = {
-      [Op.in]: sequelize.literal(
-        `(SELECT course_id FROM course_sections WHERE semester_id = ${sequelize.escape(query.semesterId)}${statusFilter})`,
-      ),
-    };
+    idFilters.push({ id: { [Op.in]: sequelize.literal(
+      `(SELECT course_id FROM course_sections WHERE semester_id = ${sequelize.escape(query.semesterId)}${statusFilter})`,
+    ) } });
   }
+  // Courses on a programme's curriculum.
+  if (query.programId) {
+    idFilters.push({ id: { [Op.in]: sequelize.literal(
+      `(SELECT course_id FROM program_courses WHERE program_id = ${sequelize.escape(query.programId)})`,
+    ) } });
+  }
+  if (idFilters.length) where[Op.and] = idFilters;
 
   const result = await Course.findAndCountAll({
     where,

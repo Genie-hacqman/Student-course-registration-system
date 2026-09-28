@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Plus, Search, Upload } from 'lucide-react'
 import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
 import { Badge, Button, Card, Input, PageHeader, QueryState, Select } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import FormModal, { Textarea } from '../../components/admin/FormModal'
 import { requiredNumber } from '../../lib/forms'
+import { useAuth } from '../../auth/AuthProvider'
+import { PERMS, can } from '../../lib/roles'
 
 // Mirrors createCourseSchema in SCRS-backend src/validators/course.validator.js.
 export const courseSchema = z.object({
@@ -69,9 +71,13 @@ export default function Courses() {
   const [params, setParams] = useSearchParams()
   const [search, setSearch] = useState(params.get('search') ?? '')
   const departments = useApi('/departments')
+  const programs = useApi('/programs')
+  const { user } = useAuth()
+  const canEdit = can(user, PERMS.COURSE_CATALOG)
   const filters = {
     search: params.get('search') || undefined,
     departmentId: params.get('department') || undefined,
+    programId: params.get('program') || undefined,
     level: params.get('level') || undefined,
     status: params.get('status') || undefined,
     page: Number(params.get('page') ?? 1),
@@ -92,10 +98,15 @@ export default function Courses() {
     <div>
       <PageHeader
         title="Courses"
-        subtitle="The course catalog. Add a course to a program's curriculum to make it visible to students."
-        action={<Button onClick={() => setEditing({})}><Plus className="size-4" /> New course</Button>}
+        subtitle="The course catalog. A course reaches students once it is on their programme's curriculum and has a section this semester."
+        action={canEdit && (
+          <div className="flex gap-2">
+            <Link to="/staff/courses/import"><Button variant="secondary"><Upload className="size-4" /> Import courses</Button></Link>
+            <Button onClick={() => setEditing({})}><Plus className="size-4" /> New course</Button>
+          </div>
+        )}
       />
-      <Card className="mb-4 grid gap-3 p-4 md:grid-cols-5">
+      <Card className="mb-4 grid gap-3 p-4 md:grid-cols-6">
         <form className="relative md:col-span-2" onSubmit={(e) => { e.preventDefault(); set('search', search.trim()) }}>
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-slate-400" />
           <input
@@ -111,14 +122,18 @@ export default function Courses() {
           <option value="">All departments</option>
           {departments.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </Select>
+        <Select value={params.get('program') ?? ''} onChange={(e) => set('program', e.target.value)} aria-label="Programme">
+          <option value="">All programmes</option>
+          {(programs.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.code}</option>)}
+        </Select>
         <Select value={params.get('level') ?? ''} onChange={(e) => set('level', e.target.value)} aria-label="Level">
           <option value="">All levels</option>
           {[100, 200, 300, 400, 500, 600].map((l) => <option key={l} value={l}>Level {l}</option>)}
         </Select>
         <Select value={params.get('status') ?? ''} onChange={(e) => set('status', e.target.value)} aria-label="Status">
-          <option value="">Active & inactive</option>
+          <option value="">Active & archived</option>
           <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="inactive">Archived</option>
         </Select>
       </Card>
       <Card>
@@ -136,7 +151,7 @@ export default function Courses() {
                 { key: 'department', header: 'Department', render: (c) => c.department?.code },
                 { key: 'credits', header: 'Credits' },
                 { key: 'level', header: 'Level' },
-                { key: 'status', header: 'Status', render: (c) => <Badge tone={c.status === 'active' ? 'green' : 'slate'}>{c.status}</Badge> },
+                { key: 'status', header: 'Status', render: (c) => <Badge tone={c.status === 'active' ? 'green' : 'slate'}>{c.status === 'active' ? 'Active' : 'Archived'}</Badge> },
               ]}
             />
           )}

@@ -17,6 +17,8 @@ Semester.init(
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     academicYearId: { type: DataTypes.INTEGER, allowNull: false },
     name: { type: DataTypes.STRING(50), allowNull: false }, // e.g. "First Semester"
+    // Which term of the academic year (1-3); matched against program_courses.semester for eligibility.
+    term: { type: DataTypes.TINYINT },
     startDate: { type: DataTypes.DATEONLY, allowNull: false },
     endDate: { type: DataTypes.DATEONLY, allowNull: false },
     registrationStart: { type: DataTypes.DATE, allowNull: false },

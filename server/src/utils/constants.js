@@ -14,6 +14,7 @@ export const STAFF_ROLES = [...ADMIN_ROLES, ROLES.ACADEMIC_ADVISOR, ROLES.LECTUR
 
 export const PERMISSIONS = Object.freeze({
   COURSE_MANAGE: 'course:manage',
+  COURSE_CATALOG: 'course:catalog',
   SEMESTER_MANAGE: 'semester:manage',
   SECTION_MANAGE: 'section:manage',
   REGISTRATION_SELF: 'registration:self',
@@ -47,7 +48,7 @@ export const ROLE_PERMISSIONS = Object.freeze({
   [ROLES.LECTURER]: [P.ROSTER_VIEW, P.GRADE_ENTER, P.ATTENDANCE_RECORD, P.ASSESSMENT_MANAGE, P.ANNOUNCEMENT_CREATE],
   [ROLES.ACADEMIC_ADVISOR]: [P.REGISTRATION_APPROVE, P.REGISTRATION_VIEW_ALL, P.ROSTER_VIEW, P.PREREQ_OVERRIDE],
   [ROLES.REGISTRAR]: [
-    P.SEMESTER_MANAGE, P.SECTION_MANAGE, P.COURSE_MANAGE, P.REGISTRATION_APPROVE, P.REGISTRATION_MANAGE,
+    P.SEMESTER_MANAGE, P.SECTION_MANAGE, P.COURSE_MANAGE, P.COURSE_CATALOG, P.REGISTRATION_APPROVE, P.REGISTRATION_MANAGE,
     P.REGISTRATION_VIEW_ALL, P.REPORT_VIEW, P.ROSTER_VIEW, P.GRADE_MANAGE, P.PREREQ_OVERRIDE,
     P.ATTENDANCE_RECORD, P.ANNOUNCEMENT_CREATE, P.STUDENT_ADMIT,
   ],
@@ -73,7 +74,8 @@ export const PERMISSION_CATALOG = Object.freeze([
   { name: P.STUDENT_ADMIT, group: 'Registration', description: 'Admit students (create their Student ID, school email and PIN) and reset student PINs' },
   { name: P.APPLICATION_SELF, group: 'Admission', description: 'Fill in and submit an online admission application' },
   { name: P.APPLICATION_REVIEW, group: 'Admission', description: 'Review online applications: admit (creating the student record) or reject' },
-  { name: P.COURSE_MANAGE, group: 'Academic structure', description: 'Manage departments, programs and courses' },
+  { name: P.COURSE_MANAGE, group: 'Academic structure', description: 'Manage departments, programmes and programme curricula; view courses' },
+  { name: P.COURSE_CATALOG, group: 'Academic structure', description: 'Create, import, edit and archive courses and their prerequisites' },
   { name: P.SEMESTER_MANAGE, group: 'Academic structure', description: 'Manage academic years, semesters and registration windows' },
   { name: P.SECTION_MANAGE, group: 'Academic structure', description: 'Manage course sections and timetables' },
   { name: P.ROSTER_VIEW, group: 'Teaching', description: 'View class lists' },
@@ -140,7 +142,7 @@ export const ACCOUNT_REQUEST_STATUS = Object.freeze({ PENDING: 'pending', APPROV
 
 /** Checks staff may override (with a reason) when adding a student to a section. Everything else still blocks. */
 export const STAFF_OVERRIDABLE_RULES = Object.freeze([
-  'PREREQUISITE', 'CREDIT_LIMIT', 'TIMETABLE_CONFLICT', 'LEVEL_ELIGIBILITY', 'PROGRAM_ELIGIBILITY',
+  'PREREQUISITE', 'CREDIT_LIMIT', 'TIMETABLE_CONFLICT', 'LEVEL_ELIGIBILITY', 'PROGRAM_ELIGIBILITY', 'SEMESTER_ELIGIBILITY',
 ]);
 
 export const DAYS =Object.freeze(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']);

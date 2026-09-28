@@ -63,6 +63,7 @@ Program.belongsToMany(Course, { through: ProgramCourse, as: 'courses', foreignKe
 Course.belongsToMany(Program, { through: ProgramCourse, as: 'programs', foreignKey: 'courseId', otherKey: 'programId' });
 ProgramCourse.belongsTo(Program, { foreignKey: 'programId', as: 'program' });
 ProgramCourse.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
+ProgramCourse.belongsTo(AcademicYear, { foreignKey: 'academicYearId', as: 'academicYear' });
 
 // Program → Students
 Program.hasMany(Student, { foreignKey: 'programId', as: 'students' });

@@ -41,6 +41,7 @@ const Departments = lazy(() => import('./pages/admin/Departments'))
 const Programs = lazy(() => import('./pages/admin/Programs'))
 const ProgramDetail = lazy(() => import('./pages/admin/ProgramDetail'))
 const Courses = lazy(() => import('./pages/admin/Courses'))
+const CourseImport = lazy(() => import('./pages/admin/CourseImport'))
 const CourseDetail = lazy(() => import('./pages/admin/CourseDetail'))
 const Semesters = lazy(() => import('./pages/admin/Semesters'))
 const SemesterDetail = lazy(() => import('./pages/admin/SemesterDetail'))
@@ -170,8 +171,14 @@ export default function App() {
                 <Route path="departments" element={<Departments />} />
                 <Route path="programs" element={<Programs />} />
                 <Route path="programs/:id" element={<ProgramDetail />} />
+              </Route>
+              {/* Admins view the catalogue (course:manage); the registry edits and imports it (course:catalog). */}
+              <Route element={<RequirePermission permission={[PERMS.COURSE_MANAGE, PERMS.COURSE_CATALOG]} />}>
                 <Route path="courses" element={<Courses />} />
                 <Route path="courses/:id" element={<CourseDetail />} />
+              </Route>
+              <Route element={<RequirePermission permission={PERMS.COURSE_CATALOG} />}>
+                <Route path="courses/import" element={<CourseImport />} />
               </Route>
               <Route element={<RequirePermission permission={PERMS.SEMESTER_MANAGE} />}>
                 <Route path="semesters" element={<Semesters />} />

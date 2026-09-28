@@ -111,6 +111,9 @@ export const programCourseSchema = z.object({
   courseId: id,
   type: z.enum(['core', 'elective']).default('core'),
   recommendedLevel: z.coerce.number().int().min(100).max(900).optional(),
+  // Term (1-3) the course is taught in, and the academic year the entry applies from; omit for "any".
+  semester: z.coerce.number().int().min(1).max(3).optional(),
+  academicYearId: id.optional(),
 });
 export const programCourseParams = z.object({ id, courseId: id });
 

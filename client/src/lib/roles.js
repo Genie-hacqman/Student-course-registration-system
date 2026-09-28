@@ -14,6 +14,7 @@ export const PERMS = {
   REGISTRATION_APPROVE: 'registration:approve',
   REPORT_VIEW: 'report:view',
   COURSE_MANAGE: 'course:manage',
+  COURSE_CATALOG: 'course:catalog',
   SEMESTER_MANAGE: 'semester:manage',
   SECTION_MANAGE: 'section:manage',
   PREREQ_OVERRIDE: 'prerequisite:override',

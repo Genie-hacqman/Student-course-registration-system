@@ -655,6 +655,12 @@ describe('teaching, announcements, roles & overview', () => {
       assert.equal(res.status, 200, `${path}: ${JSON.stringify(res.body)}`);
       assert.equal(res.body.data.dryRun, true);
     }
+    const catalog = await api().post('/api/admin/import/course-catalog').set(as(admin)).send({
+      dryRun: true,
+      rows: [{ courseCode: 'RT201', courseTitle: 'Route Test', department: 'CS', programme: 'BSC-CS', level: '200', semester: '1', creditHours: '3', courseType: 'core' }],
+    });
+    assert.equal(catalog.status, 200, JSON.stringify(catalog.body));
+    assert.equal(catalog.body.data.valid, 1);
     assert.equal((await api().post('/api/admin/import/invites').set(as(admin)).send({})).status, 200);
     assert.equal((await api().post('/api/admin/import/students').set(as(admin)).send({ rows: [] })).status, 410);
 
