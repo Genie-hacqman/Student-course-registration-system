@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { authApi } from '../api/auth'
-import { onPinChangeRequired, onSessionExpired, refreshAccessToken, setToken } from '../api/client'
+import {
+  onPinChangeRequired, onSessionExpired, refreshAccessToken, setSigningOut, setToken, waitForRefresh,
+} from '../api/client'
 
 const AuthContext = createContext(null)
 
@@ -25,6 +27,9 @@ export function AuthProvider({ children }) {
     setUser(null)
     setStatus('anonymous')
     qc.clear()
+    // A later mount (e.g. hot reload) must ask the server again, not reuse the signed-in result.
+    bootstrapPromise = null
+    setSigningOut(false)
   }, [qc])
 
   useEffect(() => {
@@ -55,7 +60,11 @@ export function AuthProvider({ children }) {
     /** The server ends every session on a PIN change and returns fresh tokens for this device. */
     changePin: async (body) => establish(await authApi.changePin(body)),
     logout: async ({ everywhere = false } = {}) => {
+      // Let any refresh in flight finish first, so the logout carries the newest cookie and revokes it.
+      // logout-all needs a valid access token and revokes every token anyway, so it may still refresh.
+      setSigningOut(!everywhere)
       try {
+        await waitForRefresh()
         await (everywhere ? authApi.logoutAll() : authApi.logout())
       } finally {
         clearSession()

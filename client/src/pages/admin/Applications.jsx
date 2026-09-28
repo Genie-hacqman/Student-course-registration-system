@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '../../api/admin'
-import { Card, PageHeader, QueryState, SearchInput, StatusBadge, Tabs } from '../../components/ui'
+import { Badge, Card, PageHeader, QueryState, SearchInput, StatusBadge, Tabs } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import { APPLICATION_STATUS, formatDateTime } from '../../lib/format'
 
@@ -59,6 +59,7 @@ export default function Applications() {
                       <div className="leading-tight">
                         <StatusBadge status={a.status} tone={tone} label={label} />
                         {a.student && <p className="mt-1 text-xs text-slate-500">{a.student.studentNumber}</p>}
+                        {a.status === 'admitted' && a.activationEmailError && <Badge tone="red" className="mt-1">Email failed</Badge>}
                       </div>
                     )
                   },

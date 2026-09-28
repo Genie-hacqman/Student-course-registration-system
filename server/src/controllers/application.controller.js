@@ -25,12 +25,17 @@ export const list = async (req, res) => {
 };
 export const getById = async (req, res) => ok(res, await applicationService.getById(req.validated.params.id));
 export const admit = async (req, res) => {
-  const { application } = await applicationService.admit(req.validated.params.id, req.validated.body, req.user, req);
-  return ok(res, application);
+  const { application, emailDelivery } = await applicationService.admit(req.validated.params.id, req.validated.body, req.user, req);
+  return ok(res, { application, emailDelivery });
 };
 export const reject = async (req, res) =>
   ok(res, await applicationService.reject(req.validated.params.id, req.validated.body, req.user, req));
 export const resendActivation = async (req, res) => {
-  await applicationService.resendActivation(req.validated.params.id, req.user, req);
-  return ok(res, { message: 'A new activation link was sent to the applicant\'s personal email.' });
+  const { emailDelivery } = await applicationService.resendActivation(req.validated.params.id, req.user, req);
+  return ok(res, {
+    message: emailDelivery.sent
+      ? "A new activation email was sent to the applicant's personal email."
+      : `A new activation link was issued, but the email could not be sent: ${emailDelivery.error}`,
+    emailDelivery,
+  });
 };

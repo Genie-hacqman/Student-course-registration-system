@@ -9,7 +9,7 @@ AdmissionApplication.init(
   {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     userId: { type: DataTypes.INTEGER, allowNull: false, unique: true },
-    personalEmail: { type: DataTypes.STRING(191), allowNull: false },
+    personalEmail: { type: DataTypes.STRING(191), allowNull: false, unique: true },
     firstName: { type: DataTypes.STRING(100), allowNull: false },
     lastName: { type: DataTypes.STRING(100), allowNull: false },
     otherNames: { type: DataTypes.STRING(100) },
@@ -29,6 +29,12 @@ AdmissionApplication.init(
     reviewedAt: { type: DataTypes.DATE },
     rejectionReason: { type: DataTypes.STRING(500) },
     studentId: { type: DataTypes.INTEGER, unique: true },
+    // Delivery of the admission/activation email to the personal address (see application.service).
+    activationEmailSentAt: { type: DataTypes.DATE },
+    activationEmailLastAttemptAt: { type: DataTypes.DATE },
+    activationEmailAttempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    activationEmailError: { type: DataTypes.STRING(255) },
+    accountActivatedAt: { type: DataTypes.DATE },
   },
   { sequelize, modelName: 'AdmissionApplication', tableName: 'admission_applications' },
 );

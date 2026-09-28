@@ -1,7 +1,7 @@
 import { Suspense, lazy, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Award, BookOpen, BookOpenCheck, CalendarClock, CalendarDays, ClipboardList, Download, GraduationCap, Layers, Library,
+  Award, BookOpen, BookOpenCheck, CalendarClock, CalendarDays, ClipboardList, Download, GraduationCap, IdCard, Layers, Library,
   TrendingUp, UserRound,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -165,14 +165,16 @@ function AcademicOverview({ results, attendance }) {
     ['Attendance', attendance.isPending ? undefined : attendanceRate === null ? '—' : `${attendanceRate}%`],
     ['Level', s?.level],
     ['Programme', s?.program?.name],
-    ['Student no.', s?.studentNumber],
+    ['Department', s?.program?.department?.name],
+    ['Student ID', s?.studentNumber],
+    ['School email', user?.email],
   ]
   return (
     <Card>
       <CardHeader title="Academic overview" icon={GraduationCap} action={<CardLink to="/student/results">Results</CardLink>} />
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 p-5 text-sm">
         {rows.map(([label, value]) => (
-          <div key={label} className={label === 'Programme' ? 'col-span-2' : ''}>
+          <div key={label} className={['Programme', 'Department', 'School email'].includes(label) ? 'col-span-2' : ''}>
             <dt className="text-xs text-slate-500">{label}</dt>
             <dd className="font-semibold text-slate-900">{value === undefined ? <Skeleton className="mt-1 h-4 w-12" /> : value}</dd>
           </div>
@@ -225,8 +227,10 @@ export default function StudentDashboard() {
         meta={(
           <>
             {semester && <MetaChip icon={CalendarClock}>{semester.name}</MetaChip>}
+            {s?.studentNumber && <MetaChip icon={IdCard}>{s.studentNumber}</MetaChip>}
             {s?.program && <MetaChip icon={Library}>{s.program.name}</MetaChip>}
             {s?.level && <MetaChip icon={Layers}>Level {s.level}</MetaChip>}
+            {s && <Badge tone="green">Admitted</Badge>}
             {semester && <Badge tone={win.tone}>Registration: {win.label}</Badge>}
           </>
         )}

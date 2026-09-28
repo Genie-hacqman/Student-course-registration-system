@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+const blankAsUnset = (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+
 const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -31,13 +33,18 @@ const schema = z
     // Optional outside production: with SMTP_HOST unset, email.service.js logs instead of sending,
     // so local dev/test need no mail server. Required in production — see the check below.
     SMTP_HOST: z.string().optional(),
-    SMTP_PORT: z.coerce.number().int().positive().default(587),
+    // An empty value (`SMTP_PORT=`) means "not set", so the default applies instead of failing.
+    SMTP_PORT: z.preprocess(blankAsUnset, z.coerce.number().int().positive().default(587)),
     // z.coerce.boolean() would treat the string "false" as truthy (Boolean("false") === true) —
     // this compares against the literal strings instead.
-    SMTP_SECURE: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+    SMTP_SECURE: z.preprocess(blankAsUnset, z.enum(['true', 'false']).default('false')).transform((v) => v === 'true'),
     SMTP_USER: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM: z.string().optional(),
+    // Fallback for the institution.studentEmailDomain setting (the setting wins when set).
+    SCHOOL_EMAIL_DOMAIN: z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, 'SCHOOL_EMAIL_DOMAIN must be a domain like school.edu').optional().or(z.literal('')),
+    // Development only: include token links in the "email not configured" log instead of redacting them.
+    EMAIL_LOG_LINKS: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
 
     // Both optional everywhere, including production: unlike SMTP/CORS, the app is fully
     // functional without them — you just have less visibility if something breaks. Worth
@@ -53,6 +60,9 @@ const schema = z
         path: ['SMTP_HOST'],
         message: 'SMTP_HOST is required in production, so password resets and grade/registration emails can actually be sent.',
       });
+    }
+    if (data.EMAIL_LOG_LINKS) {
+      ctx.addIssue({ code: 'custom', path: ['EMAIL_LOG_LINKS'], message: 'EMAIL_LOG_LINKS must not be enabled in production: it writes raw account tokens to the logs.' });
     }
     if (!data.SMTP_FROM) {
       ctx.addIssue({ code: 'custom', path: ['SMTP_FROM'], message: 'SMTP_FROM is required in production.' });

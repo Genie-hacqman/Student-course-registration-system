@@ -3,7 +3,7 @@ import * as ctrl from '../controllers/application.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requirePermission } from '../middleware/permission.middleware.js';
 import { validate } from '../middleware/validation.middleware.js';
-import { authLimiter } from '../middleware/rate-limit.middleware.js';
+import { authLimiter, activationLimiter, resendLimiter } from '../middleware/rate-limit.middleware.js';
 import { idParam } from '../validators/common.validator.js';
 import {
   signUpSchema, saveApplicationSchema, listApplicationsQuery, admitApplicationSchema, rejectApplicationSchema, activateSchema,
@@ -19,7 +19,7 @@ const router = Router();
 
 // Public
 router.post('/account', authLimiter, validate({ body: signUpSchema }), ctrl.signUp);
-router.post('/activate', authLimiter, validate({ body: activateSchema }), ctrl.activate);
+router.post('/activate', activationLimiter, validate({ body: activateSchema }), ctrl.activate);
 
 // Applicant: their own application only
 const applicant = [authenticate, requirePermission(PERMISSIONS.APPLICATION_SELF)];
@@ -34,6 +34,6 @@ router.get('/', ...reviewer, validate({ query: listApplicationsQuery }), ctrl.li
 router.get('/:id', ...reviewer, validate({ params: idParam }), ctrl.getById);
 router.post('/:id/admit', ...reviewer, validate({ params: idParam, body: admitApplicationSchema }), ctrl.admit);
 router.post('/:id/reject', ...reviewer, validate({ params: idParam, body: rejectApplicationSchema }), ctrl.reject);
-router.post('/:id/resend-activation', ...reviewer, validate({ params: idParam }), ctrl.resendActivation);
+router.post('/:id/resend-activation', ...reviewer, resendLimiter, validate({ params: idParam }), ctrl.resendActivation);
 
 export default router;

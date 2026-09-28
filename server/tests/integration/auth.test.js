@@ -90,6 +90,25 @@ describe('auth', () => {
     assert.equal(count, 1);
   });
 
+  test('logout racing a refresh still ends the session: the rotated-to token is revoked too', async () => {
+    // The browser sends logout with the cookie it had, while a refresh (e.g. after the access token
+    // expired) has already rotated it; the refresh's new cookie then lands after the logout.
+    const { cookie: old } = await loginAs('student');
+    const rotated = await api().post('/api/auth/refresh').set('Cookie', old);
+    assert.equal(rotated.status, 200);
+    const replacement = rotated.headers['set-cookie'].find((c) => c.startsWith('scrs_refresh='));
+
+    assert.equal((await api().post('/api/auth/logout').set('Cookie', old)).status, 200);
+    assert.equal((await api().post('/api/auth/refresh').set('Cookie', replacement)).status, 401);
+  });
+
+  test('the refresh cookie is a browser-session cookie (closing the browser signs out)', async () => {
+    const { cookie } = await loginAs('lecturer');
+    assert.doesNotMatch(cookie, /Expires=|Max-Age=/i);
+    assert.match(cookie, /HttpOnly/);
+    assert.match(cookie, /SameSite=Strict/);
+  });
+
   test('logout still succeeds with an invalid or expired Bearer token', async () => {
     const { cookie } = await loginAs('lecturer');
     const res = await api().post('/api/auth/logout').set(auth('garbage.token.value')).set('Cookie', cookie);

@@ -34,10 +34,13 @@ export default function Profile() {
       <Card>
         <CardHeader title="Student record" />
         <dl className="grid gap-5 px-5 py-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Email" value={<>{user?.email} {user?.emailVerifiedAt ? <Badge tone="green">verified</Badge> : <Badge tone="amber">not verified</Badge>}</>} />
-          <Field label="Student number" value={s?.studentNumber} />
+          <Field label="Student ID" value={s?.studentNumber} />
+          <Field label="School email" value={<>{user?.email} {user?.emailVerifiedAt ? <Badge tone="green">verified</Badge> : <Badge tone="amber">not verified</Badge>}</>} />
           <Field label="Programme" value={s?.program?.name} />
+          <Field label="Department" value={s?.program?.department?.name} />
           <Field label="Level" value={s?.level} />
+          {/* Every student record comes from an admission (online application or staff admission). */}
+          <Field label="Admission status" value={s && <Badge tone="green">Admitted</Badge>} />
           <Field label="Status" value={s?.status && <StatusBadge status={s.status === 'active' ? 'active' : s.status === 'suspended' ? 'suspended' : undefined} label={s.status[0].toUpperCase() + s.status.slice(1)} />} />
           <Field label="Admitted" value={s?.admissionYear} />
         </dl>

@@ -1,14 +1,15 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import nodemailer from 'nodemailer';
-import { sendMail } from '../../src/services/email.service.js';
+import { sendMail, redactTokens } from '../../src/services/email.service.js';
 import { isEmailable } from '../../src/services/notification.service.js';
 
 describe('email service', () => {
   test('falls back to logging (never throws) when SMTP is not configured', async () => {
     // The test environment has no SMTP_HOST set, exercising the real default-transporter path.
     const result = await sendMail({ to: 'student@example.com', subject: 'Test', text: 'Hello' });
-    assert.deepEqual(result, { sent: false });
+    assert.equal(result.sent, false);
+    assert.match(result.error, /not configured/);
   });
 
   test('sends through an injected transporter and actually composes the message', async () => {
@@ -28,6 +29,15 @@ describe('email service', () => {
     const result = await sendMail({ to: 'x@example.com', subject: 'x', text: 'x' }, { transporter });
     assert.equal(result.sent, false);
     assert.match(result.error, /SMTP connection refused/);
+  });
+});
+
+describe('token redaction in logged emails', () => {
+  test('hides token values in links but keeps the rest', () => {
+    const text = 'Activate: http://app/activate-account?token=abcDEF_123-xyz\nReset: http://app/reset-password?x=1&token=zzz9 done';
+    const out = redactTokens(text);
+    assert.equal(out, 'Activate: http://app/activate-account?token=[redacted]\nReset: http://app/reset-password?x=1&token=[redacted] done');
+    assert.doesNotMatch(out, /abcDEF_123|zzz9/);
   });
 });
 

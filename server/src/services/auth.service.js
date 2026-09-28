@@ -184,6 +184,24 @@ export const refresh = async (rawToken, meta) => {
   });
 };
 
+// Far more than one device rotates between two requests; only a guard against a malformed loop.
+const MAX_CHAIN = 50;
+
+/**
+ * Revokes a refresh token and every token it was rotated into. A logout can race a refresh: the
+ * browser sends the cookie it had while a refresh has already replaced it, and the replacement cookie
+ * arrives after the logout. Following `replaced_by_hash` ends that device's session either way.
+ */
+const revokeChain = async (token) => {
+  const now = new Date();
+  let current = token;
+  for (let i = 0; current && i < MAX_CHAIN; i += 1) {
+    if (!current.revokedAt) await current.update({ revokedAt: now });
+    if (!current.replacedByHash) break;
+    current = await RefreshToken.findOne({ where: { tokenHash: current.replacedByHash, userId: token.userId } });
+  }
+};
+
 /**
  * Revokes the refresh token from the cookie. The user comes from the (optional) Bearer token,
  * or else from the refresh token itself, so every logout is audited.
@@ -196,7 +214,7 @@ export const logout = async (rawToken, userId, req, accessAuth) => {
     const stored = await RefreshToken.findOne({ where: { tokenHash: hashToken(rawToken) } });
     if (stored) {
       ownerId ??= stored.userId;
-      if (!stored.revokedAt) await stored.update({ revokedAt: new Date() });
+      await revokeChain(stored);
     }
   }
   if (ownerId) await audit.log({ userId: ownerId, action: 'auth.logout', entityType: 'User', entityId: ownerId, req });

@@ -3,7 +3,7 @@ import {
   sequelize, User, Role, Student, Program, Department, AdmissionApplication, AcademicYear, Semester,
 } from '../models/index.js';
 import env from '../config/env.js';
-import { BadRequestError, ConflictError, NotFoundError } from '../utils/errors.js';
+import { BadRequestError, ConflictError, NotFoundError, TooManyAttemptsError } from '../utils/errors.js';
 import { APPLICATION_STATUS, ROLES, USER_STATUS } from '../utils/constants.js';
 import { hashPassword, UNUSABLE_PASSWORD_HASH } from '../utils/password.js';
 import { generateOpaqueToken, hashToken } from '../utils/jwt.js';
@@ -45,7 +45,10 @@ const detailInclude = [
   { model: User, as: 'user', attributes: ['id', 'status', 'emailVerifiedAt'] },
 ];
 
-const activationLink = (token) => `${env.FRONTEND_URL}/activate?token=${token}`;
+const activationLink = (token) => `${env.FRONTEND_URL}/activate-account?token=${token}`;
+
+/** Minimum gap between two sends of the admission email for one application. */
+export const RESEND_COOLDOWN_MS = 60 * 1000;
 
 /** Levels a programme admits into: 100 up to its final year. */
 const maxLevelFor = (program) => program.durationYears * 100;
@@ -87,7 +90,13 @@ const defaultSession = async (transaction) => {
  * is already registered (nothing is created or sent), so the endpoint can't be used to find accounts.
  */
 export const signUp = async ({ firstName, lastName, email, password }, req) => {
-  if (await User.findOne({ where: { email }, attributes: ['id'] })) return null;
+  // Also taken: a personal email an application already used. After admission that account's email
+  // becomes the school address, and one person must not end up with a second application.
+  const [existingUser, existingApplication] = await Promise.all([
+    User.findOne({ where: { email }, attributes: ['id'] }),
+    AdmissionApplication.findOne({ where: { personalEmail: email }, attributes: ['id'] }),
+  ]);
+  if (existingUser || existingApplication) return null;
 
   const passwordHash = await hashPassword(password);
   let user;
@@ -223,22 +232,109 @@ const lockSubmitted = async (id, transaction) => {
   return application;
 };
 
-/** Plain-text admission email. Exported for tests. */
-export const admissionEmail = ({ institution, firstName, programName, level, studentNumber, schoolEmail, link, hours }) => ({
-  subject: `Admission to ${institution}`,
-  text: `Dear ${firstName},\n\nCongratulations! You have been admitted to ${programName} at level ${level}.\n\n`
-    + `Student ID: ${studentNumber}\nSchool email: ${schoolEmail}\n\n`
-    + `Activate your student account and choose your PIN here. This link works once and expires in ${hours} hours:\n\n${link}\n\n`
-    + 'After activating, sign in with your Student ID and PIN. If the link has expired, contact the admissions office for a new one.',
-});
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[c]));
 
+/**
+ * The admission confirmation + activation email, as plain text and HTML (table layout and inline
+ * styles, which is what email clients render reliably). It never contains a PIN or password: the
+ * student chooses their PIN on the activation page. Exported for tests.
+ */
+export const admissionEmail = ({
+  institution, firstName, lastName, programName, departmentName, level, studentNumber, schoolEmail, link, hours,
+}) => {
+  const name = [firstName, lastName].filter(Boolean).join(' ');
+  const rows = [
+    ['Student ID', studentNumber],
+    ['Programme', programName],
+    ...(departmentName ? [['Department', departmentName]] : []),
+    ['Level', level],
+    ['School email', schoolEmail],
+  ];
+  const text = `Dear ${name},\n\nCongratulations! You have been admitted to ${institution}.\n\n`
+    + `${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n`
+    + 'Activate your student account to choose your PIN. The link works once and expires in '
+    + `${hours} hours:\n\n${link}\n\n`
+    + 'After activating, sign in with your Student ID and your new PIN. Your school email is created for you; '
+    + 'keep using this personal address until you have access to it.\n\n'
+    + 'If the link has expired or has already been used, contact the admissions office for a new one. '
+    + "If you didn't apply for admission, you can ignore this email.";
+
+  const e = escapeHtml;
+  const cell = 'padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:14px;';
+  const html = `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
+  <tr><td style="background:#1d4ed8;padding:20px 28px;color:#ffffff;font-size:18px;font-weight:bold;">${e(institution)}</td></tr>
+  <tr><td style="padding:28px;">
+    <p style="margin:0 0 12px;font-size:16px;">Dear ${e(name)},</p>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.5;"><strong>Congratulations!</strong> You have been admitted to ${e(institution)}. Your student record is ready:</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:6px;margin:0 0 24px;">
+      ${rows.map(([k, v]) => `<tr><td style="${cell}color:#64748b;width:40%;">${e(k)}</td><td style="${cell}font-weight:bold;">${e(v)}</td></tr>`).join('')}
+    </table>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">Activate your student account to choose the PIN you will sign in with:</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;"><tr><td style="border-radius:6px;background:#1d4ed8;">
+      <a href="${e(link)}" style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;">Activate Student Account</a>
+    </td></tr></table>
+    <p style="margin:0 0 8px;font-size:13px;color:#475569;line-height:1.5;">This link works <strong>once</strong> and expires in <strong>${e(hours)} hours</strong>. After activating, sign in with your Student ID and your new PIN.</p>
+    <p style="margin:0 0 8px;font-size:13px;color:#475569;line-height:1.5;">If the button doesn't work, copy this address into your browser:<br><span style="word-break:break-all;color:#1d4ed8;">${e(link)}</span></p>
+    <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;line-height:1.5;">If the link has expired or was already used, contact the admissions office for a new one. If you didn't apply for admission, you can ignore this email.</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+  return { subject: `Admission to ${institution}: activate your student account`, text, html };
+};
+
+// Tests may route admission emails through a nodemailer transport (e.g. jsonTransport); normally unset,
+// so email.service's configured transporter is used. It only ever feeds sendMail's own `transporter` seam.
+let testTransporter;
+export const useTransporterForTests = (transporter) => {
+  testTransporter = transporter;
+};
+
+/**
+ * Sends the admission email to the personal address and records the attempt on the application.
+ * Never throws: a failed send leaves the admission in place and shows as `activationEmailError`
+ * for the admin, who can resend.
+ */
 const sendAdmissionEmail = async (application, { studentNumber, schoolEmail, program, level }, token) => {
-  const institution = await settingService.get('institution.name');
+  const [institution, department] = await Promise.all([
+    settingService.get('institution.name'),
+    program.departmentId ? Department.findByPk(program.departmentId, { attributes: ['name'] }) : null,
+  ]);
   const message = admissionEmail({
-    institution, firstName: application.firstName, programName: program.name, level, studentNumber, schoolEmail,
-    link: activationLink(token), hours: env.ACTIVATION_EXPIRES_HOURS,
+    institution,
+    firstName: application.firstName,
+    lastName: application.lastName,
+    programName: program.name,
+    departmentName: department?.name,
+    level,
+    studentNumber,
+    schoolEmail,
+    link: activationLink(token),
+    hours: env.ACTIVATION_EXPIRES_HOURS,
   });
-  return emailService.sendMail({ to: application.personalEmail, ...message });
+  const result = await emailService.sendMail(
+    { to: application.personalEmail, ...message },
+    testTransporter ? { transporter: testTransporter } : undefined,
+  );
+
+  const now = new Date();
+  const error = result.sent ? null : String(result.error ?? 'The email could not be sent').slice(0, 255);
+  await AdmissionApplication.update(
+    {
+      activationEmailAttempts: sequelize.literal('activation_email_attempts + 1'),
+      activationEmailLastAttemptAt: now,
+      activationEmailError: error,
+      ...(result.sent ? { activationEmailSentAt: now } : {}),
+    },
+    { where: { id: application.id } },
+  ).catch(() => {}); // recording is best effort; the admission itself is already committed
+  return { sent: Boolean(result.sent), error };
 };
 
 const newActivation = () => {
@@ -319,8 +415,9 @@ export const admit = async (id, { programId, level, admissionSession } = {}, act
     };
   });
 
-  await sendAdmissionEmail(application, identity, token);
-  return { application: await getById(application.id), activationToken: token };
+  // After commit: a failed send never undoes the admission; it is recorded for the admin to resend.
+  const emailDelivery = await sendAdmissionEmail(application, identity, token);
+  return { application: await getById(application.id), emailDelivery, activationToken: token };
 };
 
 export const reject = async (id, { reason } = {}, actor, req) => {
@@ -342,7 +439,11 @@ export const reject = async (id, { reason } = {}, actor, req) => {
   return getById(id);
 };
 
-/** A new activation link for an admitted student who hasn't activated yet; the previous link stops working. */
+/**
+ * A new activation link for an admitted student who hasn't activated yet; the previous link stops
+ * working. Never creates a student record. After a successful send, at most one more per
+ * RESEND_COOLDOWN_MS, claimed with a conditional update so parallel clicks can't both send.
+ */
 export const resendActivation = async (id, actor, req) => {
   const application = await AdmissionApplication.findByPk(id, {
     include: [programInclude, { model: Student, as: 'student', attributes: ['id', 'studentNumber', 'level'] }],
@@ -351,13 +452,31 @@ export const resendActivation = async (id, actor, req) => {
   const user = await User.findByPk(application.userId);
   if (user.status !== USER_STATUS.PENDING) throw new ConflictError('This student has already activated their account');
 
+  // Claimed under a row lock (not a conditional UPDATE: MySQL reports 0 changed rows when a send in
+  // the same second wrote the same timestamp), so parallel clicks can't both send.
+  await sequelize.transaction(async (transaction) => {
+    const row = await AdmissionApplication.findByPk(id, {
+      attributes: ['id', 'activationEmailLastAttemptAt', 'activationEmailError'], transaction, lock: transaction.LOCK.UPDATE,
+    });
+    const last = row.activationEmailLastAttemptAt;
+    // The cooldown follows a successful send only: after a failure the admin may retry at once
+    // (the route's resendLimiter still caps attempts).
+    if (last && !row.activationEmailError && Date.now() - last.getTime() < RESEND_COOLDOWN_MS) {
+      throw new TooManyAttemptsError(
+        `An activation email was sent less than ${RESEND_COOLDOWN_MS / 1000} seconds ago. Wait a moment before resending.`,
+        'RESEND_COOLDOWN',
+      );
+    }
+    await row.update({ activationEmailLastAttemptAt: new Date(), activationEmailError: null }, { transaction });
+  });
+
   const activation = newActivation();
   await User.update(activation.fields, { where: { id: user.id } });
   await audit.log({ userId: actor.id, action: 'application.resend_activation', entityType: 'AdmissionApplication', entityId: id, req });
-  await sendAdmissionEmail(application, {
+  const emailDelivery = await sendAdmissionEmail(application, {
     studentNumber: application.student.studentNumber, schoolEmail: user.email, program: application.program, level: application.student.level,
   }, activation.token);
-  return { activationToken: activation.token };
+  return { emailDelivery, activationToken: activation.token };
 };
 
 // ── activation (public) ──────────────────────────────────────────────────────
@@ -383,6 +502,7 @@ export const activate = async ({ token, pin }, req) => sequelize.transaction(asy
     failedLoginAttempts: 0,
     lockedUntil: null,
   }, { transaction });
+  await AdmissionApplication.update({ accountActivatedAt: new Date() }, { where: { userId: user.id }, transaction });
   await audit.log({ userId: user.id, action: 'auth.activate', entityType: 'User', entityId: user.id, req, transaction });
   return { studentNumber: student?.studentNumber, schoolEmail: user.email };
 });

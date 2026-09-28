@@ -8,7 +8,7 @@ import {
   resetDatabase, api, loginAs, login, auth, query, sectionIdFor, sequelize,
   createApplicant, completeApplication, submitApplication, plantActivationToken, APPLICANT_PASSWORD,
 } from './helpers.js';
-import { admissionEmail } from '../../src/services/application.service.js';
+import { admissionEmail, useTransporterForTests } from '../../src/services/application.service.js';
 
 let admin;
 let registrar;
@@ -157,11 +157,11 @@ describe('review', () => {
 
     const res = await admit(application.id);
     assert.equal(res.status, 200, JSON.stringify(res.body));
-    const admitted = res.body.data;
+    const admitted = res.body.data.application;
     assert.equal(admitted.status, 'admitted');
     assert.match(admitted.student.studentNumber, /^STU\d{9}$/);
     assert.equal(admitted.student.level, 200);
-    assert.equal(JSON.stringify(res.body).includes('activation'), false, 'no activation token in the response');
+    assert.doesNotMatch(JSON.stringify(res.body), /token/i, 'no activation token in the response');
 
     const [row] = await query(
       `SELECT s.program_id, s.admission_number, u.email, u.status, u.password_hash, u.activation_hash, r.name AS role
@@ -200,19 +200,35 @@ describe('review', () => {
     const application = await submitApplication(applicant);
     assert.equal((await admit(application.id, { level: 900 })).status, 400);
     const res = await admit(application.id, { level: 100 });
-    assert.equal(res.body.data.student.level, 100);
+    assert.equal(res.body.data.application.student.level, 100);
   });
 
   test('the admission email carries the Student ID, school email and activation link — never a PIN', () => {
     const message = admissionEmail({
-      institution: 'SCRS', firstName: 'Ada', programName: 'Computer Science', level: 100,
-      studentNumber: 'STU202600042', schoolEmail: 'stu202600042@students.scrs.edu', link: 'http://app/activate?token=abc', hours: 72,
+      institution: 'SCRS', firstName: 'Ada', lastName: 'Lovelace', programName: 'Computer Science', departmentName: 'Computing', level: 100,
+      studentNumber: 'STU202600042', schoolEmail: 'stu202600042@students.scrs.edu', link: 'http://app/activate-account?token=abc', hours: 72,
     });
-    assert.match(message.text, /STU202600042/);
-    assert.match(message.text, /stu202600042@students\.scrs\.edu/);
-    assert.match(message.text, /http:\/\/app\/activate\?token=abc/);
-    assert.match(message.text, /expires in 72 hours/);
-    assert.doesNotMatch(message.text, /\bPIN: \d{6}/);
+    for (const body of [message.text, message.html]) {
+      assert.match(body, /Ada Lovelace/);
+      assert.match(body, /STU202600042/);
+      assert.match(body, /stu202600042@students\.scrs\.edu/);
+      assert.match(body, /Computer Science/);
+      assert.match(body, /Computing/);
+      assert.match(body, /http:\/\/app\/activate-account\?token=abc/);
+      assert.match(body, /72 hours/);
+      assert.doesNotMatch(body, /\bPIN: \d{6}/);
+    }
+    assert.match(message.html, />Activate Student Account</);
+  });
+
+  test('the HTML email escapes applicant-supplied text', () => {
+    const { html } = admissionEmail({
+      institution: 'SCRS', firstName: '<script>alert(1)</script>', lastName: 'O\'Neil', programName: 'CS', level: 100,
+      studentNumber: 'STU1', schoolEmail: 'a@b.c', link: 'http://app/activate-account?token=abc', hours: 72,
+    });
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /&lt;script&gt;/);
+    assert.match(html, /O&#39;Neil/);
   });
 });
 
@@ -222,7 +238,7 @@ describe('activation', () => {
     const application = await submitApplication(applicant);
     const res = await admit(application.id);
     assert.equal(res.status, 200, JSON.stringify(res.body));
-    return { applicant, application, studentNumber: res.body.data.student.studentNumber };
+    return { applicant, application, studentNumber: res.body.data.application.student.studentNumber };
   };
 
   test('a valid link sets the PIN once; the student then signs in with Student ID + PIN', async () => {
@@ -283,7 +299,7 @@ describe('from admission to an approved registration and timetable', () => {
     const applicant = await createApplicant(30);
     const application = await submitApplication(applicant, { entryLevel: 100 });
     const admitted = await admit(application.id);
-    const { studentNumber, id: studentId } = admitted.body.data.student;
+    const { studentNumber, id: studentId } = admitted.body.data.application.student;
     await activate(await plantActivationToken(application.userId));
     const me = await login(studentNumber, PIN);
 
@@ -324,5 +340,98 @@ describe('from admission to an approved registration and timetable', () => {
     const timetable = await api().get('/api/timetable/me').set(auth(me.token));
     assert.equal(timetable.body.data.registrationStatus, 'approved');
     assert.deepEqual(timetable.body.data.conflicts, []);
+  });
+});
+
+describe('admission email delivery', () => {
+  const outbox = [];
+  const working = { sendMail: async (message) => { outbox.push(message); return { messageId: `<m${outbox.length}@test>` }; } };
+  const broken = { sendMail: async () => { throw new Error('SMTP connection refused'); } };
+  const linkIn = (message) => message.text.match(/(http\S+\/activate-account\?token=([\w-]+))/);
+  const studentsFor = async (userId) => (await query('SELECT COUNT(*) AS n FROM students WHERE user_id = :userId', { userId }))[0].n;
+  const delivery = async (id) => (await query(
+    `SELECT activation_email_sent_at AS sentAt, activation_email_attempts AS attempts, activation_email_error AS error, account_activated_at AS activatedAt
+       FROM admission_applications WHERE id = :id`, { id },
+  ))[0];
+  after(() => useTransporterForTests(undefined));
+
+  test('Gmail applicant → admitted → email to the Gmail address → activate from the emailed link → sign in', async () => {
+    useTransporterForTests(working);
+    const email = 'john.doe.scrs@gmail.com';
+    assert.equal((await signUp({ firstName: 'John', lastName: 'Doe', email, password: APPLICANT_PASSWORD })).status, 202);
+    await query('UPDATE users SET email_verified_at = NOW() WHERE email = :email', { email });
+    const applicant = await login(email, APPLICANT_PASSWORD);
+    const application = await submitApplication(applicant);
+    assert.equal(application.personalEmail, email);
+
+    const before = outbox.length;
+    const res = await admit(application.id);
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.deepEqual(res.body.data.emailDelivery, { sent: true, error: null });
+    const { studentNumber } = res.body.data.application.student;
+
+    assert.equal(outbox.length, before + 1);
+    const message = outbox.at(-1);
+    assert.equal(message.to, email, 'sent to the personal (Gmail) address');
+    assert.notEqual(message.to, `${studentNumber.toLowerCase()}@students.scrs.edu`, 'not to the new school mailbox');
+    assert.match(message.html, /Activate Student Account/);
+    assert.match(message.text, new RegExp(studentNumber));
+
+    const [, link, token] = linkIn(message);
+    assert.ok(link.startsWith(`${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/activate-account?token=`));
+    const recorded = await delivery(application.id);
+    assert.ok(recorded.sentAt);
+    assert.equal(recorded.attempts, 1);
+    assert.equal(recorded.error, null);
+
+    assert.equal((await activate(token, PIN)).status, 200);
+    assert.equal((await activate(token, PIN)).status, 400, 'the emailed link is single use');
+    assert.ok((await delivery(application.id)).activatedAt, 'activation time recorded');
+    const session = await login(studentNumber, PIN);
+    assert.equal((await api().get('/api/registrations/current').set(auth(session.token))).status, 200, 'the student reaches course registration');
+  });
+
+  test('a failed send keeps the admission, is recorded for the admin, and resend delivers without a second student', async () => {
+    useTransporterForTests(broken);
+    const applicant = await createApplicant(40);
+    const application = await submitApplication(applicant);
+
+    const res = await admit(application.id);
+    assert.equal(res.status, 200, 'admission is not undone');
+    assert.equal(res.body.data.emailDelivery.sent, false);
+    assert.match(res.body.data.emailDelivery.error, /SMTP connection refused/);
+    assert.equal(res.body.data.application.status, 'admitted');
+    const failed = await delivery(application.id);
+    assert.equal(failed.sentAt, null);
+    assert.match(failed.error, /SMTP connection refused/);
+    const detail = await api().get(`/api/applications/${application.id}`).set(auth(admin.token));
+    assert.match(detail.body.data.activationEmailError, /SMTP connection refused/);
+
+    // A failed send can be retried straight away.
+    useTransporterForTests(working);
+    const resent = await api().post(`/api/applications/${application.id}/resend-activation`).set(auth(admin.token));
+    assert.equal(resent.status, 200, JSON.stringify(resent.body));
+    assert.equal(resent.body.data.emailDelivery.sent, true);
+    assert.doesNotMatch(JSON.stringify(resent.body), /token=/);
+    const after = await delivery(application.id);
+    assert.equal(after.error, null);
+    assert.equal(after.attempts, 2);
+    assert.equal(await studentsFor(application.userId), 1, 'resending never creates another student');
+
+    // After a successful send, another resend within the cooldown is refused.
+    const tooSoon = await api().post(`/api/applications/${application.id}/resend-activation`).set(auth(admin.token));
+    assert.equal(tooSoon.status, 429);
+    assert.equal(tooSoon.body.error.code, 'RESEND_COOLDOWN');
+
+    const [, , token] = linkIn(outbox.at(-1));
+    assert.equal((await activate(token)).status, 200, 'the resent link works');
+  });
+
+  test('a personal email that already has an application cannot sign up again', async () => {
+    const [{ personal_email: email }] = await query("SELECT personal_email FROM admission_applications WHERE status = 'admitted' LIMIT 1");
+    const res = await signUp({ firstName: 'Again', lastName: 'Person', email, password: APPLICANT_PASSWORD });
+    assert.equal(res.status, 202, 'same answer as a fresh sign-up');
+    const [{ n }] = await query("SELECT COUNT(*) AS n FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = :email AND r.name = 'APPLICANT'", { email });
+    assert.equal(n, 0);
   });
 });

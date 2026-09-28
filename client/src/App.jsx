@@ -100,6 +100,8 @@ export default function App() {
             {/* Reachable while signed in too: emailed links may be opened in a logged-in browser. */}
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/activate-account" element={<Activate />} />
+            {/* Links emailed before the path changed still work. */}
             <Route path="/activate" element={<Activate />} />
           </Route>
 

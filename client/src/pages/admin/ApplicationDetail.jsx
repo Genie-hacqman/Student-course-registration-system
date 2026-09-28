@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, MailPlus, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
-import { Button, Card, CardHeader, ErrorState, Loading, Select, StatusBadge } from '../../components/ui'
+import { Badge, Button, Card, CardHeader, ErrorState, Loading, Select, StatusBadge } from '../../components/ui'
 import FormModal, { Textarea } from '../../components/admin/FormModal'
 import { APPLICATION_STATUS, formatDate, formatDateTime, fullName } from '../../lib/format'
 import { optionalNumber } from '../../lib/forms'
@@ -24,11 +25,20 @@ export default function ApplicationDetail() {
   const { id } = useParams()
   const application = useApi(`/applications/${id}`)
   const [deciding, setDeciding] = useState(null)
-  const admit = useApiMutation((body) => http.post(`/applications/${id}/admit`, body), {
-    success: (a) => `Admitted as ${a.student?.studentNumber}. The activation link was emailed to ${a.personalEmail}.`,
-  })
+  const admit = useApiMutation((body) => http.post(`/applications/${id}/admit`, body))
   const reject = useApiMutation((body) => http.post(`/applications/${id}/reject`, body), { success: 'Applicant notified of the decision' })
-  const resend = useApiMutation(() => http.post(`/applications/${id}/resend-activation`), { success: (d) => d.message })
+  const resend = useApiMutation(() => http.post(`/applications/${id}/resend-activation`))
+
+  // Admission stands even when the email fails; the admin is told and can resend.
+  const onAdmit = async (body) => {
+    const { application: a, emailDelivery } = await admit.mutateAsync(body)
+    if (emailDelivery.sent) toast.success(`Admitted as ${a.student?.studentNumber}. The activation email was sent to ${a.personalEmail}.`)
+    else toast.warning(`Admitted as ${a.student?.studentNumber}, but the activation email could not be sent: ${emailDelivery.error}`, { description: 'Use “Resend Activation Email” once the problem is fixed.', duration: 10_000 })
+  }
+  const onResend = () => resend.mutate(undefined, {
+    onSuccess: ({ message, emailDelivery }) => (emailDelivery.sent ? toast.success(message) : toast.warning(message)),
+    onError: (err) => toast.error(err.message),
+  })
 
   if (application.isPending) return <Loading />
   if (application.isError) return <ErrorState error={application.error} onRetry={() => application.refetch()} />
@@ -58,7 +68,7 @@ export default function ApplicationDetail() {
               </>
             )}
             {awaitingActivation && (
-              <Button variant="secondary" loading={resend.isPending} onClick={() => resend.mutate()}><MailPlus className="size-4" /> Resend activation link</Button>
+              <Button variant="secondary" loading={resend.isPending} onClick={onResend}><MailPlus className="size-4" /> Resend Activation Email</Button>
             )}
           </div>
         </div>
@@ -71,7 +81,14 @@ export default function ApplicationDetail() {
           <Field label="Submitted">{formatDateTime(a.submittedAt)}</Field>
           {a.reviewedAt && <Field label="Decided">{`${formatDateTime(a.reviewedAt)}${a.reviewer ? ` by ${fullName(a.reviewer)}` : ''}`}</Field>}
           {a.student && <Field label="Student ID">{a.student.studentNumber}</Field>}
-          {a.status === 'admitted' && <Field label="Account">{awaitingActivation ? 'Waiting for activation' : 'Activated'}</Field>}
+          {a.status === 'admitted' && (
+            <Field label="Account">{awaitingActivation ? 'Waiting for activation' : `Activated${a.accountActivatedAt ? ` ${formatDateTime(a.accountActivatedAt)}` : ''}`}</Field>
+          )}
+          {a.status === 'admitted' && (
+            <Field label="Activation email">
+              <EmailDelivery application={a} />
+            </Field>
+          )}
         </dl>
         {a.rejectionReason && (
           <p className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-800"><span className="font-medium">Reason given:</span> {a.rejectionReason}</p>
@@ -95,7 +112,7 @@ export default function ApplicationDetail() {
         title={`Admit ${a.firstName} ${a.lastName}`}
         schema={admitSchema}
         defaultValues={{ level: a.entryLevel ?? '' }}
-        onSubmit={(v) => admit.mutateAsync(v.level ? { level: v.level } : {})}
+        onSubmit={(v) => onAdmit(v.level ? { level: v.level } : {})}
         submitLabel="Admit"
       >
         {({ register, formState: { errors } }) => (
@@ -126,4 +143,26 @@ export default function ApplicationDetail() {
       </FormModal>
     </div>
   )
+}
+
+/** Where the admission email stands: sent, failed (with the reason), or not attempted. */
+function EmailDelivery({ application: a }) {
+  const attempts = a.activationEmailAttempts ? ` · ${a.activationEmailAttempts} attempt${a.activationEmailAttempts === 1 ? '' : 's'}` : ''
+  if (a.activationEmailError) {
+    return (
+      <span className="block leading-tight">
+        <Badge tone="red">Failed</Badge>
+        <span className="mt-1 block text-xs font-normal text-red-700">{a.activationEmailError}{attempts}</span>
+      </span>
+    )
+  }
+  if (a.activationEmailSentAt) {
+    return (
+      <span className="block leading-tight">
+        <Badge tone="green">Sent</Badge>
+        <span className="mt-1 block text-xs font-normal text-slate-500">to {a.personalEmail}, {formatDateTime(a.activationEmailSentAt)}{attempts}</span>
+      </span>
+    )
+  }
+  return <Badge tone="slate">Not sent</Badge>
 }

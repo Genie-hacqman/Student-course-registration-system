@@ -27,10 +27,14 @@ const getDefaultTransporter = () => {
  * `{ sent: false }` back instead. Pass `transporter` to use one other than the env-configured
  * default (tests inject nodemailer's jsonTransport/streamTransport to avoid any real network call).
  */
+/** Hides token values in links (activation, reset, verification) so raw tokens never reach the logs. */
+export const redactTokens = (text) => String(text ?? '').replace(/([?&]token=)[^\s&"'<>]+/g, '$1[redacted]');
+
 export const sendMail = async ({ to, subject, text, html }, { transporter = getDefaultTransporter() } = {}) => {
   if (!transporter) {
-    logger.info(`[email not configured] to=${to} subject="${subject}"\n${text}`);
-    return { sent: false };
+    const body = env.EMAIL_LOG_LINKS ? text : redactTokens(text);
+    logger.info(`[email not configured] to=${to} subject="${subject}"\n${body}`);
+    return { sent: false, error: 'Email is not configured on the server (SMTP_HOST is not set)' };
   }
   try {
     const info = await transporter.sendMail({ from: env.SMTP_FROM, to, subject, text, html });

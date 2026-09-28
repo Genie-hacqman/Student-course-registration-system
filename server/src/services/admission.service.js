@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { sequelize, User, Role, Student, Program } from '../models/index.js';
+import env from '../config/env.js';
 import { BadRequestError, ConflictError } from '../utils/errors.js';
 import { ROLES, USER_STATUS } from '../utils/constants.js';
 import { hashTemporaryPin } from '../utils/password.js';
@@ -21,9 +22,10 @@ import * as audit from './audit.service.js';
 
 /** The institution's student email domain; admission refuses to run without it. */
 export const studentEmailDomain = async (transaction) => {
-  const domain = await settingService.get('institution.studentEmailDomain', { transaction });
+  // The setting (Staff → System settings) wins; SCHOOL_EMAIL_DOMAIN in the environment is the fallback.
+  const domain = await settingService.get('institution.studentEmailDomain', { transaction }) || env.SCHOOL_EMAIL_DOMAIN;
   if (!domain) {
-    throw new BadRequestError('Set the student email domain first (setting institution.studentEmailDomain, e.g. school.edu.gh)');
+    throw new BadRequestError('Set the student email domain first (setting institution.studentEmailDomain, e.g. school.edu.gh, or SCHOOL_EMAIL_DOMAIN)');
   }
   return domain;
 };

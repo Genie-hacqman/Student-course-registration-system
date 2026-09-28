@@ -79,13 +79,22 @@ export const refreshAccessToken = () => {
   return refreshPromise
 }
 
+/** Resolves once any refresh in flight has settled, so logout never races a token rotation. */
+export const waitForRefresh = () => (refreshPromise ? refreshPromise.catch(() => {}) : Promise.resolve())
+
+// While signing out, a 401 must not start a refresh: it would mint a new session cookie after logout.
+let signingOut = false
+export const setSigningOut = (value) => {
+  signingOut = value
+}
+
 const NO_RETRY = ['/auth/login', '/auth/refresh', '/auth/logout']
 
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const { config, response } = err
-    if (response?.status === 401 && config && !config._retried && !NO_RETRY.some((p) => config.url?.startsWith(p))) {
+    if (response?.status === 401 && config && !config._retried && !signingOut && !NO_RETRY.some((p) => config.url?.startsWith(p))) {
       config._retried = true
       try {
         await refreshAccessToken()

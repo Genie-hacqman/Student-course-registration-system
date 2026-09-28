@@ -8,14 +8,17 @@ const COOKIE_PATH = '/api/auth';
 
 const meta = (req) => ({ req, ip: req.ip, userAgent: req.get('user-agent') });
 
-/** The refresh token lives only in an HTTP-only cookie; frontend JavaScript never sees it. */
-const setRefreshCookie = (res, token, expires) => {
+/**
+ * The refresh token lives only in an HTTP-only cookie; frontend JavaScript never sees it. It is a
+ * browser-session cookie (no Expires), so fully closing the browser signs the user out; the token's
+ * own expiry (refresh_tokens.expires_at) still bounds a browser that stays open.
+ */
+const setRefreshCookie = (res, token) => {
   res.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
     secure: env.isProduction,
     sameSite: 'strict',
     path: COOKIE_PATH,
-    expires,
   });
 };
 
@@ -23,8 +26,8 @@ const clearRefreshCookie = (res) => {
   res.clearCookie(REFRESH_COOKIE, { httpOnly: true, secure: env.isProduction, sameSite: 'strict', path: COOKIE_PATH });
 };
 
-const authResponse = (res, { user, accessToken, refreshToken, refreshExpiresAt }, send = ok) => {
-  setRefreshCookie(res, refreshToken, refreshExpiresAt);
+const authResponse = (res, { user, accessToken, refreshToken }, send = ok) => {
+  setRefreshCookie(res, refreshToken);
   return send(res, { user, accessToken, tokenType: 'Bearer', expiresIn: env.JWT_ACCESS_EXPIRES });
 };
 
@@ -33,7 +36,7 @@ export const login = async (req, res) => authResponse(res, await authService.log
 export const refresh = async (req, res) => {
   try {
     const tokens = await authService.refresh(req.cookies?.[REFRESH_COOKIE], meta(req));
-    setRefreshCookie(res, tokens.refreshToken, tokens.refreshExpiresAt);
+    setRefreshCookie(res, tokens.refreshToken);
     return ok(res, { accessToken: tokens.accessToken, tokenType: 'Bearer', expiresIn: env.JWT_ACCESS_EXPIRES });
   } catch (err) {
     clearRefreshCookie(res);
