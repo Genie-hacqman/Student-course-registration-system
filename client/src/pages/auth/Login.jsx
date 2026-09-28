@@ -1,0 +1,121 @@
+import { useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { AlertTriangle } from 'lucide-react'
+import { useAuth } from '../../auth/AuthProvider'
+import { Button, Input, Tabs } from '../../components/ui'
+import { applyServerErrors, emailSchema } from '../../lib/forms'
+import { areaForRole, homeForRole } from '../../lib/roles'
+
+// Students sign in with the Student ID + PIN issued at admission; staff with their email + password.
+const MODES = {
+  student: {
+    schema: z.object({
+      identifier: z.string().trim().min(3, 'Enter your student ID'),
+      password: z.string().min(1, 'Enter your PIN'),
+    }),
+    id: { label: 'Student ID', placeholder: 'e.g. STU202600123', autoComplete: 'username', autoCapitalize: 'characters' },
+    secret: { label: 'PIN', inputMode: 'numeric', autoComplete: 'current-password' },
+    forgot: { to: '/forgot-pin', label: 'Forgot PIN?' },
+  },
+  // Prospective students, before admission: the personal email they applied with.
+  applicant: {
+    schema: z.object({ identifier: emailSchema, password: z.string().min(1, 'Enter your password') }),
+    id: { label: 'Personal email', type: 'email', autoComplete: 'email' },
+    secret: { label: 'Password', autoComplete: 'current-password' },
+    forgot: { to: '/forgot-password', label: 'Forgot password?' },
+  },
+  staff: {
+    schema: z.object({ identifier: emailSchema, password: z.string().min(1, 'Enter your password') }),
+    id: { label: 'Email', type: 'email', autoComplete: 'email' },
+    secret: { label: 'Password', autoComplete: 'current-password' },
+    forgot: { to: '/forgot-password', label: 'Forgot password?' },
+  },
+}
+
+const MODE_KEY = 'scrs.loginMode'
+const savedMode = () => {
+  try {
+    const saved = localStorage.getItem(MODE_KEY)
+    return saved in MODES ? saved : 'student'
+  } catch { return 'student' }
+}
+
+export default function Login() {
+  const location = useLocation()
+  const [mode, setMode] = useState(location.state?.mode ?? savedMode)
+
+  const choose = (next) => {
+    setMode(next)
+    try { localStorage.setItem(MODE_KEY, next) } catch { /* private mode: just don't remember */ }
+  }
+
+  return (
+    <>
+      <h1 className="text-xl font-semibold tracking-tight text-slate-900">Sign in</h1>
+      <Tabs
+        className="mt-4"
+        label="Sign in as"
+        items={[{ value: 'student', label: 'Student' }, { value: 'applicant', label: 'Applicant' }, { value: 'staff', label: 'Staff' }]}
+        value={mode}
+        onChange={choose}
+      />
+      {/* Keyed so switching tabs starts a clean form with the other mode's rules. */}
+      <LoginForm key={mode} mode={mode} />
+      {mode === 'student' && (
+        <p className="mt-6 text-center text-sm text-slate-500">
+          Newly admitted? Activate your account with the link in your admission email first.
+        </p>
+      )}
+      {mode !== 'staff' && (
+        <p className="mt-3 text-center text-sm text-slate-500">
+          Want to study with us?{' '}
+          <Link to="/apply" className="font-medium text-brand-600 hover:text-brand-700">Apply for admission</Link>
+        </p>
+      )}
+    </>
+  )
+}
+
+function LoginForm({ mode }) {
+  const { login } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const config = MODES[mode]
+  const [locked, setLocked] = useState(null)
+  const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm({ resolver: zodResolver(config.schema) })
+
+  const onSubmit = async (values) => {
+    setLocked(null)
+    try {
+      const user = await login(values)
+      if (user.mustChangePassword) return navigate('/change-pin', { replace: true })
+      const role = user.role?.name
+      const from = location.state?.from
+      // Only return to the page they came from if it's in their own area.
+      navigate(from?.startsWith(`/${areaForRole(role)}`) ? from : homeForRole(role), { replace: true })
+    } catch (err) {
+      if (err.code === 'ACCOUNT_LOCKED') setLocked(err.message)
+      else if (err.status === 401) setError('password', { message: err.message })
+      else applyServerErrors(err, setError)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4" noValidate>
+      <Input {...config.id} error={errors.identifier?.message} {...register('identifier')} />
+      <Input type="password" {...config.secret} error={errors.password?.message} {...register('password')} />
+      <div className="text-right text-sm">
+        <Link to={config.forgot.to} className="font-medium text-brand-600 hover:text-brand-700">{config.forgot.label}</Link>
+      </div>
+      {locked && (
+        <p role="alert" className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {locked}
+        </p>
+      )}
+      <Button type="submit" size="lg" loading={isSubmitting} className="w-full">Sign in</Button>
+    </form>
+  )
+}

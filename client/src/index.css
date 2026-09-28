@@ -1,0 +1,146 @@
+@import '@fontsource-variable/plus-jakarta-sans/wght.css';
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe6fe;
+  --color-brand-200: #bdd0fd;
+  --color-brand-300: #93b0fa;
+  --color-brand-400: #638ef8;
+  --color-brand-500: #3b6cf6;
+  --color-brand-600: #2553e0;
+  --color-brand-700: #1d42b5;
+  --color-brand-800: #1b3689;
+  --color-brand-900: #17275f;
+
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 8px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+  --shadow-xl: 0 24px 48px -12px rgb(15 23 42 / 0.18), 0 8px 16px -8px rgb(15 23 42 / 0.10);
+
+  --animate-fade-in: fade-in 150ms ease-out;
+  --animate-modal-in: modal-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-left: slide-in-left 220ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-slide-up: slide-up 550ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-up-1: slide-up 550ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both;
+  --animate-slide-up-2: slide-up 550ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both;
+  --animate-slide-up-3: slide-up 550ms cubic-bezier(0.16, 1, 0.3, 1) 270ms both;
+  --animate-slide-up-4: slide-up 550ms cubic-bezier(0.16, 1, 0.3, 1) 360ms both;
+  --animate-slide-up-5: slide-up 550ms cubic-bezier(0.16, 1, 0.3, 1) 450ms both;
+  --animate-illustration: slide-up 700ms cubic-bezier(0.16, 1, 0.3, 1) 180ms both, float 7s ease-in-out 900ms infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-delayed: float 6s ease-in-out 1.4s infinite;
+
+  /* Dashboard motion: short and purposeful. All of it is switched off under prefers-reduced-motion. */
+  --animate-fade-up: fade-up 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-shake: shake 320ms ease-in-out;
+  --animate-badge-pop: badge-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-check-circle: check-circle 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-check-draw: check-draw 350ms ease-out 250ms both;
+  --animate-sheet-up: sheet-up 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-pop-in: pop-in 140ms ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+
+@keyframes badge-pop {
+  0% { transform: scale(0.6); }
+  100% { transform: scale(1); }
+}
+
+@keyframes check-circle {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes check-draw {
+  from { stroke-dashoffset: 40; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Stagger children of an animated list: style={{ '--i': index }}. */
+.stagger {
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .print-area {
+    max-width: none;
+    padding: 0;
+  }
+}

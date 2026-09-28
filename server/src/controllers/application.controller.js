@@ -1,0 +1,36 @@
+import * as applicationService from '../services/application.service.js';
+import { ok, created, paginated } from '../utils/response.js';
+
+// Public
+export const signUp = async (req, res) => {
+  await applicationService.signUp(req.validated.body, req);
+  // The same answer whether or not the email was already registered.
+  return res.status(202).json({
+    success: true,
+    data: { message: 'If this email can be used, your account is ready — check your inbox to confirm your email address, then sign in.' },
+  });
+};
+export const activate = async (req, res) => ok(res.set('Cache-Control', 'no-store'), await applicationService.activate(req.validated.body, req));
+
+// Applicant (always their own application: no id in the route)
+export const options = async (req, res) => ok(res, await applicationService.options());
+export const mine = async (req, res) => ok(res, await applicationService.getMine(req.user.id));
+export const saveMine = async (req, res) => ok(res, await applicationService.saveDraft(req.user.id, req.validated.body, req));
+export const submitMine = async (req, res) => ok(res, await applicationService.submit(req.user.id, req));
+
+// Reviewers. Activation tokens returned by the service are never sent to the client.
+export const list = async (req, res) => {
+  const { result, page, limit } = await applicationService.list(req.validated.query);
+  return paginated(res, result, { page, limit });
+};
+export const getById = async (req, res) => ok(res, await applicationService.getById(req.validated.params.id));
+export const admit = async (req, res) => {
+  const { application } = await applicationService.admit(req.validated.params.id, req.validated.body, req.user, req);
+  return ok(res, application);
+};
+export const reject = async (req, res) =>
+  ok(res, await applicationService.reject(req.validated.params.id, req.validated.body, req.user, req));
+export const resendActivation = async (req, res) => {
+  await applicationService.resendActivation(req.validated.params.id, req.user, req);
+  return ok(res, { message: 'A new activation link was sent to the applicant\'s personal email.' });
+};

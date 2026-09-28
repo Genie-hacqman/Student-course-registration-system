@@ -1,0 +1,186 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+npm run dev                  # nodemon server.js (needs a reachable MySQL + .env)
+npm run db:create | db:migrate | db:seed | db:seed:demo | db:reset
+npm test                     # all tests: NODE_ENV=test node --test, one file at a time
+npm run test:unit            # rule/pure-function tests only, no DB needed
+
+# Single file / single test
+NODE_ENV=test node --test tests/integration/registration.test.js
+NODE_ENV=test node --test --test-name-pattern="last seat" tests/integration/registration.test.js
+```
+
+There is no linter or build step. CI (`.github/workflows/ci.yml`) runs `npm test` against a MySQL 8 service
+container on every push/PR — it needs no repo secrets; `JWT_ACCESS_SECRET` there is a hardcoded CI-only
+placeholder, and only `<DB_NAME>_test` is ever touched, matching local runs. The code is plain JavaScript ESM (`"type": "module"`), running on Node 24.
+
+**Integration tests are destructive.** They run `sequelize-cli db:drop` / `db:create` / `migrate` / `seed:all` against `<DB_NAME>_test`; see `resetDatabase()` in `tests/integration/helpers.js`. `helpers.js` refuses to load unless `NODE_ENV=test`.
+
+To point tests at a different server without editing `.env`, override the variables inline, e.g. `DB_PORT=3307 DB_PASSWORD= DB_NAME=scrs npm test`. dotenv never overwrites variables already in the environment, including empty ones.
+
+If a test's `before` hook fails, the process can hang instead of exiting. Use `--test-timeout=30000` when debugging.
+
+## Architecture
+
+Request flow: route → middleware (`authenticate`, `authorize`/`requirePermission`, `validate`) → thin controller → service → Sequelize model. Controllers only translate HTTP. All business rules, transactions, audit logging and socket emits live in services.
+
+### Conventions that span files
+- **Validation:** `validate({ body, query, params })` stores the parsed zod output on `req.validated.*`. Controllers must read `req.validated`, never `req.body` or `req.query`. `req.query` is read-only in Express 5.
+- **Zod 4 applies `.default()` values even inside `.partial()`.** An update (PATCH) schema must therefore be built from fields that have no defaults. Otherwise a PATCH silently resets fields; see `validators/schedule.validator.js` for the pattern.
+- **Errors:** services throw `AppError` subclasses from `utils/errors.js`. `middleware/error.middleware.js` turns them, plus Sequelize unique/FK/validation errors, into `{ success:false, error:{code,message,details}, requestId }`.
+  - Express 5 forwards async throws on its own, so there is no async wrapper.
+- **Responses:** `utils/response.js` provides `ok`, `created`, `paginated`, `noContent`.
+  - List services return `{ result, page, limit }`, where `result` comes from `findAndCountAll`.
+  - Pagination and sorting go through `utils/pagination.js`, which uses a sort-field allowlist; `-field` means descending.
+- **RBAC:** role names live in `utils/constants.js`; `USER` is the student role. `ROLE_PERMISSIONS` maps roles to permissions, which `requirePermission()` enforces.
+  - `authorize(...roles)` is used for role-specific endpoints: student-only, lecturer-only, and course management by `ADMIN_ROLES`.
+  - Services also scope data by role. For example, `course.service` hides inactive courses and cancelled sections from non-admins.
+- **Effective permissions** are `ROLE_PERMISSIONS` plus admin overrides from `role_permission_overrides` (roles editor, `role:manage`). `permission.service` caches the overrides in memory so `hasPermission` stays synchronous: `server.js` loads them at startup and every 60s, and every edit reloads them. With nothing loaded (e.g. in tests), the code defaults apply unchanged. Only differences from the defaults are stored, so a permission added in code reaches every role that should have it.
+- **Teaching modules:** attendance and assessments share `teaching.service` (`assertCanTeach`: a lecturer only for sections they teach, any other role holding the permission for any section; `rosterStudents`: registered items in any non-cancelled registration). `GET /lecturers/me/tasks` is derived from current data, with nothing stored. Announcements fan out one `ANNOUNCEMENT` notification per recipient via `notification.service.createMany`.
+- **Audit:** `audit.service.log()` never throws. Pass `transaction` to make the log entry atomic with the change it records.
+- **Models:** each model file calls `Model.init` on the shared instance, and all associations live in `models/index.js`. Always import models from `models/index.js`, so the associations are registered.
+  - Columns are `underscored`, so JS `camelCase` maps to DB `snake_case`. Raw SQL must use snake_case.
+  - `User` has a `defaultScope` that hides password and reset hashes; use `User.scope('withSecrets')` to read them.
+
+### Registration engine (the core domain logic)
+- **Rules:** `services/registration/rules/*.rule.js` are pure functions: `(context) → { rule, passed, message, details? }`.
+  - `rules/index.js` defines `ADD_RULES` (run on add) and `SUBMIT_ITEM_RULES` (run on submit).
+  - `runRules` returns every failure, not just the first. The service throws them as `RegistrationRuleError`, which the API returns as 422 with `details` listing the failures.
+  - Put new business checks here as pure rules. Precompute any DB-dependent inputs in the service. Examples: `missingPrerequisites`, `inProgram` (from `program_courses`) and `waitlistOffered` (the global setting AND `section.waitlistEnabled`).
+  - `getAvailableCourses` runs the same `ADD_RULES` without locks to annotate each section's status and reasons. A new rule therefore shows up in the student's course list automatically; keep the rules free of side effects.
+  - Student numbers are generated (`STU` + admission year + row id padded to 5, e.g. `STU202600123`) by `student.service.createStudentRecord` whenever no number is given. There is no student self sign-up; see "Student accounts" and "Online admission" below.
+  - Students may only register for courses on their program's curriculum (`program_courses`, managed via `/api/programs/:id/courses`). A new course is invisible to students until it is added there.
+- **Concurrency:** `registration.service.addItem`/`dropItem`/`submit` run inside one transaction.
+  - They lock the student's `registrations` row **first**, then the `course_sections` row, both with `FOR UPDATE`. Keep that order to avoid deadlocks.
+  - The seat increment is also guarded in SQL with `seats_taken < capacity`, and a DB CHECK constraint backs it up.
+  - `lockSection` loads the course and schedules in separate queries, because locking a query that has outer-join includes is avoided.
+  - There is no Redis. Overselling is prevented purely by MySQL locking, and a test covers it: 5 parallel adds to 1 seat.
+- **Status changes after edits:** changing an approved registration moves it back to `submitted`; changing a rejected one moves it to `draft`. See `statusAfterChange`.
+  - Whether a submitted registration needs approval is controlled by the `registration.requireApproval` setting in the `settings` table.
+- **Registration window:** a student may add and drop from their own `opensAt` until `registrationEnd`. After that, only students who have already submitted can change their registration, until `addDropEnd`.
+  - `opensAt` comes from `priority.service.resolveOpensAt`: an individual override (`registration_time_overrides`) wins; otherwise the earliest matching `registration_priority_windows` entry; with no windows, `semester.registrationStart`.
+  - The service passes `opensAt` into the rule context (`priorityContext`); the window rule must not read `semester.registrationStart` directly.
+- **Requirements** (`course_prerequisites`) are groups:
+  - Rows sharing a non-null `(course_id, type, group_no)` are alternatives (OR); **`group_no` NULL means the row is a group on its own.** Every group is required (AND). Don't give plain inserts a default group number, or unrelated prerequisites merge into one OR group.
+  - `prerequisite.service.evaluateRequirements` computes each course's status in a fixed number of queries. It uses only **final** results with the best attempt, `min_grade` (default: the `grades.passingGrade` setting), corequisites held this semester, and `prerequisite_overrides`.
+  - The result goes into the rule context as `requirements`.
+- **Corequisites** are enforced only in `SUBMIT_ITEM_RULES`, because lecture and lab are added one at a time. At add time they appear only as `confirmation.warnings` and `available-courses` `notes`. The prerequisite cycle check ignores corequisite rows, since those are legitimately mutual.
+- **Grades** (`grade.service.js`):
+  - `results.status` is `provisional` (lecturer entry) or `final` (after `POST sections/:id/grades/finalize`). A section counts as finalised once it has any final result.
+  - After finalising, only `PATCH /results/:id` (GRADE_MANAGE, with a mandatory reason, audited) can change a grade.
+  - The grade scale and GPA live in `src/utils/grades.js`.
+- **Semester and credits:** registration always runs against the single semester with `isCurrent = true`.
+  - The credit limit is the semester's `maxCredits` if set, otherwise the program's `maxCredits`, otherwise the `registration.defaultMaxCredits` setting.
+- **Waitlist:** on a drop, the next student in line is notified; the seat is **not** reserved for them.
+- **Registration slip** (`slip.service.js` + `utils/pdf/registrationSlip.js`, using pdfkit):
+  - `registrations.reference_number` is assigned on first submit and never changes.
+  - The verification code is an HMAC, keyed from `JWT_ACCESS_SECRET`, over the reference, the status and the sorted section IDs. Any add/drop or status change therefore invalidates older printouts. This is intended.
+  - `/registrations/verify/:reference` is public, lives on the separate `registrationPublicRouter` (mounted before the authenticated one), and reveals details only when the code matches.
+- **Add response:** `addItem` returns `{ confirmation, registration }`; `dropItem` and `submit` return the registration itself.
+- **Staff enrolment** (`POST/DELETE /admin/sections/:id/students`, `registration:manage`) goes through the same internal `addSection`/`removeItem` as the student path, with an `actor`:
+  - The registration-window rule is skipped, and the registration's status is **not** sent back for approval.
+  - Failures in `STAFF_OVERRIDABLE_RULES` (constants) may be overridden with `override: true` + a reason. The item records `added_by`, `overridden_rules` and `override_reason`, and `submit` skips exactly those rules for that item (a clash only if it involves the overridden item).
+  - CAPACITY is never overridable — the SQL seat guard and CHECK constraint make it impossible; raise the section's capacity instead.
+- **Acceptance tests:** `tests/integration/acceptance.test.js` maps one-to-one to the student-registration acceptance criteria (AC1–AC6).
+
+### Student accounts (admission, Student ID + PIN)
+- **No student self sign-up.** A student account only comes from admission: an admitted online application (see "Online admission" below) or staff admission, `POST /api/admissions` (one) or `POST /api/admissions/bulk` (`runImport` rows keyed by `studentNumber` or else `admissionNumber`, max 1000 per request), both `student:admit` (registrar, admin, super admin). `POST /api/admin/import/students` is 410 and points there.
+- **Admission creates:** the Student ID (`STU` + session start year + id), the school email `<studentId lowercased>@<institution.studentEmailDomain>`, and a random 6-digit temporary PIN, with `must_change_password` set. It refuses to run while the `institution.studentEmailDomain` setting is empty (its production default, on purpose). The qualification code and department come from the programme (`programs.qualification_code`).
+- **The PIN is returned once**, in the response (`credentials`, `Cache-Control: no-store`), for the admission letter. It is never emailed, audited or stored in clear. Bulk reports carry `credentials` only for newly created rows and never for dry runs. Temporary PINs use `hashTemporaryPin` (lower bcrypt cost, so bulk admission fits in a request); PINs the student chooses use `hashPassword`.
+- **Sign-in:** `POST /auth/login` takes `{ identifier, password }` (a Student ID or an email; `email` is still accepted). Every account has a lockout: `MAX_FAILED_LOGINS` (5) failures lock it for 15 minutes (429 `ACCOUNT_LOCKED`), counted in one SQL statement (`recordFailedLogin`) so parallel guesses can't race past it. This is on top of the per-IP `authLimiter`, and matters because a PIN has only 10^6 values.
+- **Forced first change:** while `must_change_password` is set, `authenticate` answers 403 `PIN_CHANGE_REQUIRED` everywhere except routes marked `allowPendingPinChange` (`GET /auth/me`, `PATCH /auth/pin`, logout, logout-all), and the socket handshake refuses the user. `PATCH /auth/pin` ends all sessions, then returns fresh tokens for the current device.
+- **PIN rules** (`utils/pin.js` `pinProblem`): 6 digits, not one repeated digit, not a run (wrapping, up or down), not part of the student's own ID. The zod schemas only check the shape; the service applies the rules.
+- **Forgot PIN:** `POST /auth/pin/forgot { studentNumber, email }` always answers the same. Only a matching school email gets a 6-digit OTP (HMAC-stored, keyed from `JWT_ACCESS_SECRET`, 10 minutes, at most one a minute). `POST /auth/pin/reset` allows `OTP_MAX_ATTEMPTS` (5) wrong guesses, counted under a row lock and committed even though the request fails. Success clears the lockout and ends all sessions. Tests get a raw OTP from `pinService.forgotPin()`, which returns it for exactly that purpose.
+- **Staff PIN reset:** `POST /api/students/:id/reset-pin` (`student:admit`) issues a new temporary PIN (returned once) and ends the student's sessions.
+- `tests/integration/helpers.js` `createStudent(n)` goes through the real path (admit, sign in with the temporary PIN, change it to `STUDENT_PIN`).
+
+### Online admission (`application.service.js`, `/api/applications`)
+- **Applicants** sign up themselves (`POST /applications/account`, enumeration-safe 202) with their personal email and a password, as the `APPLICANT` role (`application:self` only — no student row, no `registration:self`, so no course registration by construction). The role row is inserted by migration `20261005000001`, not the roles seeder (seeders run after migrations; a second insert would collide). Staff can't create or assign `APPLICANT` via `/api/users`.
+- One application per account (`admission_applications.user_id` unique). Drafts are editable (`PUT /applications/me`, no id in any applicant route); `POST /me/submit` requires a verified email and every required field, and re-checks that the programme belongs to the department and the level is within `programs.duration_years × 100`. Submitted applications are locked; drafts are invisible to reviewers.
+- **Reviewers** hold `application:review` (ADMIN, SUPER_ADMIN; grantable to REGISTRAR in the roles editor). `admit`/`reject` lock the row `FOR UPDATE` and require `submitted`, so a double admit is a 409. Rejection is final and notified (`APPLICATION_REJECTED`, emailed to the personal address, which is still the account email).
+- **Admission is the only event that creates the student record.** It reuses `admission.service.assignStudentIdentity` (same Student ID/school email as staff admission; `admission_number` = `APP` + application id, unique), and converts the *same* user row: role `USER`, email → school email, `status: pending`, `UNUSABLE_PASSWORD_HASH`, then `endAllSessions` (the applicant session must not survive the role change).
+- **Activation:** a single-use link (`/activate?token=`, `ACTIVATION_EXPIRES_HOURS`, default 72) emailed to the personal address after commit. Only its sha256 is stored (`users.activation_hash`, unique). `POST /applications/activate` finds a `pending` user by hash + expiry under a row lock, applies `pinProblem`, sets the PIN with `hashPassword`, activates and clears the token in one transaction. Resend (`POST /applications/:id/resend-activation`) replaces the token. Raw tokens are returned by the service for tests only; controllers never send them. Tests plant a known token with `plantActivationToken()` in `helpers.js`.
+- Applicants reset their password and rename themselves directly (`requiresApproval` excludes `APPLICANT`), since it's their own mailbox.
+
+### Timetable confirmation on approval
+- `registration.service.review` (approve only) runs `timetable.service.findAllocationIssues` under the registration row lock: student overlaps between the student's own sections (skipping pairs where staff overrode `TIMETABLE_CONFLICT`, as `submit` does), lecturer and room double-bookings against every other non-cancelled section this semester (`schedule.service.findConflicts`, reporting both when both hold), and sections with no class times or a slot with no room (`UNSCHEDULED`). Nothing is invented: only configured schedules are checked.
+- Any issue: nothing is written to the registration (it stays `submitted`), the issues are upserted into `timetable_issues` (unique per registration/section/type, reopened on retry) in their own transaction, and the API answers 409 `TIMETABLE_CONFLICT` with the issues as `details`. Success sets `registrations.timetable_confirmed_at` and closes open issues. A student edit that sends the registration back to `submitted` clears `timetable_confirmed_at`.
+- Staff see them at `GET /admin/timetable-issues` (`registration:view_all`) and may record a resolution (`POST /admin/timetable-issues/:id/resolve`, `registration:approve`); resolving never approves — approving again re-checks.
+- The demo seed leaves CS204 without a lecturer: it overlaps CS203 on purpose (a student clash), and one lecturer teaching both would be a double booking this check refuses.
+
+### Real-time (Socket.IO)
+- **Setup:** `server.js` attaches Socket.IO with `sockets/socket.server.js`, which authenticates the handshake with the same JWT access token as the REST API.
+  - `config/socket.js` holds the `io` singleton. The emit helpers in `sockets/*.socket.js` call `getIO()?.…`, so they are silently skipped when no socket server is running, as in supertest-only tests.
+- **Rooms:** every user joins `user:{userId}`. Admins, registrars and advisors also join `admin:dashboard`. Clients opt into `section:{id}` rooms via `section:join`.
+- **Emit only after commit:** either return from the `sequelize.transaction(...)` callback and then emit, or use `transaction.afterCommit(...)`, as `notification.service.create` does.
+
+### Email
+- `email.service.js`'s `sendMail()` is the only place that sends mail. It never throws — a failed send returns `{ sent: false }` rather than failing the caller's transaction, mirroring `audit.service.log`'s "never throw" rule.
+- With no `SMTP_HOST` (dev/test), it logs instead of sending. `env.js` makes this impossible to hit by accident in production: `NODE_ENV=production` without `SMTP_HOST`/`SMTP_FROM` refuses to boot, the same pattern used for `JWT_ACCESS_SECRET` and the seed-safety checks.
+- **Testability:** `sendMail(message, { transporter })` accepts an injected nodemailer transporter, so tests exercise the real send path with nodemailer's `jsonTransport` (composes the message, no network) instead of mocking. Don't add a second way to configure the transporter — this is the one seam.
+- `notification.service.js`'s `EMAILED_TYPES` (checked via the exported `isEmailable(type)`) decides which notification types also get an email: status changes and anything time-sensitive (registration approved/rejected, a waitlist seat opening, grades released/amended). Types tied to an action the user just took in-app (adding a course, submitting, an override being granted) are deliberately left in-app-only. Add a new type to `EMAILED_TYPES` only if it's something the student needs to know about while away from the app.
+- `auth.service.forgotPassword` builds its reset link from `env.FRONTEND_URL`, not `CORS_ORIGIN` (which may be a comma-separated allowlist, not one canonical URL). The email-verification link (`/verify-email?token=`) follows the same rule.
+- **Email verification is informational, not a gate.** Every account is now created verified (admission: the school owns the mailbox; seeded and staff-created accounts too). The verify endpoints remain for any account with `users.email_verified_at` NULL (24-hour link, hash stored like the reset token). Making it a gate is a product decision, not a bug fix.
+
+### Auth
+- **Access token:** a short-lived JWT returned in the JSON body.
+- **Refresh token:** an opaque random value.
+  - Only its sha256 hash is stored, in the `refresh_tokens` table.
+  - It is sent as the `scrs_refresh` cookie: `httpOnly`, `SameSite=Strict`, `path=/api/auth`.
+  - Refresh rotates the token. Presenting a token that was already *rotated* (it has `replaced_by_hash`) is treated as theft and revokes all of that user's tokens. A token revoked by signing out — including a session ended from another device — is simply rejected, so ending one session never cascades into ending all of them.
+  - **Sessions:** each active refresh token is one signed-in device. It stores the `access_jti` of the access token issued with it, so `DELETE /auth/sessions/:id` revokes both at once (the access token via `revoked_access_tokens`, which also disconnects that device's socket). `GET /auth/sessions` marks the caller's own device via the refresh cookie, and a user can't end their current session there — that's `logout`.
+  - **Access tokens are revocable before expiry.** Each carries `jti` + `ver`, and `resolveAccessToken` in `auth.middleware.js` (shared with the Socket.IO handshake) rejects:
+    - a `jti` listed in `revoked_access_tokens` (single-device logout)
+    - a `ver` that doesn't match `users.token_version`
+  - To end all of a user's sessions, always call `session.service.endAllSessions(userId, transaction)`. It revokes refresh tokens, bumps `token_version`, and disconnects sockets after commit. Password change and reset, suspension, role change, refresh-token theft and `logout-all` all go through it.
+  - **Password and name changes need the super admin's approval for every other staff role** (`account-request.service.requiresApproval`). `PATCH /auth/password` and `PATCH /auth/me` are 403 for them; they file `account_change_requests` instead, and "forgot password" files one too (still enumeration-safe). **Students are the exception for credentials:** they have a PIN, which they change (`PATCH /auth/pin`) and recover (OTP) themselves; `PATCH /auth/password` points them there and `forgot-password` does nothing for them. Their name changes still need approval. Approving a name change applies it; approving a reset emails the normal link via `password-reset.service.issuePasswordReset`. Tests get a usable token through `approvedResetToken()` in `helpers.js`.
+  - **Sign-in tracking:** `auth.login` / `auth.login_failed` audit entries store the `userAgent` in metadata; `GET /admin/sign-ins` reads them (`audit:view`).
+  - `logout` uses `optionalAuthenticate`, so it succeeds even with an expired token. When a valid Bearer token is sent, it revokes that token's `jti`.
+  - `server.js` runs `purgeExpiredTokens` hourly.
+- **Cross-origin deployment: the frontend and this API are assumed to be subdomains of one parent domain** (`app.X` / `api.X`), a deliberate decision, not an oversight — do not "fix" `sameSite: 'strict'` to `'none'` without re-confirming this is still true, since `'none'` needs real CSRF protection to be safe.
+  - The `SameSite` cookie algorithm matches on registrable domain (eTLD+1), not full origin — `app.university.edu` and `api.university.edu` are different **origins** but the same **site**, so `SameSite=Strict` already permits the cookie on requests between them. This is why the cookie code in `auth.controller.js` needed no change for this deployment shape.
+  - The cookie has no explicit `domain` attribute (host-only), and that's correct: only the API's own host ever needs to receive it, so keeping it host-only is narrower and safer than broadening it to `Domain=.university.edu`.
+  - What actually gates this working is CORS, not the cookie: a credentialed cross-origin request only carries cookies when the response echoes back the exact requesting origin (never `*`) with `Access-Control-Allow-Credentials: true` — this is what `cors({ origin: env.corsOrigins, credentials: true })` in `app.js` does. `tests/integration/cors.test.js` asserts this mechanism directly (not just the theory) against whatever `CORS_ORIGIN` is configured.
+  - `env.js`'s production-only `superRefine` (alongside the `SMTP_*` checks) refuses to boot if `CORS_ORIGIN` is `*`, isn't `https://`, or still points at `localhost`/`127.0.0.1` — and the same for `FRONTEND_URL`. `tests/unit/env-safety.test.js` proves these by spawning a real `node` subprocess per case, since `env.js` calls `process.exit(1)` directly and can't be exercised with bad config in the same process as the test runner.
+
+### Observability
+- **`logger.js`'s external API is `{ error, warn, info, debug }`, each called as `(message, extra?)`** — a string, optionally followed by an `Error` or any other value. Every one of the ~20 call sites across the codebase uses this shape; don't call it pino-native-style (`logger.info({ foo }, 'msg')`), the wrapper doesn't support that and will misformat it (the first argument is assumed to be the message string, not a merge object).
+  - Internally it's `pino`, with the actual arg-shape conversion pulled into the pure, directly-tested `normalizeLogArgs` (`tests/unit/logger.test.js`) — extend that function, not the thin `error`/`warn`/`info`/`debug` wrappers, if the call shape ever needs to grow.
+  - `pinoInstance` (named export) is the raw pino instance, used by `pino-http` in `app.js` so HTTP request logs and application logs share one format/level/output. Don't create a second pino instance elsewhere.
+  - `env.logLevel` resolves `LOG_LEVEL` if set, else `debug`/`info`/`error` by `NODE_ENV` (dev/production/test) — computed once in `env.js`, not re-derived elsewhere.
+- **`sentry.js`'s `initSentry()`/`captureException()` are both safe to call unconditionally** — they no-op when `SENTRY_DSN` isn't set, checked explicitly in the wrapper rather than relying on the SDK's own undocumented behavior. Call `captureException` (not `Sentry.captureException` directly) from anywhere that needs to report an unexpected error, so the no-op guard is never bypassed.
+  - It is deliberately optional even in production, unlike `SMTP_*`/`CORS_ORIGIN` — the app is fully functional without it, so it isn't in `env.js`'s production `superRefine`. Don't add it there without discussing that trade-off; it's a considered choice, not an oversight matching the SMTP/CORS pattern.
+- **`error.middleware.js`** calls both `logger.error` and `captureException` for any response `status >= 500` — every 5xx is treated as a bug or outage, never a "known" expected failure (those are 4xx). Both are tagged with the same `requestId` that's already in the JSON error body and the `X-Request-Id` header, so a user-reported error, a log line, and a Sentry issue can all be found from the same id.
+- **`server.js`** reports to Sentry from both `unhandledRejection` (logged, not fatal — matches Node's own default, and every fire-and-forget call in this codebase already catches its own errors internally) and `uncaughtException` (logged, reported, then `process.exit(1)` — Node's own recommendation, since the process may be in a broken state; let the process manager restart it).
+- **`GET /api/health`** is excluded from `pino-http`'s request logging (`autoLogging.ignore`) — it's polled constantly by uptime monitors, and logging every hit is pure noise. Add any other pure-polling endpoint to that same ignore check rather than letting it spam the logs.
+
+### Bulk import (real institutional data)
+- `import.service.js` + `POST /api/admin/import/*` load a real institution: departments → programs → courses → program-courses → prerequisites → lecturers → (students, via `POST /api/admissions/bulk`) → sections. The go-live procedure is in `docs/deployment-runbook.md`; column templates are in `docs/import-templates/`.
+- Rows reference records by **natural key** (codes, emails, staff numbers), never by DB id, and are **upserts**. That's why the import zod schemas give optional fields **no `.default()`**: an omitted field means "leave as is", and defaults for new records are applied in the service. `tests/unit/import-schemas.test.js` guards this.
+- Each row runs in its own transaction, via `runImport`. A **dry run** wraps the whole file in one outer transaction, runs each row in a savepoint, and rolls back. Savepoints fire `afterCommit` hooks immediately, so anything with side effects outside the DB (invites, waitlist notifications) must check `ctx.dryRun`.
+- Imported lecturers and passwordless staff-created accounts store `UNUSABLE_PASSWORD_HASH` (`utils/password.js`). It isn't a bcrypt hash, so nobody can sign in until they set a password. It also marks "never set a password" for `POST /admin/import/invites`.
+- `password-reset.service.issueInvite` sends the set-your-password link: the same token columns and `/reset-password` page as a reset, but with a longer `INVITE_EXPIRES_HOURS` expiry. Call it only after the account's transaction commits.
+- `app.js` gives `/api/admin/import` and `/api/results/import` a 5mb JSON limit; everything else keeps 100kb.
+
+## Database / migrations
+- **CommonJS requirement:** sequelize-cli can't load ESM. Migrations, seeders and `src/config/sequelize-cli.cjs` are therefore `.cjs`, wired up via `.sequelizerc`. App code is ESM.
+- **Keep migrations and models in sync:** the schema is defined twice, once in `migrations/*.cjs` and once in `src/models/*.js`. Update both when adding a column.
+- **CHECK constraints:** MySQL rejects a CHECK constraint on columns that also have FK referential actions. Rules like "not its own prerequisite" and prerequisite cycles are enforced in `prerequisite.service.js` (`wouldCreateCycle`).
+- **Seeder bookkeeping:** seeder runs are recorded in the `SequelizeData` table, which `migrate:undo:all` does not drop. Use `db:seed:undo:all`, or drop the database, to re-seed. To restore a missing super admin without re-seeding, `npm run admin:create` (`scripts/create-super-admin.mjs`, sharing the seeder's `resolveAdminCredentials`).
+- **Seeders are split essential vs. demo — this split is load-bearing, not cosmetic.**
+  - `db:seed` runs only `20260926000001-roles-and-admin.cjs` and `20260930000002-essential-settings.cjs` (roles, default settings, one real super admin). This is the only seed command safe to run against production.
+  - `db:seed:demo` (`sequelize-cli db:seed:all`) additionally runs the demo seeders (fake departments/courses/students/results). Every demo seeder's `up()` throws immediately if `NODE_ENV === 'production'`, as the very first line — this is a hard backstop independent of which npm script was used to invoke it, so it also protects `db:reset` and any raw `sequelize-cli db:seed:all` call.
+  - `20260926000001-roles-and-admin.cjs`'s admin credentials go through `resolveAdminCredentials()`: in production it requires `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` to be set, rejects the published default password, and enforces a minimum length. Outside production it keeps the dev-friendly fallback.
+  - **All default settings live in exactly one file**, `20260930000002-essential-settings.cjs`, inserted with `INSERT IGNORE` (safe to run against a database that already has some of these rows). Do not add a settings insert to any other seeder — that reintroduces the duplicate-key risk this design avoids. A new default setting is added here, not wherever a feature happens to need one — and it also needs a value rule in `SETTING_VALUES` (`validators/registration.validator.js`), because `PATCH /admin/settings` rejects unknown keys and wrongly-typed values.
+  - `tests/unit/seed-safety.test.js` requires the seeder `.cjs` files directly and calls `up()` with a stub `queryInterface`, without a database, to prove the guards fire before any query runs.
+- **Demo seed:** it computes the current semester's registration window relative to the seed time. The demo logins are listed in `README.md`; CS203 and CS204 deliberately clash on Wednesday.
+
+## Load testing
+`scripts/load-test-registration.mjs` — see the README for how to run it. Findings from the last run, so they aren't re-litigated from scratch: correctness (never more than `capacity` succeeds per section) holds under real concurrency at every scale tried (300 and 600 simultaneous students). Tail latency on the most-contested section (multiple seconds under heavy contention) is MySQL's row lock on that `course_sections` row correctly serializing concurrent attempts — confirmed by ruling out the connection pool first (tripling `pool.max` in `database.js` changed nothing). `addItem` in `registration.service.js` holds that lock for its entire transaction, including the rule checks, notification, and audit-log write, not just the seat check-and-increment — that's the lever to pull if this latency ever needs to come down, not the pool size.
+
+`docs/unireg-technical-project-plan.md` is the original design doc. The code deliberately departs from it: no Redis or BullMQ, and a MySQL-only stack.

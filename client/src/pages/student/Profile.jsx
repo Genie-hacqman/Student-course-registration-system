@@ -1,0 +1,47 @@
+import { Link } from 'react-router-dom'
+import { KeyRound } from 'lucide-react'
+import { useAuth } from '../../auth/AuthProvider'
+import { Badge, Button, Card, CardHeader, PageHeader, StatusBadge } from '../../components/ui'
+import { fullName, initials } from '../../lib/format'
+
+function Field({ label, value }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">{label}</dt>
+      <dd className="mt-1 text-sm font-medium">{value ?? '—'}</dd>
+    </div>
+  )
+}
+
+export default function Profile() {
+  const { user } = useAuth()
+  const s = user?.student
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Profile"
+        subtitle="Your programme and level are managed by the registry."
+        action={<Link to="/student/settings"><Button variant="secondary"><KeyRound className="size-4" aria-hidden /> Settings & security</Button></Link>}
+      />
+      <Card className="flex items-center gap-4 p-5">
+        <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">{initials(user)}</span>
+        <div className="min-w-0">
+          <p className="text-lg font-semibold">{fullName(user)}</p>
+          <p className="text-sm text-slate-500">{s?.studentNumber} · {s?.program?.name}</p>
+        </div>
+      </Card>
+      <Card>
+        <CardHeader title="Student record" />
+        <dl className="grid gap-5 px-5 py-5 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Email" value={<>{user?.email} {user?.emailVerifiedAt ? <Badge tone="green">verified</Badge> : <Badge tone="amber">not verified</Badge>}</>} />
+          <Field label="Student number" value={s?.studentNumber} />
+          <Field label="Programme" value={s?.program?.name} />
+          <Field label="Level" value={s?.level} />
+          <Field label="Status" value={s?.status && <StatusBadge status={s.status === 'active' ? 'active' : s.status === 'suspended' ? 'suspended' : undefined} label={s.status[0].toUpperCase() + s.status.slice(1)} />} />
+          <Field label="Admitted" value={s?.admissionYear} />
+        </dl>
+      </Card>
+    </div>
+  )
+}

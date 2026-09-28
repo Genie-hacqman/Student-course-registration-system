@@ -1,0 +1,14 @@
+{
+  "name": "scrs",
+  "private": true,
+  "description": "Runs the SCRS backend (server/) and frontend (client/) together for local development.",
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "dev:nomail": "concurrently -k -n server,client -c blue,green \"SMTP_HOST= npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "migrate": "npm --prefix server run db:migrate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
