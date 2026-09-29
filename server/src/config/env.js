@@ -17,6 +17,11 @@ const schema = z
     DB_NAME: z.string().min(1),
     DB_USER: z.string().min(1),
     DB_PASSWORD: z.string().default(''),
+    // Most managed MySQL providers (Aiven, PlanetScale, ...) require TLS. Off by default so local dev
+    // against a plain MySQL install needs no change; set true (and DB_SSL_CA if the provider gives you
+    // one) for a real deployment. See docs/deployment-runbook.md.
+    DB_SSL: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+    DB_SSL_CA: z.string().optional(),
 
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
     JWT_ACCESS_EXPIRES: z.string().default('15m'),

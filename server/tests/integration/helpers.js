@@ -37,11 +37,15 @@ export const login = async (identifier, password) => {
   return { token: res.body.data.accessToken, cookie, user: res.body.data.user };
 };
 
+// The admin is the one seeded account whose credentials come from .env (resolveAdminCredentials() in
+// 20260926000001-roles-and-admin.cjs): SEED_ADMIN_EMAIL/PASSWORD if set, else these same published
+// defaults. Reading them the same way here means changing your real .env's admin credentials — a normal
+// thing to do for your own dev/production use — never breaks the suite; it stays in sync automatically.
 export const accounts = {
   student: ['student@scrs.local', 'Student@12345'],
   lecturer: ['lecturer@scrs.local', 'Lecturer@12345'],
   registrar: ['registrar@scrs.local', 'Registrar@12345'],
-  admin: ['admin@scrs.local', 'Admin@12345'],
+  admin: [process.env.SEED_ADMIN_EMAIL || 'admin@scrs.local', process.env.SEED_ADMIN_PASSWORD || 'Admin@12345'],
 };
 
 export const loginAs = (who) => login(...accounts[who]);
