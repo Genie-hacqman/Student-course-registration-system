@@ -1,8 +1,9 @@
 # UniReg frontend
 
 React + Vite frontend for [SCRS-backend](../SCRS-backend). Each role lands in its own area:
-students in `/student`, lecturers in `/lecturer`, and every staff role (advisor, registrar, admin,
-super admin) in `/staff`, where each screen appears only if the role has the permission for it.
+students in `/student` (applicants too — until admitted they only see their admission page), lecturers
+in `/lecturer`, and admins and registrars in `/staff`, where each screen appears only if the role has the
+permission for it. There are exactly four roles: ADMIN, REGISTRAR, LECTURER and STUDENT.
 
 ## Run it
 

@@ -1,4 +1,6 @@
-import { sequelize, AccountChangeRequest, User, Role } from '../models/index.js';
+import {
+  sequelize, AccountChangeRequest, User, Role, Student,
+} from '../models/index.js';
 import { buildPagination } from '../utils/pagination.js';
 import {
   BadRequestError, ConflictError, ForbiddenError, NotFoundError,
@@ -13,9 +15,28 @@ import * as audit from './audit.service.js';
 const { PENDING, APPROVED, REJECTED, CANCELLED } = ACCOUNT_REQUEST_STATUS;
 const { PASSWORD_RESET, NAME_CHANGE } = ACCOUNT_REQUEST_TYPE;
 
-/** Only the super admin changes their own password or name directly; everyone else needs the super admin's approval. */
-// Applicants sign up with their own personal email, so they reset/rename themselves like the super admin.
-export const requiresApproval = (roleName) => ![ROLES.SUPER_ADMIN, ROLES.APPLICANT].includes(roleName);
+/**
+ * A STUDENT with a student record (admitted) signs in with Student ID + PIN; before admission a
+ * STUDENT has a password on their personal email. `user` must include `role` and `student`.
+ */
+export const hasPin = (user) => user.role?.name === ROLES.STUDENT && Boolean(user.student);
+
+/**
+ * Whether a password/name change needs an ADMIN's approval: yes for REGISTRAR, LECTURER and admitted
+ * students (name changes; their PIN is self-service); no for ADMIN, and no for a student who is still
+ * applying (it's their own personal email). `user` must include `role` and `student`.
+ */
+export const requiresApproval = (user) => {
+  if (user.role?.name === ROLES.ADMIN) return false;
+  if (user.role?.name === ROLES.STUDENT && !user.student) return false;
+  return true;
+};
+
+/** The includes `requiresApproval` / `hasPin` need. */
+export const roleAndStudent = [
+  { model: Role, as: 'role', attributes: ['name'] },
+  { model: Student, as: 'student', attributes: ['id', 'studentNumber'] },
+];
 
 const LABEL = { [PASSWORD_RESET]: 'password reset', [NAME_CHANGE]: 'name change' };
 
@@ -27,11 +48,11 @@ const userInclude = {
 };
 const reviewerInclude = { model: User, as: 'reviewer', attributes: ['id', 'firstName', 'lastName'] };
 
-/** Tells every active super admin that a request is waiting (in-app only; they act from the queue). */
-const notifySuperAdmins = async (request, user, transaction) => {
+/** Tells every active admin that a request is waiting (in-app only; they act from the queue). */
+const notifyAdmins = async (request, user, transaction) => {
   const admins = await User.findAll({
     where: { status: USER_STATUS.ACTIVE },
-    include: [{ model: Role, as: 'role', where: { name: ROLES.SUPER_ADMIN }, attributes: [] }],
+    include: [{ model: Role, as: 'role', where: { name: ROLES.ADMIN }, attributes: [] }],
     attributes: ['id'],
     transaction,
   });
@@ -56,7 +77,7 @@ const createRequest = async (user, fields, req) => sequelize.transaction(async (
   if (pending) return { request: pending, created: false };
 
   const request = await AccountChangeRequest.create({ userId: user.id, ...fields }, { transaction });
-  await notifySuperAdmins(request, user, transaction);
+  await notifyAdmins(request, user, transaction);
   await audit.log({
     userId: user.id, action: `account_request.${fields.type}`, entityType: 'AccountChangeRequest', entityId: request.id, req, transaction,
   });
@@ -72,10 +93,10 @@ export const requestPasswordReset = async (user) => {
 };
 
 export const createForSelf = async (userId, { type, firstName, lastName, note }, req) => {
-  const user = await User.findByPk(userId, { include: [{ model: Role, as: 'role', attributes: ['name'] }] });
+  const user = await User.findByPk(userId, { include: roleAndStudent });
   if (!user) throw new NotFoundError('User');
-  if (!requiresApproval(user.role.name)) throw new BadRequestError('As the super admin you can change this directly');
-  if (type === PASSWORD_RESET && user.role.name === ROLES.USER) {
+  if (!requiresApproval(user)) throw new BadRequestError('You can change this directly from your account settings');
+  if (type === PASSWORD_RESET && hasPin(user)) {
     throw new ForbiddenError('Students change their PIN instead (PATCH /auth/pin)');
   }
 
@@ -124,7 +145,7 @@ const review = async (id, decision, note, actor, req) => {
     if (r.userId === actor.id) throw new ForbiddenError('You cannot review your own request');
 
     const approved = decision === APPROVED;
-    if (approved && r.type === PASSWORD_RESET && r.user.role.name === ROLES.USER) {
+    if (approved && r.type === PASSWORD_RESET && r.user.role.name === ROLES.STUDENT) {
       throw new ConflictError('Students change their PIN instead — this request cannot be approved');
     }
     if (approved && r.type === NAME_CHANGE) {

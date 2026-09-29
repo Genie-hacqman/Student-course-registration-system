@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,6 +18,17 @@ export default function ResetPassword() {
   const navigate = useNavigate()
   const reset = useResetPassword()
   const { register, handleSubmit, setError, formState: { errors } } = useForm({ resolver: zodResolver(schema) })
+  const [linkProblem, setLinkProblem] = useState(null)
+
+  if (linkProblem) {
+    return (
+      <div className="space-y-3 text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">This link can't be used</h1>
+        <p className="text-sm text-slate-500">{linkProblem} Reset links work once and expire after a short time.</p>
+        <Link to="/forgot-password" className="text-sm font-medium text-brand-600">Request a new link</Link>
+      </div>
+    )
+  }
 
   if (!token) {
     return (
@@ -33,7 +45,8 @@ export default function ResetPassword() {
       toast.success(data.message)
       navigate('/login', { replace: true })
     },
-    onError: (err) => applyServerErrors(err, setError),
+    // An expired or already-used link can't be fixed by retyping the password: say so and offer a new one.
+    onError: (err) => (err.status === 400 && /token/i.test(err.message) ? setLinkProblem('It has expired or was already used.') : applyServerErrors(err, setError)),
   })
 
   return (

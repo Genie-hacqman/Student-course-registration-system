@@ -111,7 +111,7 @@ export const IMPORT_STEPS = [
   {
     key: 'courses',
     label: 'Courses',
-    permission: PERMS.COURSE_MANAGE,
+    permission: PERMS.COURSE_CATALOG,
     description: 'The course catalogue.',
     columns: [
       col('code', upper, { required: true, hint: 'Letters, numbers and dashes, e.g. CS101' }),
@@ -127,7 +127,7 @@ export const IMPORT_STEPS = [
   {
     key: 'program-courses',
     label: 'Curriculum',
-    permission: PERMS.COURSE_MANAGE,
+    permission: PERMS.COURSE_CATALOG,
     description: 'Which courses each programme\'s students may register for. A course missing here is invisible to students.',
     columns: [
       col('programCode', upper, { required: true }),
@@ -140,7 +140,7 @@ export const IMPORT_STEPS = [
   {
     key: 'prerequisites',
     label: 'Prerequisites',
-    permission: PERMS.COURSE_MANAGE,
+    permission: PERMS.COURSE_CATALOG,
     description: 'One row is one requirement. Separate alternatives with | (any one satisfies it); separate rows are all required.',
     columns: [
       col('courseCode', upper, { required: true }),

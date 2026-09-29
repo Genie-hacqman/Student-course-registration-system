@@ -60,10 +60,15 @@ export const getById = async (id) => {
   return student;
 };
 
-/** Returns the student profile for a logged-in user, or throws 403 if the user is not a student. */
+/**
+ * The student record of a signed-in user, or 403. A STUDENT account without one is an applicant who
+ * isn't admitted yet: every student feature (registration, timetable, results, slip) needs admission.
+ */
 export const getByUserId = async (userId) => {
   const student = await Student.findOne({ where: { userId }, include: [userInclude, programInclude] });
-  if (!student) throw new ForbiddenError('Only students can perform this action');
+  if (!student) {
+    throw new ForbiddenError('Course registration opens once you are admitted and have activated your account', 'ADMISSION_REQUIRED');
+  }
   return student;
 };
 

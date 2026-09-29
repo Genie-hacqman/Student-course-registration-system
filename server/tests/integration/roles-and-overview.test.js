@@ -16,13 +16,15 @@ after(() => sequelize.close());
 const as = (who) => auth(who.token);
 
 describe('roles & permissions', () => {
-  test('the super admin sees every role; others cannot', async () => {
+  test('the admin sees exactly the four roles; others cannot', async () => {
     const roles = await api().get('/api/admin/roles').set(as(admin));
     assert.equal(roles.status, 200);
     const byName = Object.fromEntries(roles.body.data.map((r) => [r.name, r]));
+    assert.deepEqual(Object.keys(byName).sort(), ['ADMIN', 'LECTURER', 'REGISTRAR', 'STUDENT']);
     assert.equal(byName.REGISTRAR.editable, true);
-    assert.equal(byName.SUPER_ADMIN.editable, false);
-    assert.equal(byName.USER.editable, false);
+    assert.equal(byName.LECTURER.editable, true);
+    assert.equal(byName.ADMIN.editable, false, 'fixed, so no one can lock everyone out of role management');
+    assert.equal(byName.STUDENT.editable, false);
     assert.deepEqual([...byName.REGISTRAR.permissions].sort(), [...ROLE_PERMISSIONS.REGISTRAR].sort());
 
     const catalog = await api().get('/api/admin/permissions').set(as(admin));
@@ -53,10 +55,10 @@ describe('roles & permissions', () => {
   test('fixed roles and escalation are refused', async () => {
     const ids = Object.fromEntries((await query('SELECT id, name FROM roles')).map((r) => [r.name, r.id]));
     const put = (name, permissions) => api().put(`/api/admin/roles/${ids[name]}/permissions`).set(as(admin)).send({ permissions });
-    assert.equal((await put('SUPER_ADMIN', [])).status, 403);
-    assert.equal((await put('USER', [])).status, 403);
-    assert.equal((await put('ADMIN', [...ROLE_PERMISSIONS.ADMIN, PERMISSIONS.ROLE_MANAGE])).status, 400);
-    assert.equal((await put('ADMIN', ['not:a:permission'])).status, 422);
+    assert.equal((await put('ADMIN', [])).status, 403);
+    assert.equal((await put('STUDENT', [])).status, 403);
+    assert.equal((await put('REGISTRAR', [...ROLE_PERMISSIONS.REGISTRAR, PERMISSIONS.ROLE_MANAGE])).status, 400, 'role:manage stays with ADMIN');
+    assert.equal((await put('LECTURER', ['not:a:permission'])).status, 422);
   });
 });
 
@@ -67,7 +69,7 @@ describe('admin overview report', () => {
     const o = res.body.data;
     const [{ n: students }] = await query('SELECT COUNT(*) AS n FROM students');
     assert.equal(o.totals.students, students);
-    assert.ok(o.users.byRole.some((r) => r.role === 'USER' && r.total >= 1));
+    assert.ok(o.users.byRole.some((r) => r.role === 'STUDENT' && r.total >= 1));
     assert.ok(o.studentsByProgram.length >= 1);
     assert.equal(typeof o.registrations.byStatus.approved, 'number');
     assert.equal(o.activityLast24h, null, 'registrars lack audit:view');

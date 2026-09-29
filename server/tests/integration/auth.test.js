@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import env from '../../src/config/env.js';
 import { purgeExpiredTokens } from '../../src/services/session.service.js';
 import {
-  resetDatabase, api, login, loginAs, auth, query, createStudent, createSuperAdmin, approvedResetToken, sequelize,
+  resetDatabase, api, login, loginAs, auth, query, createStudent, createAdmin, approvedResetToken, sequelize,
 } from './helpers.js';
 
 before(resetDatabase);
@@ -15,7 +15,7 @@ describe('auth', () => {
   test('login returns an access token and sets an HTTP-only refresh cookie', async () => {
     const res = await api().post('/api/auth/login').send({ identifier: 'student@scrs.local', password: 'Student@12345' });
     assert.equal(res.status, 200);
-    assert.equal(res.body.data.user.role.name, 'USER');
+    assert.equal(res.body.data.user.role.name, 'STUDENT');
     assert.ok(res.body.data.accessToken);
     assert.equal(JSON.stringify(res.body).includes('passwordHash'), false);
     assert.equal(JSON.stringify(res.body).includes('refreshToken'), false, 'refresh token must not be in the body');
@@ -46,7 +46,8 @@ describe('auth', () => {
     const me = await api().get('/api/auth/me').set(auth(token));
     assert.equal(me.status, 200);
     assert.equal(me.body.data.student.studentNumber, 'STU2025001');
-    assert.deepEqual(me.body.data.permissions, ['registration:self']);
+    assert.deepEqual(me.body.data.permissions, ['registration:self', 'application:self']);
+    assert.equal(me.body.data.admissionStatus, 'ADMITTED');
 
     const registrar = await loginAs('registrar');
     const staff = await api().get('/api/auth/me').set(auth(registrar.token));
@@ -126,7 +127,7 @@ describe('auth', () => {
     });
     assert.equal(created.status, 201);
 
-    // A staff member's "forgot password" files a request for the super admin instead of emailing a link.
+    // A registrar's or lecturer's "forgot password" files a request for an admin instead of emailing a link.
     assert.equal(await authService.forgotPassword('fresh@test.local'), null);
     const token = await approvedResetToken('fresh@test.local');
     const reset = await api().post('/api/auth/reset-password').send({ token, password: 'NewPassw0rd' });
@@ -137,7 +138,7 @@ describe('auth', () => {
     assert.equal(reused.status, 400);
   });
 
-  test('only the super admin changes a password directly; it needs the current password and ends other sessions', async () => {
+  test('an admin changes their password directly; it needs the current password and ends other sessions', async () => {
     const lecturer = await login('fresh@test.local', 'NewPassw0rd');
     const refused = await api().patch('/api/auth/password').set(auth(lecturer.token)).send({ currentPassword: 'NewPassw0rd', newPassword: 'Changed1Pass' });
     assert.equal(refused.status, 403);
@@ -149,7 +150,7 @@ describe('auth', () => {
     assert.equal(pinOnly.status, 403);
     assert.match(pinOnly.body.error.message, /PIN/);
 
-    const { token, cookie, email } = await createSuperAdmin(1);
+    const { token, cookie, email } = await createAdmin(1);
     const wrong = await api().patch('/api/auth/password').set(auth(token)).send({ currentPassword: 'nope', newPassword: 'Changed1Pass' });
     assert.equal(wrong.status, 400);
 
@@ -205,7 +206,7 @@ describe('strict token revocation', () => {
   });
 
   test('changing the password invalidates existing access tokens at once', async () => {
-    const s = await createSuperAdmin(101);
+    const s = await createAdmin(101);
     const res = await api().patch('/api/auth/password').set(auth(s.token))
       .send({ currentPassword: 'Passw0rd!', newPassword: 'Changed1Pass' });
     assert.equal(res.status, 200);
@@ -246,7 +247,7 @@ describe('strict token revocation', () => {
 
   test('tokens without a jti or version are rejected', async () => {
     const { user } = await loginAs('student');
-    const legacy = jwt.sign({ sub: String(user.id), role: 'USER' }, env.JWT_ACCESS_SECRET, { expiresIn: '5m', issuer: 'scrs-api' });
+    const legacy = jwt.sign({ sub: String(user.id), role: 'STUDENT' }, env.JWT_ACCESS_SECRET, { expiresIn: '5m', issuer: 'scrs-api' });
     assert.equal((await me(legacy)).status, 401);
   });
 

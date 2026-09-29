@@ -17,7 +17,7 @@ import { PERMS, ROLE_LABELS, can } from '../../lib/roles'
 import { STUDENT_TONE } from './Students'
 import { USER_TONE } from './Users'
 
-const ROLE_ORDER = ['USER', 'LECTURER', 'ACADEMIC_ADVISOR', 'REGISTRAR', 'ADMIN', 'SUPER_ADMIN']
+const ROLE_ORDER = ['STUDENT', 'LECTURER', 'REGISTRAR', 'ADMIN']
 
 const accountSchema = z.object({
   firstName: z.string().trim().min(1, 'Required').max(100),
@@ -123,7 +123,7 @@ export default function UserDetail() {
   const role = u.role?.name
   const self = me?.id === u.id
   const active = u.status === 'active'
-  const showStudent = role === 'USER' || u.student
+  const showStudent = role === 'STUDENT' || u.student
   const showLecturer = role === 'LECTURER' || u.lecturer
   const showSignIns = can(me, PERMS.AUDIT_VIEW)
   const tabs = [
@@ -148,7 +148,7 @@ export default function UserDetail() {
           </div>
           <div className="flex flex-wrap gap-2">
             {/* Students sign in with the PIN from admission; invites are for staff. */}
-            {!self && active && !u.lastLoginAt && role !== 'USER' && (
+            {!self && active && !u.lastLoginAt && role !== 'STUDENT' && (
               <Button
                 variant="secondary"
                 loading={invite.isPending}

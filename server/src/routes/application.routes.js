@@ -12,7 +12,7 @@ import { PERMISSIONS } from '../utils/constants.js';
 
 /**
  * Online admission. Applicants sign up here with their personal email (the one self sign-up in the
- * system, and it only ever creates an APPLICANT); a student account comes from admitting an application
+ * system, and it creates a STUDENT who is not yet admitted); a student record comes from admitting an application
  * here, or from staff admission (/api/admissions).
  */
 const router = Router();

@@ -3,13 +3,12 @@
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 
+// The four roles (see server/src/utils/constants.js). Applicants are STUDENTs who aren't admitted yet.
 const ROLES = [
-  ['USER', 'Student account'],
+  ['ADMIN', 'Institution administration: accounts, admission, departments, programmes, settings'],
+  ['REGISTRAR', 'Academic administration: courses, offerings, lecturer assignment, registrations, timetable'],
   ['LECTURER', 'Teaching staff'],
-  ['ACADEMIC_ADVISOR', 'Approves student registrations'],
-  ['REGISTRAR', 'Manages academic periods and registrations'],
-  ['ADMIN', 'System administrator'],
-  ['SUPER_ADMIN', 'Full access, including roles and settings'],
+  ['STUDENT', 'Students, including applicants who are not admitted yet'],
 ];
 
 // Published in the project's own docs/tests — never acceptable as a real credential.
@@ -28,7 +27,7 @@ const resolveAdminCredentials = () => {
   if (process.env.NODE_ENV === 'production') {
     if (!email || !password) {
       throw new Error(
-        'SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set in production — refusing to seed a super admin without them.',
+        'SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set in production — refusing to seed an admin without them.',
       );
     }
     if (password === PUBLISHED_DEFAULT_PASSWORD) {
@@ -46,23 +45,24 @@ const resolveAdminCredentials = () => {
 };
 
 module.exports = {
-  // Shared with `npm run admin:create` (scripts/create-super-admin.mjs), so both apply the same rules.
+  // Shared with `npm run admin:create` (scripts/create-admin.mjs), so both apply the same rules.
   resolveAdminCredentials,
 
   async up(queryInterface) {
     const { email, password } = resolveAdminCredentials();
     const now = new Date();
-    await queryInterface.bulkInsert(
-      'roles',
-      ROLES.map(([name, description]) => ({ name, description, created_at: now, updated_at: now })),
-    );
+    // INSERT IGNORE: the four-roles migration may already have created them.
+    for (const [name, description] of ROLES) {
+      await queryInterface.sequelize.query(
+        'INSERT IGNORE INTO roles (name, description, created_at, updated_at) VALUES (:name, :description, :now, :now)',
+        { replacements: { name, description, now } },
+      );
+    }
 
-    const [[superAdmin]] = await queryInterface.sequelize.query(
-      "SELECT id FROM roles WHERE name = 'SUPER_ADMIN'",
-    );
+    const [[admin]] = await queryInterface.sequelize.query("SELECT id FROM roles WHERE name = 'ADMIN'");
 
     await queryInterface.bulkInsert('users', [{
-      role_id: superAdmin.id,
+      role_id: admin.id,
       first_name: 'System',
       last_name: 'Administrator',
       email,

@@ -10,7 +10,7 @@ import { validate } from '../middleware/validation.middleware.js';
 import { idParam } from '../validators/common.validator.js';
 import {
   createSectionSchema, updateSectionSchema, listSectionsQuery,
-  createScheduleSchema, updateScheduleSchema, listSchedulesQuery,
+  createScheduleSchema, updateScheduleSchema, listSchedulesQuery, assignLecturerSchema, unassignLecturerSchema,
 } from '../validators/schedule.validator.js';
 import { enterGradesSchema } from '../validators/grade.validator.js';
 import { createAttendanceSchema, createAssessmentSchema } from '../validators/teaching.validator.js';
@@ -25,6 +25,17 @@ sectionRouter.get('/:id', validate({ params: idParam }), sections.getById);
 sectionRouter.post('/', manage, validate({ body: createSectionSchema }), sections.create);
 sectionRouter.patch('/:id', manage, validate({ params: idParam, body: updateSectionSchema }), sections.update);
 sectionRouter.delete('/:id', manage, validate({ params: idParam }), sections.remove);
+
+// Lecturer assignment: the registry (lecturer:assign). Section managers may view the history.
+const assignLecturers = requirePermission(PERMISSIONS.LECTURER_ASSIGN);
+sectionRouter.put('/:id/lecturer', assignLecturers, validate({ params: idParam, body: assignLecturerSchema }), sections.assignLecturer);
+sectionRouter.delete('/:id/lecturer', assignLecturers, validate({ params: idParam, body: unassignLecturerSchema }), sections.unassignLecturer);
+sectionRouter.get(
+  '/:id/lecturer-history',
+  requireAnyPermission(PERMISSIONS.LECTURER_ASSIGN, PERMISSIONS.SECTION_MANAGE),
+  validate({ params: idParam }),
+  sections.lecturerHistory,
+);
 
 // Grades: lecturers for their own sections (checked in the service), registrar/admin for any.
 const grading = requireAnyPermission(PERMISSIONS.GRADE_ENTER, PERMISSIONS.GRADE_MANAGE);

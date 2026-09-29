@@ -8,6 +8,7 @@ import { COURSE_STATUS, ROLES, SECTION_STATUS, USER_STATUS } from '../utils/cons
 import { UNUSABLE_PASSWORD_HASH } from '../utils/password.js';
 import { slotsOverlap } from '../utils/time.js';
 import { addGroup } from './prerequisite.service.js';
+import { assignLocked, unassignLocked } from './lecturer-assignment.service.js';
 import { findConflicts } from './schedule.service.js';
 import { issueInvite } from './password-reset.service.js';
 import * as waitlistService from './waitlist.service.js';
@@ -263,7 +264,9 @@ export const importSections = (body, actor) => runImport(body, async (row, trans
     lecturerId = lecturer.id;
   }
 
-  const fields = { capacity: row.capacity, lecturerId, status: row.status, waitlistEnabled: row.waitlistEnabled };
+  // The lecturer is applied last, through the assignment service (validation + history), once the
+  // section's schedule for this row is in place.
+  const fields = { capacity: row.capacity, status: row.status, waitlistEnabled: row.waitlistEnabled };
   let section = await CourseSection.findOne({
     where: { courseId: course.id, semesterId, sectionCode: row.sectionCode }, transaction, lock: transaction.LOCK.UPDATE,
   });
@@ -293,7 +296,7 @@ export const importSections = (body, actor) => runImport(body, async (row, trans
       if (slots.slice(i + 1).some((b) => slotsOverlap(a, b))) throw new ConflictError('Two of this section\'s slots overlap');
     }
   }
-  if (row.schedules || lecturerId) {
+  if (row.schedules) {
     const conflicts = await findConflicts({
       semesterId, lecturerId: section.lecturerId, slots, excludeSectionId: section.id, transaction,
     });
@@ -308,6 +311,13 @@ export const importSections = (body, actor) => runImport(body, async (row, trans
       await Schedule.bulkCreate(slots.map((s) => ({ ...s, courseSectionId: section.id })), { transaction });
       if (outcome === 'unchanged') outcome = 'updated';
     }
+  }
+
+  if (lecturerId !== undefined && lecturerId !== section.lecturerId) {
+    const options = { transaction, quiet: ctx.dryRun, reason: 'Sections import' };
+    if (lecturerId) await assignLocked(section, lecturerId, ctx.actor, options);
+    else await unassignLocked(section, ctx.actor, options);
+    if (outcome === 'unchanged') outcome = 'updated';
   }
 
   // More seats on a live section: tell the waitlist, as a manual capacity change would.

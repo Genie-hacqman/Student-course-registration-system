@@ -20,7 +20,7 @@ const schema = z
   .refine((d) => d.password === d.confirmPassword, { message: 'The passwords do not match', path: ['confirmPassword'] })
 
 /**
- * Prospective students create an applicant account with their personal email. The server answers the
+ * Prospective students create their (STUDENT) account with their personal email. The server answers the
  * same whether or not the email is taken, so after signing up we simply try to sign in: that works for a
  * new account, and otherwise the person is pointed to sign in or reset their password.
  */
@@ -35,7 +35,7 @@ export default function Apply() {
       await applicationsApi.signUp(values)
       try {
         await login({ identifier: values.email, password: values.password })
-        navigate('/applicant', { replace: true })
+        navigate('/student/admission', { replace: true })
       } catch {
         setExisting(true)
       }

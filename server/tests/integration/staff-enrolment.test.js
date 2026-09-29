@@ -89,17 +89,16 @@ describe('staff enrolment', () => {
     }
   });
 
-  test('removing needs a reason and a registered student; students and advisors cannot use it', async () => {
+  test('removing needs a reason and a registered student; admins, lecturers and students cannot enrol', async () => {
     const cs201 = await sectionIdFor('CS201');
     assert.equal((await staffRemove(registrar.token, cs201, student.studentId, '')).status, 422);
     assert.equal((await staffRemove(registrar.token, await sectionIdFor('CS204'), student.studentId, 'Not registered here')).status, 404);
 
-    const admin = await loginAs('admin');
-    await api().post('/api/users').set(auth(admin.token)).send({
-      firstName: 'Adwoa', lastName: 'Advisor', email: 'advisor@test.local', password: 'Passw0rd!', role: 'ACADEMIC_ADVISOR',
-    });
-    const advisor = await login('advisor@test.local', 'Passw0rd!');
-    assert.equal((await staffAdd(advisor.token, cs201, { studentId: student.studentId })).status, 403);
+    // Enrolment (registration:manage) is the registry's.
+    for (const who of ['admin', 'lecturer']) {
+      const staff = await loginAs(who);
+      assert.equal((await staffAdd(staff.token, cs201, { studentId: student.studentId })).status, 403, who);
+    }
     assert.equal((await staffAdd(student.token, cs201, { studentId: student.studentId })).status, 403);
   });
 });

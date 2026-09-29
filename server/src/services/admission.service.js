@@ -32,8 +32,8 @@ export const studentEmailDomain = async (transaction) => {
 
 export const studentRoleId = async (ctx, transaction) => {
   if (!ctx.roleId) {
-    const role = await Role.findOne({ where: { name: ROLES.USER }, transaction });
-    if (!role) throw new Error('USER role missing — run the seeders');
+    const role = await Role.findOne({ where: { name: ROLES.STUDENT }, transaction });
+    if (!role) throw new Error('STUDENT role missing — run the seeders');
     ctx.roleId = role.id;
   }
   return ctx.roleId;

@@ -5,17 +5,13 @@ import {
 } from './helpers.js';
 
 let student;
-let admin;
-let advisor;
+// Everything here — courses, curricula, offerings, requirements and prerequisite overrides — is the registry's.
+let registrar;
 let ids;
 
 before(async () => {
   resetDatabase();
-  [student, admin] = await Promise.all([loginAs('student'), loginAs('admin')]);
-  await api().post('/api/users').set(auth(admin.token)).send({
-    firstName: 'Ada', lastName: 'Advisor', email: 'advisor@test.local', password: 'Passw0rd!', role: 'ACADEMIC_ADVISOR',
-  });
-  advisor = await login('advisor@test.local', 'Passw0rd!');
+  [student, registrar] = await Promise.all([loginAs('student'), loginAs('registrar')]);
   const [dept] = await query("SELECT id FROM departments WHERE code = 'CS'");
   const [program] = await query("SELECT id FROM programs WHERE code = 'BSC-CS'");
   const [semester] = await query('SELECT id FROM semesters WHERE is_current = 1');
@@ -24,17 +20,17 @@ before(async () => {
 after(() => sequelize.close());
 
 const createCourse = async (code, { credits = 3, day, start, end } = {}) => {
-  const course = await api().post('/api/courses').set(auth(admin.token))
+  const course = await api().post('/api/courses').set(auth(registrar.token))
     .send({ departmentId: ids.dept, code, title: `${code} title`, credits, level: 200 });
-  await api().post(`/api/programs/${ids.program}/courses`).set(auth(admin.token)).send({ courseId: course.body.data.id });
-  const section = await api().post('/api/sections').set(auth(admin.token)).send({ courseId: course.body.data.id, semesterId: ids.semester, capacity: 30 });
+  await api().post(`/api/programs/${ids.program}/courses`).set(auth(registrar.token)).send({ courseId: course.body.data.id });
+  const section = await api().post('/api/sections').set(auth(registrar.token)).send({ courseId: course.body.data.id, semesterId: ids.semester, capacity: 30 });
   if (day) {
-    await api().post('/api/schedules').set(auth(admin.token))
+    await api().post('/api/schedules').set(auth(registrar.token))
       .send({ courseSectionId: section.body.data.id, day, startTime: start, endTime: end, room: `R-${code}` });
   }
   return { courseId: course.body.data.id, sectionId: section.body.data.id };
 };
-const requirement = (courseId, body) => api().post(`/api/courses/${courseId}/prerequisites`).set(auth(admin.token)).send(body);
+const requirement = (courseId, body) => api().post(`/api/courses/${courseId}/prerequisites`).set(auth(registrar.token)).send(body);
 const check = (courseId) => api().get(`/api/courses/${courseId}/prerequisites/check`).set(auth(student.token));
 const add = (sectionId) => api().post('/api/registrations/items').set(auth(student.token)).send({ courseSectionId: sectionId });
 
@@ -113,14 +109,14 @@ describe('overrides', () => {
     assert.equal(res.status, 403);
   });
 
-  test('an advisor override lets the student register despite missing prerequisites', async () => {
+  test('a registrar override lets the student register despite missing prerequisites', async () => {
     const cs202 = await courseIdFor('CS202');
     assert.equal((await check(cs202)).body.data.qualified, false);
 
-    const granted = await api().post(`/api/students/${ids.student}/prerequisite-overrides`).set(auth(advisor.token))
+    const granted = await api().post(`/api/students/${ids.student}/prerequisite-overrides`).set(auth(registrar.token))
       .send({ courseId: cs202, semesterId: ids.semester, reason: 'Completed Data Structures at transfer university' });
     assert.equal(granted.status, 201);
-    const dup = await api().post(`/api/students/${ids.student}/prerequisite-overrides`).set(auth(advisor.token))
+    const dup = await api().post(`/api/students/${ids.student}/prerequisite-overrides`).set(auth(registrar.token))
       .send({ courseId: cs202, semesterId: ids.semester, reason: 'Duplicate request' });
     assert.equal(dup.status, 409);
 

@@ -72,7 +72,7 @@ describe('health & auth', () => {
   });
 
   test('admission → first sign-in → change PIN → me → refresh → sessions → requests → forgot/reset PIN → logout', async () => {
-    const admitted = await api().post('/api/admissions').set(as(registrar)).send({
+    const admitted = await api().post('/api/admissions').set(as(admin)).send({
       firstName: 'Route', lastName: 'Tester', programId: ids.program, admissionSession: '2026/2027',
     });
     assert.equal(admitted.status, 201);
@@ -103,7 +103,7 @@ describe('health & auth', () => {
       .send({ currentPassword: '480162', newPassword: 'Changed1Pass' });
     assert.equal(password.status, 403, 'students change a PIN, not a password');
 
-    // Name change: request → cancel → request again → super admin rejects, then approves a third one.
+    // Name change: request → cancel → request again → an admin rejects, then approves a third one.
     const asStudent = (r) => r.set(auth(session.token));
     const nameReq = () => asStudent(api().post('/api/auth/change-requests')).send({ type: 'name_change', firstName: 'Route', lastName: 'Renamed' });
     const first2 = await nameReq();
@@ -145,7 +145,7 @@ describe('health & auth', () => {
     const temp = await login(studentNumber, staffReset.body.data.pin);
     assert.equal(temp.user.mustChangePassword, true);
 
-    const bulk = await api().post('/api/admissions/bulk').set(as(registrar)).send({
+    const bulk = await api().post('/api/admissions/bulk').set(as(admin)).send({
       rows: [{ firstName: 'Bulk', lastName: 'Student', programCode: 'BSC-CS', admissionSession: '2026/2027', admissionNumber: 'ADM-ROUTES-1' }],
       dryRun: true,
     });
@@ -156,10 +156,10 @@ describe('health & auth', () => {
 
 describe('users', () => {
   test('list, get, create, update, deactivate (admin only)', async () => {
-    const list = await api().get('/api/users?role=USER&search=scrs.local').set(as(admin));
+    const list = await api().get('/api/users?role=STUDENT&search=scrs.local').set(as(admin));
     assert.equal(list.status, 200);
     assert.deepEqual(list.body.data.map((u) => u.email), ['student@scrs.local']);
-    assert.equal(list.body.data[0].role.name, 'USER');
+    assert.equal(list.body.data[0].role.name, 'STUDENT');
     assert.equal(JSON.stringify(list.body).includes('passwordHash'), false);
 
     const one = await api().get(`/api/users/${list.body.data[0].id}`).set(as(admin));
@@ -172,14 +172,18 @@ describe('users', () => {
     assert.equal(created.body.data.role.name, 'LECTURER');
     ids.adaUser = created.body.data.id;
 
-    const promoted = await api().patch(`/api/users/${ids.adaUser}`).set(as(admin)).send({ role: 'ACADEMIC_ADVISOR', firstName: 'Augusta' });
+    const promoted = await api().patch(`/api/users/${ids.adaUser}`).set(as(admin)).send({ role: 'REGISTRAR', firstName: 'Augusta' });
     assert.equal(promoted.status, 200);
-    assert.equal(promoted.body.data.role.name, 'ACADEMIC_ADVISOR');
+    assert.equal(promoted.body.data.role.name, 'REGISTRAR');
+    // Only the four roles exist: the removed ones are rejected.
+    for (const removed of ['SUPER_ADMIN', 'USER', 'ACADEMIC_ADVISOR', 'APPLICANT']) {
+      assert.equal((await api().patch(`/api/users/${ids.adaUser}`).set(as(admin)).send({ role: removed })).status, 422, removed);
+    }
     assert.equal(promoted.body.data.firstName, 'Augusta');
     await api().patch(`/api/users/${ids.adaUser}`).set(as(admin)).send({ role: 'LECTURER' });
 
     const temp = await api().post('/api/users').set(as(admin)).send({
-      firstName: 'Temp', lastName: 'User', email: 'temp@test.local', password: 'Passw0rd!', role: 'USER',
+      firstName: 'Temp', lastName: 'User', email: 'temp@test.local', password: 'Passw0rd!', role: 'STUDENT',
     });
     const deactivated = await api().delete(`/api/users/${temp.body.data.id}`).set(as(admin));
     assert.equal(deactivated.status, 200);
@@ -228,7 +232,7 @@ describe('departments & programs', () => {
     assert.equal(patched.body.data.durationYears, 4, 'partial update keeps other fields');
 
     const math101 = await courseIdFor('MATH101');
-    const added = await api().post(`/api/programs/${ids.phyProgram}/courses`).set(as(admin)).send({ courseId: math101, type: 'core' });
+    const added = await api().post(`/api/programs/${ids.phyProgram}/courses`).set(as(registrar)).send({ courseId: math101, type: 'core' });
     assert.equal(added.status, 201);
 
     const curriculum = await api().get(`/api/programs/${ids.phyProgram}/courses`);
@@ -236,7 +240,7 @@ describe('departments & programs', () => {
     assert.deepEqual(curriculum.body.data.map((c) => c.code), ['MATH101']);
     assert.equal(curriculum.body.data[0].ProgramCourse.type, 'core');
 
-    assert.equal((await api().delete(`/api/programs/${ids.phyProgram}/courses/${math101}`).set(as(admin))).status, 204);
+    assert.equal((await api().delete(`/api/programs/${ids.phyProgram}/courses/${math101}`).set(as(registrar))).status, 204);
     assert.equal((await api().delete(`/api/programs/${ids.phyProgram}`).set(as(admin))).status, 204);
     assert.equal((await api().delete(`/api/departments/${ids.phy}`).set(as(admin))).status, 204);
     assert.equal((await api().get(`/api/departments/${ids.phy}`).set(as(admin))).status, 404);
@@ -265,7 +269,7 @@ describe('students & lecturers', () => {
     assert.equal((await api().get(`/api/students/${ids.student}/results`).set(as(registrar))).body.data.results.length, 2);
 
     const user = await api().post('/api/users').set(as(admin)).send({
-      firstName: 'Kwame', lastName: 'Asante', email: 'kwame@test.local', password: 'Passw0rd!', role: 'USER',
+      firstName: 'Kwame', lastName: 'Asante', email: 'kwame@test.local', password: 'Passw0rd!', role: 'STUDENT',
     });
     const created = await api().post('/api/students').set(as(admin)).send({
       userId: user.body.data.id, programId: ids.program, studentNumber: 'STU2026500', level: 100,
@@ -283,13 +287,14 @@ describe('students & lecturers', () => {
     const created = await api().post('/api/lecturers').set(as(admin)).send({
       userId: ids.adaUser, departmentId: ids.cs, staffNumber: 'STF2002', title: 'Dr.',
     });
-    assert.equal(created.status, 201);
+    assert.equal(created.status, 201, JSON.stringify(created.body));
 
     const list = await api().get(`/api/lecturers?departmentId=${ids.cs}`).set(as(admin));
     assert.deepEqual(list.body.data.map((l) => l.staffNumber).sort(), ['STF1001', 'STF2002']);
-    // Registrars can list lecturers to assign them to sections, but not read or edit a lecturer record.
+    // Registrars view lecturers (they assign them to course offerings) but can't edit a lecturer record.
     assert.equal((await api().get('/api/lecturers').set(as(registrar))).status, 200);
-    assert.equal((await api().get(`/api/lecturers/${created.body.data.id}`).set(as(registrar))).status, 403);
+    assert.equal((await api().get(`/api/lecturers/${created.body.data.id}`).set(as(registrar))).status, 200);
+    assert.equal((await api().patch(`/api/lecturers/${created.body.data.id}`).set(as(registrar)).send({ title: 'x' })).status, 403);
     assert.equal((await api().get('/api/lecturers').set(as(student))).status, 403);
 
     assert.equal((await api().get(`/api/lecturers/${created.body.data.id}`).set(as(admin))).body.data.user.email, 'ada@test.local');
@@ -347,23 +352,23 @@ describe('courses, prerequisites, sections & schedules', () => {
     const list = await api().get('/api/courses?departmentId=' + ids.cs).set(as(student));
     assert.equal(list.status, 200);
 
-    const created = await api().post('/api/courses').set(as(admin))
+    const created = await api().post('/api/courses').set(as(registrar))
       .send({ departmentId: ids.cs, code: 'CS250', title: 'Web Development', credits: 3, level: 200 });
     assert.equal(created.status, 201);
     ids.cs250 = created.body.data.id;
 
-    const patched = await api().patch(`/api/courses/${ids.cs250}`).set(as(admin)).send({ title: 'Web Engineering' });
+    const patched = await api().patch(`/api/courses/${ids.cs250}`).set(as(registrar)).send({ title: 'Web Engineering' });
     assert.equal(patched.body.data.title, 'Web Engineering');
     assert.equal(patched.body.data.credits, 3);
     assert.equal((await api().get(`/api/courses/${ids.cs250}`).set(as(student))).body.data.title, 'Web Engineering');
 
     const cs101 = await courseIdFor('CS101');
-    await api().post(`/api/courses/${ids.cs250}/prerequisites`).set(as(admin)).send({ prerequisiteCourseId: cs101 });
+    await api().post(`/api/courses/${ids.cs250}/prerequisites`).set(as(registrar)).send({ prerequisiteCourseId: cs101 });
     const prereqs = await api().get(`/api/courses/${ids.cs250}/prerequisites`).set(as(student));
     assert.deepEqual(prereqs.body.data.map((c) => c.code), ['CS101']);
     const check = await api().get(`/api/courses/${ids.cs250}/prerequisites/check`).set(as(student));
     assert.equal(check.body.data.qualified, true);
-    assert.equal((await api().delete(`/api/courses/${ids.cs250}/prerequisites/${cs101}`).set(as(admin))).status, 204);
+    assert.equal((await api().delete(`/api/courses/${ids.cs250}/prerequisites/${cs101}`).set(as(registrar))).status, 204);
   });
 
   test('section and schedule CRUD', async () => {
@@ -405,7 +410,7 @@ describe('courses, prerequisites, sections & schedules', () => {
     assert.equal((await api().delete(`/api/sections/${sectionId}`).set(as(registrar))).status, 204);
     assert.equal((await api().get(`/api/sections/${sectionId}`).set(as(student))).status, 404);
 
-    assert.equal((await api().delete(`/api/courses/${ids.cs250}`).set(as(admin))).status, 204);
+    assert.equal((await api().delete(`/api/courses/${ids.cs250}`).set(as(registrar))).status, 204);
   });
 });
 
@@ -503,6 +508,9 @@ describe('registration lifecycle, waitlist, notifications, timetable', () => {
     const summary = await api().get('/api/admin/reports/registration-summary').set(as(registrar));
     assert.equal(summary.body.data.students, 1);
 
+    const deliveries = await api().get('/api/admin/email-deliveries?limit=5').set(as(admin));
+    assert.equal(deliveries.status, 200);
+    assert.equal((await api().get('/api/admin/email-deliveries').set(as(registrar))).status, 403);
     const audit = await api().get('/api/admin/audit-logs?entityType=Registration').set(as(admin));
     assert.ok(audit.body.data.some((a) => a.action === 'registration.rejected'));
 
@@ -543,7 +551,7 @@ describe('grades, prerequisite overrides, registration priority', () => {
     assert.equal(imported.body.data.failed, 1);
   });
 
-  test('advisor grants and revokes a prerequisite override', async () => {
+  test('the registrar grants and revokes a prerequisite override', async () => {
     const cs301 = await courseIdFor('CS301');
     const granted = await api().post(`/api/students/${ids.student}/prerequisite-overrides`).set(as(registrar))
       .send({ courseId: cs301, semesterId: ids.semester, reason: 'Completed equivalent course abroad' });
@@ -635,8 +643,8 @@ describe('teaching, announcements, roles & overview', () => {
 
     const roles = (await api().get('/api/admin/roles').set(as(admin))).body.data;
     assert.equal((await api().get('/api/admin/permissions').set(as(admin))).status, 200);
-    const advisor = roles.find((r) => r.name === 'ACADEMIC_ADVISOR');
-    assert.equal((await api().put(`/api/admin/roles/${advisor.id}/permissions`).set(as(admin)).send({ permissions: advisor.defaults })).status, 200);
+    const lecturerRole = roles.find((r) => r.name === 'LECTURER');
+    assert.equal((await api().put(`/api/admin/roles/${lecturerRole.id}/permissions`).set(as(admin)).send({ permissions: lecturerRole.defaults })).status, 200);
     assert.equal((await api().get('/api/admin/reports/overview').set(as(registrar))).status, 200);
   });
 
@@ -651,11 +659,13 @@ describe('teaching, announcements, roles & overview', () => {
       sections: [{ courseCode: 'CS101', sectionCode: 'RT', capacity: 5 }],
     };
     for (const [path, body] of Object.entries(rows)) {
-      const res = await api().post(`/api/admin/import/${path}`).set(as(admin)).send({ rows: body, dryRun: true });
+      // Departments, programmes and people are loaded by the admin; the catalogue and offerings by the registry.
+      const who = ['courses', 'program-courses', 'prerequisites', 'sections'].includes(path) ? registrar : admin;
+      const res = await api().post(`/api/admin/import/${path}`).set(as(who)).send({ rows: body, dryRun: true });
       assert.equal(res.status, 200, `${path}: ${JSON.stringify(res.body)}`);
       assert.equal(res.body.data.dryRun, true);
     }
-    const catalog = await api().post('/api/admin/import/course-catalog').set(as(admin)).send({
+    const catalog = await api().post('/api/admin/import/course-catalog').set(as(registrar)).send({
       dryRun: true,
       rows: [{ courseCode: 'RT201', courseTitle: 'Route Test', department: 'CS', programme: 'BSC-CS', level: '200', semester: '1', creditHours: '3', courseType: 'core' }],
     });
@@ -665,7 +675,7 @@ describe('teaching, announcements, roles & overview', () => {
     assert.equal((await api().post('/api/admin/import/students').set(as(admin)).send({ rows: [] })).status, 410);
 
     const invited = await api().post('/api/users').set(as(admin)).send({
-      firstName: 'Invited', lastName: 'Advisor', email: 'rt.invited@test.local', role: 'ACADEMIC_ADVISOR',
+      firstName: 'Invited', lastName: 'Registrar', email: 'rt.invited@test.local', role: 'REGISTRAR',
     });
     assert.equal(invited.status, 201);
     assert.equal((await api().post(`/api/users/${invited.body.data.id}/invite`).set(as(admin))).status, 204);
@@ -677,11 +687,11 @@ describe('teaching, announcements, roles & overview', () => {
 // earlier tests in this file depend on.
 describe('section lifecycle notifications', () => {
   test('cancelling, unassigning or rescheduling a section notifies the lecturer and its registered students', async () => {
-    const course = await api().post('/api/courses').set(as(admin))
+    const course = await api().post('/api/courses').set(as(registrar))
       .send({ departmentId: ids.cs, code: 'CS270', title: 'Notification Coverage', credits: 3, level: 200 });
     assert.equal(course.status, 201);
     const courseId = course.body.data.id;
-    await api().post(`/api/programs/${ids.program}/courses`).set(as(admin)).send({ courseId, type: 'elective' });
+    await api().post(`/api/programs/${ids.program}/courses`).set(as(registrar)).send({ courseId, type: 'elective' });
 
     const [{ id: lecturerId }] = await query('SELECT id FROM lecturers WHERE user_id = :userId', { userId: lecturer.user.id });
     const section = await api().post('/api/sections').set(as(registrar))
@@ -749,6 +759,27 @@ describe('online admission and timetable issues', () => {
     const resolved = await api().post(`/api/admin/timetable-issues/${listed.body.data[0].id}/resolve`).set(as(registrar)).send({ note: 'Room swapped' });
     assert.equal(resolved.status, 200);
     assert.equal(resolved.body.data.status, 'resolved');
+  });
+});
+
+describe('lecturer accounts and course-offering assignment', () => {
+  test('create → deactivate/activate → invite; assign → history → unassign', async () => {
+    const created = await api().post('/api/lecturers').set(as(admin)).send({
+      firstName: 'Route', lastName: 'Lecturer', staffNumber: 'RT-LEC-1', departmentId: ids.cs, schoolEmail: 'route.lecturer@staff.test',
+    });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const lecturerId = created.body.data.id;
+    assert.equal((await api().post(`/api/lecturers/${lecturerId}/deactivate`).set(as(admin))).status, 200);
+    assert.equal((await api().post(`/api/lecturers/${lecturerId}/activate`).set(as(admin))).status, 200);
+    assert.equal((await api().post(`/api/lecturers/${lecturerId}/invite`).set(as(admin))).status, 204);
+
+    const [{ id: sectionId }] = await query(
+      "SELECT s.id FROM course_sections s JOIN courses c ON c.id = s.course_id WHERE c.code = 'CS202' AND s.status <> 'cancelled' LIMIT 1",
+    );
+    const assigned = await api().put(`/api/sections/${sectionId}/lecturer`).set(as(registrar)).send({ lecturerId });
+    assert.equal(assigned.status, 200, JSON.stringify(assigned.body));
+    assert.equal((await api().get(`/api/sections/${sectionId}/lecturer-history`).set(as(registrar))).status, 200);
+    assert.equal((await api().delete(`/api/sections/${sectionId}/lecturer`).set(as(registrar)).send({ reason: 'Route test' })).status, 200);
   });
 });
 

@@ -43,7 +43,7 @@ export default function AccountRequests() {
 
   return (
     <div>
-      <PageHeader title="Account requests" subtitle="Password resets and name changes wait here for your approval. Only the super admin changes these directly." />
+      <PageHeader title="Account requests" subtitle="Registrars’ and lecturers’ password resets and name changes wait here for an admin’s approval. Admins change their own directly." />
       <Tabs className="mb-4" items={TABS} value={status} onChange={(value) => set({ status: value, page: 1 })} />
       <Card>
         <QueryState query={requests}>

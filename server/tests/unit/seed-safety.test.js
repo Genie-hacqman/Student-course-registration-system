@@ -38,7 +38,7 @@ describe('demo seeders refuse to run in production', () => {
   }
 });
 
-describe('the super-admin seeder rejects unsafe production credentials', () => {
+describe('the admin seeder rejects unsafe production credentials', () => {
   // Required once: the module's own `require('dotenv').config()` runs a single time here, reading
   // whatever real .env is on disk. Because the module is then cached, later tests' env mutations
   // (delete/set) are what resolveAdminCredentials() actually sees when up() is called — dotenv

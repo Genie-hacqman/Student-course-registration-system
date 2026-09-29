@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
+import { useAuth } from '../../auth/AuthProvider'
+import { PERMS, can } from '../../lib/roles'
 import { Badge, Button, Card, CardHeader, ErrorState, Input, Loading, Select } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import FormModal, { Checkbox } from '../../components/admin/FormModal'
@@ -29,6 +31,9 @@ const slotSchema = z.object({
 }).refine((d) => d.endTime > d.startTime, { message: 'Must be after the start', path: ['endTime'] })
 
 export default function SectionDetail() {
+  const { user } = useAuth()
+  // Choosing the lecturer is the registry's (lecturer:assign); section managers without it leave it alone.
+  const canAssign = can(user, PERMS.LECTURER_ASSIGN)
   const { id } = useParams()
   const navigate = useNavigate()
   const section = useApi(`/sections/${id}`)
@@ -120,7 +125,7 @@ export default function SectionDetail() {
         title={`Edit section ${s.sectionCode}`}
         schema={editSchema}
         defaultValues={{ sectionCode: s.sectionCode, capacity: s.capacity, lecturerId: s.lecturerId ?? '', status: s.status, waitlistEnabled: s.waitlistEnabled }}
-        onSubmit={(v) => update.mutateAsync({ ...v, lecturerId: v.lecturerId ?? null })}
+        onSubmit={({ lecturerId, ...v }) => update.mutateAsync(canAssign ? { ...v, lecturerId: lecturerId ?? null } : v)}
         onError={showClash}
       >
         {({ register, watch, formState: { errors } }) => (
@@ -129,7 +134,9 @@ export default function SectionDetail() {
               <Input label="Section code" error={errors.sectionCode?.message} {...register('sectionCode')} />
               <Input label="Capacity" type="number" hint={`${s.seatsTaken} seats already taken`} error={errors.capacity?.message} {...register('capacity')} />
             </div>
-            <LecturerSelect error={errors.lecturerId?.message} {...register('lecturerId')} />
+            {canAssign
+              ? <LecturerSelect error={errors.lecturerId?.message} {...register('lecturerId')} />
+              : <p className="text-sm text-slate-500">Lecturer: <span className="font-medium text-slate-700">{lecturerName(s.lecturer)}</span> — changed by the registry in Course assignments.</p>}
             <Select label="Status" {...register('status')}>
               <option value="open">Open — students can register</option>
               <option value="closed">Closed — no new registrations</option>

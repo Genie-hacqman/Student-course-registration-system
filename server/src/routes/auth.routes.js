@@ -33,7 +33,7 @@ router.post('/pin/reset', authLimiter, validate({ body: resetPinSchema }), ctrl.
 router.post('/verify-email', authLimiter, validate({ body: verifyEmailSchema }), ctrl.verifyEmail);
 router.post('/verify-email/resend', authLimiter, authenticate, ctrl.resendVerification);
 
-// Password resets and name changes that need the super admin's approval (everyone but the super admin).
+// Password resets and name changes that need an admin's approval (registrars, lecturers, admitted students' names).
 router.post('/change-requests', authenticate, validate({ body: changeRequestSchema }), accountRequests.createForSelf);
 router.get('/change-requests', authenticate, accountRequests.listForSelf);
 router.delete('/change-requests/:id', authenticate, validate({ params: idParam }), accountRequests.cancel);

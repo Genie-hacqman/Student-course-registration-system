@@ -2,7 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as authService from '../../src/services/auth.service.js';
 import {
-  resetDatabase, api, loginAs, login, auth, query, createStudent, createSuperAdmin, sequelize,
+  resetDatabase, api, loginAs, login, auth, query, createStudent, createAdmin, sequelize,
 } from './helpers.js';
 import { PERMISSIONS, ROLE_PERMISSIONS } from '../../src/utils/constants.js';
 
@@ -17,8 +17,8 @@ const pendingFor = async (email, type) => query(
 const lastNotification = async (userId, type) =>
   (await query('SELECT title, message FROM notifications WHERE user_id = :userId AND type = :type ORDER BY id DESC LIMIT 1', { userId, type }))[0];
 
-describe('password resets need the super admin', () => {
-  test('forgot password files one request, notifies the super admin, and emails no link yet', async () => {
+describe('staff password resets need an admin', () => {
+  test('forgot password files one request, notifies the admins, and emails no link yet', async () => {
     const admin0 = await loginAs('admin');
     await api().post('/api/users').set(auth(admin0.token)).send({
       firstName: 'Staff', lastName: 'One', email: 'staff1@test.local', password: 'Passw0rd!', role: 'LECTURER',
@@ -34,7 +34,7 @@ describe('password resets need the super admin', () => {
     assert.match((await lastNotification(admin.user.id, 'ACCOUNT_REQUEST_CREATED')).message, /staff1@test.local/);
   });
 
-  test('only the super admin can approve; approval issues the reset link and tells the user', async () => {
+  test('only an admin can approve; approval issues the reset link and tells the user', async () => {
     const [{ id }] = await pendingFor('staff1@test.local', 'password_reset');
     const registrar = await loginAs('registrar');
     assert.equal((await api().patch(`/api/admin/account-requests/${id}/approve`).set(auth(registrar.token)).send({})).status, 403);
@@ -58,15 +58,15 @@ describe('password resets need the super admin', () => {
     assert.equal((await pendingFor(s.email, 'password_reset')).length, 0);
   });
 
-  test('staff other than the super admin also need approval; the super admin does not', async () => {
+  test('registrars and lecturers need approval; admins do not', async () => {
     const registrar = await loginAs('registrar');
     assert.equal((await api().patch('/api/auth/password').set(auth(registrar.token)).send({ currentPassword: 'Registrar@12345', newPassword: 'Changed1Pass' })).status, 403);
     assert.equal((await api().patch('/api/auth/me').set(auth(registrar.token)).send({ firstName: 'X' })).status, 403);
     const req = await api().post('/api/auth/change-requests').set(auth(registrar.token)).send({ type: 'password_reset', note: 'Forgot it' });
     assert.equal(req.status, 201);
 
-    const sa = await createSuperAdmin(1);
-    assert.ok(await authService.forgotPassword(sa.email), 'the super admin gets a link straight away');
+    const sa = await createAdmin(1);
+    assert.ok(await authService.forgotPassword(sa.email), 'an admin gets a link straight away');
     assert.equal((await api().post('/api/auth/change-requests').set(auth(sa.token)).send({ type: 'password_reset' })).status, 400);
   });
 
@@ -107,7 +107,7 @@ describe('password resets need the super admin', () => {
   });
 });
 
-describe('name changes need the super admin', () => {
+describe('name changes need an admin', () => {
   test('a request must name the new first and last name; a rejection needs a reason and changes nothing', async () => {
     const { token, user } = await loginAs('student');
     assert.equal((await api().post('/api/auth/change-requests').set(auth(token)).send({ type: 'name_change', firstName: 'Only' })).status, 422);

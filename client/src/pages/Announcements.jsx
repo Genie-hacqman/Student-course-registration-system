@@ -23,6 +23,7 @@ const schema = z.object({
   courseSectionId: z.string().optional(),
   programId: z.string().optional(),
   pinned: z.boolean().optional(),
+  emailRecipients: z.boolean().optional(),
 }).superRefine((d, ctx) => {
   if (d.audience === 'section' && !d.courseSectionId) ctx.addIssue({ code: 'custom', path: ['courseSectionId'], message: 'Choose a section' })
   if (d.audience === 'program' && !d.programId) ctx.addIssue({ code: 'custom', path: ['programId'], message: 'Choose a programme' })
@@ -159,14 +160,16 @@ export default function Announcements() {
         schema={schema}
         wide
         submitLabel="Post announcement"
-        defaultValues={{ title: '', body: '', audience: audiences[0], courseSectionId: '', programId: '', pinned: false }}
+        defaultValues={{ title: '', body: '', audience: audiences[0], courseSectionId: '', programId: '', pinned: false, emailRecipients: false }}
         onSubmit={async (v) => {
           const res = await create.mutateAsync({
-            title: v.title, body: v.body, audience: v.audience, pinned: v.pinned || undefined,
+            title: v.title, body: v.body, audience: v.audience, pinned: v.pinned || undefined, emailRecipients: v.emailRecipients || undefined,
             ...(v.audience === 'section' ? { courseSectionId: Number(v.courseSectionId) } : {}),
             ...(v.audience === 'program' ? { programId: Number(v.programId) } : {}),
           })
-          toast.success('Announcement posted', { description: `Sent to ${res.recipientCount} ${res.recipientCount === 1 ? 'person' : 'people'}.` })
+          toast.success('Announcement posted', {
+            description: `Sent to ${res.recipientCount} ${res.recipientCount === 1 ? 'person' : 'people'}${v.emailRecipients ? '; emails are going out now' : ''}.`,
+          })
           setTab('mine')
         }}
       >
@@ -194,6 +197,7 @@ export default function Announcements() {
                 )}
               </div>
               {!isLecturer && <Checkbox label="Pin to the top" hint="Pinned announcements stay above newer ones." {...register('pinned')} />}
+              <Checkbox label="Also send by email" hint="For important notices. Each recipient gets one email; delivery shows in the admin email log." {...register('emailRecipients')} />
               <p className="text-xs text-slate-500">Everyone in the audience also gets a notification.</p>
             </>
           )

@@ -95,8 +95,12 @@ export const updateSectionSchema = z
 export const listSectionsQuery = z.object({
   ...paginationQuery,
   semesterId: id.optional(),
+  academicYearId: id.optional(),
   courseId: id.optional(),
+  departmentId: id.optional(), // the course's department
   lecturerId: id.optional(),
+  // "true": only offerings with no lecturer yet (Course assignments).
+  unassigned: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
   status: z.enum(Object.values(SECTION_STATUS)).optional(),
 });
 
@@ -148,3 +152,10 @@ export const registrationOverrideSchema = z.object({
   reason: z.string().trim().min(5).max(500),
 });
 export const overrideStudentParams = z.object({ id, studentId: id });
+
+// Lecturer assignment to a course offering (lecturer:assign)
+export const assignLecturerSchema = z.object({
+  lecturerId: id,
+  reason: z.string().trim().max(255).optional(),
+});
+export const unassignLecturerSchema = z.object({ reason: z.string().trim().max(255).optional() });

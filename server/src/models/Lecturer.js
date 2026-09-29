@@ -10,6 +10,16 @@ Lecturer.init(
     departmentId: { type: DataTypes.INTEGER, allowNull: false },
     staffNumber: { type: DataTypes.STRING(30), allowNull: false, unique: true },
     title: { type: DataTypes.STRING(50) },
+    phone: { type: DataTypes.STRING(30) },
+    specialization: { type: DataTypes.STRING(150) },
+    // Where activation and personal notices go; the school email is users.email.
+    personalEmail: {
+      type: DataTypes.STRING(191),
+      unique: true,
+      set(value) {
+        this.setDataValue('personalEmail', value ? String(value).trim().toLowerCase() : null);
+      },
+    },
   },
   { sequelize, modelName: 'Lecturer', tableName: 'lecturers' },
 );

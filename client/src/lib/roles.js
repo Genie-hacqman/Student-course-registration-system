@@ -1,11 +1,9 @@
+// The four roles (SCRS-backend src/utils/constants.js). Applicants are STUDENTs who aren't admitted yet.
 export const ROLES = {
-  USER: 'USER',
-  LECTURER: 'LECTURER',
-  ACADEMIC_ADVISOR: 'ACADEMIC_ADVISOR',
-  REGISTRAR: 'REGISTRAR',
   ADMIN: 'ADMIN',
-  SUPER_ADMIN: 'SUPER_ADMIN',
-  APPLICANT: 'APPLICANT',
+  REGISTRAR: 'REGISTRAR',
+  LECTURER: 'LECTURER',
+  STUDENT: 'STUDENT',
 }
 
 // Permission names from SCRS-backend src/utils/constants.js. The user's own list comes from /auth/me.
@@ -15,6 +13,7 @@ export const PERMS = {
   REPORT_VIEW: 'report:view',
   COURSE_MANAGE: 'course:manage',
   COURSE_CATALOG: 'course:catalog',
+  LECTURER_ASSIGN: 'lecturer:assign',
   SEMESTER_MANAGE: 'semester:manage',
   SECTION_MANAGE: 'section:manage',
   PREREQ_OVERRIDE: 'prerequisite:override',
@@ -36,7 +35,7 @@ export const PERMS = {
 }
 
 /** The "Import data" screen: any one of these unlocks the import steps that permission covers. */
-export const DATA_IMPORT_PERMS = [PERMS.COURSE_MANAGE, PERMS.USER_MANAGE, PERMS.STUDENT_ADMIT, PERMS.SECTION_MANAGE]
+export const DATA_IMPORT_PERMS = [PERMS.COURSE_MANAGE, PERMS.COURSE_CATALOG, PERMS.USER_MANAGE, PERMS.STUDENT_ADMIT, PERMS.SECTION_MANAGE]
 
 /** `permission` may be a list, meaning any one of them. */
 export const can = (user, permission) => (Array.isArray(permission)
@@ -44,27 +43,34 @@ export const can = (user, permission) => (Array.isArray(permission)
   : Boolean(user?.permissions?.includes(permission)))
 
 export const ROLE_LABELS = {
-  USER: 'Student',
-  LECTURER: 'Lecturer',
-  ACADEMIC_ADVISOR: 'Academic Advisor',
-  REGISTRAR: 'Registrar',
   ADMIN: 'Administrator',
-  SUPER_ADMIN: 'Super Admin',
-  APPLICANT: 'Applicant',
+  REGISTRAR: 'Registrar',
+  LECTURER: 'Lecturer',
+  STUDENT: 'Student',
 }
+
+/** A STUDENT's admission state comes from /auth/me (`admissionStatus`), never from the role. */
+export const isAdmitted = (user) => user?.role?.name === ROLES.STUDENT && user?.admissionStatus === 'ADMITTED'
 
 /** Which app area a role lands in. Staff screens are gated by permission inside the staff area. */
 export const areaForRole = (role) => {
-  if (role === ROLES.USER) return 'student'
-  if (role === ROLES.APPLICANT) return 'applicant'
+  if (role === ROLES.STUDENT) return 'student'
   if (role === ROLES.LECTURER) return 'lecturer'
   return 'staff'
 }
 
-/** The super admin and applicants (their own personal email) change their password or name directly; everyone else asks the super admin. */
-export const needsApproval = (user) => ![ROLES.SUPER_ADMIN, ROLES.APPLICANT].includes(user?.role?.name)
+/**
+ * Admins, and students still applying (their own personal email), change their password or name
+ * directly; registrars, lecturers and admitted students' name changes go to an admin for approval.
+ */
+export const needsApproval = (user) => {
+  const role = user?.role?.name
+  if (role === ROLES.ADMIN) return false
+  if (role === ROLES.STUDENT && !isAdmitted(user)) return false
+  return true
+}
 
 /** Admins and registrars share the staff area but get different dashboards and menus. */
-export const isAdminRole = (role) => role === ROLES.ADMIN || role === ROLES.SUPER_ADMIN
+export const isAdminRole = (role) => role === ROLES.ADMIN
 
 export const homeForRole = (role) => `/${areaForRole(role)}`

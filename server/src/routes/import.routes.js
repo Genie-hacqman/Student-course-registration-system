@@ -24,7 +24,7 @@ const sections = requirePermission(PERMISSIONS.SECTION_MANAGE);
 router.post('/departments', course, validate({ body: importDepartmentsSchema }), ctrl.departments);
 router.post('/programs', course, validate({ body: importProgramsSchema }), ctrl.programs);
 router.post('/courses', catalog, validate({ body: importCoursesSchema }), ctrl.courses);
-router.post('/program-courses', course, validate({ body: importProgramCoursesSchema }), ctrl.programCourses);
+router.post('/program-courses', catalog, validate({ body: importProgramCoursesSchema }), ctrl.programCourses);
 // Strict catalogue import (preview with dryRun, never overwrites): see course-import.service.js.
 router.post('/course-catalog', catalog, validate({ body: importCourseCatalogSchema }), ctrl.courseCatalog);
 router.post('/prerequisites', catalog, validate({ body: importPrerequisitesSchema }), ctrl.prerequisites);

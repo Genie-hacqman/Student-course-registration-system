@@ -33,6 +33,8 @@ import AssessmentScore from './AssessmentScore.js';
 import Announcement from './Announcement.js';
 import AdmissionApplication from './AdmissionApplication.js';
 import TimetableIssue from './TimetableIssue.js';
+import SectionLecturerAssignment from './SectionLecturerAssignment.js';
+import EmailDelivery from './EmailDelivery.js';
 
 // Role → Users
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
@@ -184,6 +186,16 @@ TimetableIssue.belongsTo(Registration, { foreignKey: 'registrationId', as: 'regi
 TimetableIssue.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
 TimetableIssue.belongsTo(User, { foreignKey: 'resolvedBy', as: 'resolver' });
 
+// Lecturer assignment history per course offering
+CourseSection.hasMany(SectionLecturerAssignment, { foreignKey: 'courseSectionId', as: 'lecturerAssignments' });
+SectionLecturerAssignment.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
+Lecturer.hasMany(SectionLecturerAssignment, { foreignKey: 'lecturerId', as: 'assignments' });
+SectionLecturerAssignment.belongsTo(Lecturer, { foreignKey: 'lecturerId', as: 'lecturer' });
+SectionLecturerAssignment.belongsTo(User, { foreignKey: 'assignedBy', as: 'assigner' });
+SectionLecturerAssignment.belongsTo(User, { foreignKey: 'endedBy', as: 'ender' });
+
+EmailDelivery.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 export {
   sequelize,
   Role,
@@ -220,4 +232,6 @@ export {
   Announcement,
   AdmissionApplication,
   TimetableIssue,
+  SectionLecturerAssignment,
+  EmailDelivery,
 };

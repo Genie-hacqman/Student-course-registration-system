@@ -10,10 +10,11 @@ import {
 
 let student;
 let admin;
+let registrar;
 
 before(async () => {
   resetDatabase();
-  [student, admin] = await Promise.all([loginAs('student'), loginAs('admin')]);
+  [student, admin, registrar] = await Promise.all([loginAs('student'), loginAs('admin'), loginAs('registrar')]);
 });
 after(() => sequelize.close());
 
@@ -28,10 +29,10 @@ describe('AC1 — Course availability', () => {
   before(async () => {
     // A course that exists and has a section this semester, but is NOT on BSC-CS's curriculum.
     const [{ id: departmentId }] = await query("SELECT id FROM departments WHERE code = 'MATH'");
-    const course = await api().post('/api/courses').set(auth(admin.token))
+    const course = await api().post('/api/courses').set(auth(registrar.token))
       .send({ departmentId, code: 'STAT210', title: 'Statistics for Economists', credits: 3, level: 200 });
     const [{ id: semesterId }] = await query('SELECT id FROM semesters WHERE is_current = 1');
-    const section = await api().post('/api/sections').set(auth(admin.token))
+    const section = await api().post('/api/sections').set(auth(registrar.token))
       .send({ courseId: course.body.data.id, semesterId, capacity: 30 });
     assert.equal(section.status, 201);
   });
@@ -71,15 +72,15 @@ describe('AC1 — Course availability', () => {
     assert.match(failure(res, 'PROGRAM_ELIGIBILITY').message, /not part of your program/);
   });
 
-  test('after the admin adds it to the curriculum, the course becomes available', async () => {
+  test('after the registrar adds it to the curriculum, the course becomes available', async () => {
     const [{ id: programId }] = await query("SELECT id FROM programs WHERE code = 'BSC-CS'");
-    const res = await api().post(`/api/programs/${programId}/courses`).set(auth(admin.token))
+    const res = await api().post(`/api/programs/${programId}/courses`).set(auth(registrar.token))
       .send({ courseId: await courseIdFor('STAT210'), type: 'elective' });
     assert.equal(res.status, 201);
     const list = await available(student.token);
     assert.equal(findSection(list.body, 'STAT210').status, 'eligible');
 
-    await api().delete(`/api/programs/${programId}/courses/${await courseIdFor('STAT210')}`).set(auth(admin.token));
+    await api().delete(`/api/programs/${programId}/courses/${await courseIdFor('STAT210')}`).set(auth(registrar.token));
   });
 
   test('when registration is closed, the list says so and every section explains why', async () => {
@@ -157,7 +158,7 @@ describe('AC4 — Capacity', () => {
   });
 
   test('when the section has its waitlist disabled, no waitlist is offered', async () => {
-    const patch = await api().patch(`/api/sections/${sectionId}`).set(auth(admin.token)).send({ waitlistEnabled: false });
+    const patch = await api().patch(`/api/sections/${sectionId}`).set(auth(registrar.token)).send({ waitlistEnabled: false });
     assert.equal(patch.body.data.waitlistEnabled, false);
     assert.equal(patch.body.data.capacity, 1, 'partial update keeps other fields');
     try {
@@ -167,7 +168,7 @@ describe('AC4 — Capacity', () => {
       const join = await api().post('/api/waitlists').set(auth(other.token)).send({ courseSectionId: sectionId });
       assert.equal(join.status, 400);
     } finally {
-      await api().patch(`/api/sections/${sectionId}`).set(auth(admin.token)).send({ waitlistEnabled: true });
+      await api().patch(`/api/sections/${sectionId}`).set(auth(registrar.token)).send({ waitlistEnabled: true });
     }
   });
 

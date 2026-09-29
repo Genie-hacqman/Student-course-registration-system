@@ -1,7 +1,19 @@
-import { Lecturer, User, Department, CourseSection, Course, Semester, Schedule, Registration, RegistrationItem, Student } from '../models/index.js';
+import { Op } from 'sequelize';
+import {
+  sequelize, Lecturer, User, Role, Department, CourseSection, Course, Semester, AcademicYear, Schedule, Registration, RegistrationItem, Student,
+  SectionLecturerAssignment,
+} from '../models/index.js';
 import { buildPagination } from '../utils/pagination.js';
-import { NotFoundError, BadRequestError, ForbiddenError } from '../utils/errors.js';
-import { REGISTRATION_ITEM_STATUS, ADMIN_ROLES, ROLES } from '../utils/constants.js';
+import {
+  NotFoundError, BadRequestError, ForbiddenError, ConflictError,
+} from '../utils/errors.js';
+import {
+  REGISTRATION_ITEM_STATUS, ADMIN_ROLES, ROLES, USER_STATUS, SECTION_STATUS,
+} from '../utils/constants.js';
+import { UNUSABLE_PASSWORD_HASH } from '../utils/password.js';
+import { issueInvite } from './password-reset.service.js';
+import * as userService from './user.service.js';
+import * as settingService from './setting.service.js';
 import * as audit from './audit.service.js';
 
 const includes = [
@@ -9,18 +21,185 @@ const includes = [
   { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
 ];
 
+// Computed per lecturer: live (non-cancelled) offerings they teach, and whether they still have to set a password.
+const summaryAttributes = {
+  include: [
+    [sequelize.literal(`(SELECT COUNT(*) FROM course_sections cs WHERE cs.lecturer_id = Lecturer.id AND cs.status <> ${sequelize.escape(SECTION_STATUS.CANCELLED)})`), 'currentSections'],
+    [sequelize.literal(`(SELECT u.password_hash = ${sequelize.escape(UNUSABLE_PASSWORD_HASH)} FROM users u WHERE u.id = Lecturer.user_id)`), 'invitePending'],
+  ],
+};
+
 export const list = async (query) => {
   const { page, limit, offset, order } = buildPagination(query, ['staffNumber', 'createdAt']);
   const where = {};
   if (query.departmentId) where.departmentId = query.departmentId;
-  const result = await Lecturer.findAndCountAll({ where, include: includes, limit, offset, order, distinct: true });
+  if (query.status) where['$user.status$'] = query.status;
+  if (query.search) {
+    const like = `%${query.search}%`;
+    where[Op.or] = [
+      { staffNumber: { [Op.like]: like } },
+      { '$user.first_name$': { [Op.like]: like } },
+      { '$user.last_name$': { [Op.like]: like } },
+      { '$user.email$': { [Op.like]: like } },
+    ];
+  }
+  const result = await Lecturer.findAndCountAll({
+    where, include: includes, attributes: summaryAttributes, limit, offset, order, distinct: true, subQuery: false,
+  });
   return { result, page, limit };
 };
 
+/** Profile plus every course offering they were ever assigned (current first). */
 export const getById = async (id) => {
-  const lecturer = await Lecturer.findByPk(id, { include: includes });
+  const lecturer = await Lecturer.findByPk(id, {
+    include: [
+      ...includes,
+      {
+        model: SectionLecturerAssignment,
+        as: 'assignments',
+        required: false,
+        include: [{
+          model: CourseSection,
+          as: 'section',
+          attributes: ['id', 'sectionCode', 'status', 'seatsTaken', 'capacity'],
+          include: [
+            { model: Course, as: 'course', attributes: ['id', 'code', 'title'] },
+            {
+              model: Semester, as: 'semester', attributes: ['id', 'name', 'isCurrent'],
+              include: [{ model: AcademicYear, as: 'academicYear', attributes: ['id', 'name'] }],
+            },
+          ],
+        }],
+      },
+    ],
+    attributes: summaryAttributes,
+    order: [[{ model: SectionLecturerAssignment, as: 'assignments' }, 'assignedAt', 'DESC']],
+  });
   if (!lecturer) throw new NotFoundError('Lecturer');
   return lecturer;
+};
+
+const assertStaffNumberFree = async (staffNumber, exceptId, transaction) => {
+  const taken = await Lecturer.findOne({ where: { staffNumber }, attributes: ['id'], transaction });
+  if (taken && taken.id !== exceptId) throw new ConflictError(`Staff ID ${staffNumber} is already used by another lecturer`);
+};
+
+const assertPersonalEmailFree = async (personalEmail, exceptId, transaction) => {
+  if (!personalEmail) return;
+  const email = personalEmail.toLowerCase();
+  const taken = await Lecturer.findOne({ where: { personalEmail: email }, attributes: ['id'], transaction });
+  if (taken && taken.id !== exceptId) throw new ConflictError(`Personal email ${email} is already used by another lecturer`);
+};
+
+const slug = (s) => String(s).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+/** The school email: as entered, or first.last@<institution.staffEmailDomain> (first.last2@… if taken). */
+const resolveSchoolEmail = async ({ schoolEmail, firstName, lastName }, transaction) => {
+  if (schoolEmail) {
+    const email = schoolEmail.toLowerCase();
+    if (await User.findOne({ where: { email }, attributes: ['id'], transaction })) {
+      throw new ConflictError(`School email ${email} is already used by another account`);
+    }
+    return email;
+  }
+  const domain = await settingService.get('institution.staffEmailDomain', { transaction });
+  if (!domain) {
+    throw new BadRequestError('Enter the lecturer\'s school email, or set the staff email domain (institution.staffEmailDomain) to generate one');
+  }
+  const base = `${slug(firstName)}.${slug(lastName)}`.replace(/^\.|\.$/g, '') || 'staff';
+  for (let n = 1; ; n += 1) {
+    const email = `${base}${n === 1 ? '' : n}@${domain}`;
+    if (!(await User.findOne({ where: { email }, attributes: ['id'], transaction }))) return email;
+  }
+};
+
+/**
+ * Creates a lecturer's account and profile in one transaction, then emails a single-use
+ * set-your-password link (to the personal email when given). No password is ever chosen by staff
+ * or sent by email; the lecturer signs in with the school email once they've set theirs.
+ */
+const createAccount = async (data, actor) => {
+  const { user, lecturer } = await sequelize.transaction(async (transaction) => {
+    await assertStaffNumberFree(data.staffNumber, null, transaction);
+    await assertPersonalEmailFree(data.personalEmail, null, transaction);
+    if (!(await Department.findByPk(data.departmentId, { transaction }))) throw new BadRequestError('Department does not exist');
+    const email = await resolveSchoolEmail(data, transaction);
+    const role = await Role.findOne({ where: { name: ROLES.LECTURER }, transaction });
+
+    const createdUser = await User.create({
+      roleId: role.id,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email,
+      passwordHash: UNUSABLE_PASSWORD_HASH,
+      status: USER_STATUS.ACTIVE,
+      emailVerifiedAt: new Date(), // the school issues the mailbox
+    }, { transaction });
+    const createdLecturer = await Lecturer.create({
+      userId: createdUser.id,
+      departmentId: data.departmentId,
+      staffNumber: data.staffNumber,
+      title: data.title,
+      phone: data.phone,
+      specialization: data.specialization,
+      personalEmail: data.personalEmail,
+    }, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'lecturer.create', entityType: 'Lecturer', entityId: createdLecturer.id,
+      metadata: { staffNumber: data.staffNumber, email, departmentId: data.departmentId }, transaction,
+    });
+    return { user: createdUser, lecturer: createdLecturer };
+  });
+  await issueInvite(user, { actor, to: lecturer.personalEmail ?? user.email });
+  return getById(lecturer.id);
+};
+
+/** `{ userId, … }` attaches a profile to an existing account (older flow); otherwise creates the account too. */
+export const create = async (data, actor) => {
+  if (!data.userId) return createAccount(data, actor);
+  if (!(await User.findByPk(data.userId))) throw new BadRequestError('User does not exist');
+  if (!(await Department.findByPk(data.departmentId))) throw new BadRequestError('Department does not exist');
+  await assertStaffNumberFree(data.staffNumber);
+  const lecturer = await Lecturer.create(data);
+  await audit.log({ userId: actor.id, action: 'lecturer.create', entityType: 'Lecturer', entityId: lecturer.id });
+  return getById(lecturer.id);
+};
+
+export const update = async (id, data, actor) => {
+  const lecturer = await Lecturer.findByPk(id);
+  if (!lecturer) throw new NotFoundError('Lecturer');
+  const { firstName, lastName, ...fields } = data;
+  await sequelize.transaction(async (transaction) => {
+    if (fields.departmentId && !(await Department.findByPk(fields.departmentId, { transaction }))) {
+      throw new BadRequestError('Department does not exist');
+    }
+    if (fields.staffNumber) await assertStaffNumberFree(fields.staffNumber, lecturer.id, transaction);
+    await assertPersonalEmailFree(fields.personalEmail, lecturer.id, transaction);
+    await lecturer.update(fields, { transaction });
+    const names = Object.fromEntries(Object.entries({ firstName, lastName }).filter(([, v]) => v !== undefined));
+    if (Object.keys(names).length) await User.update(names, { where: { id: lecturer.userId }, transaction });
+    await audit.log({ userId: actor.id, action: 'lecturer.update', entityType: 'Lecturer', entityId: id, metadata: data, transaction });
+  });
+  return getById(id);
+};
+
+/** Activate or deactivate the lecturer's account (deactivating ends their sessions). Assignments are kept. */
+export const setActive = async (id, active, actor) => {
+  const lecturer = await Lecturer.findByPk(id);
+  if (!lecturer) throw new NotFoundError('Lecturer');
+  await userService.update(lecturer.userId, { status: active ? USER_STATUS.ACTIVE : USER_STATUS.SUSPENDED }, actor);
+  await audit.log({ userId: actor.id, action: active ? 'lecturer.activate' : 'lecturer.deactivate', entityType: 'Lecturer', entityId: id });
+  return getById(id);
+};
+
+/** Re-sends the set-your-password link (to the personal email when known). */
+export const resendInvite = async (id, actor) => {
+  const lecturer = await Lecturer.findByPk(id);
+  if (!lecturer) throw new NotFoundError('Lecturer');
+  const user = await User.scope('withSecrets').findByPk(lecturer.userId);
+  if (user.passwordHash !== UNUSABLE_PASSWORD_HASH) throw new ConflictError('This lecturer has already activated their account');
+  if (user.status !== USER_STATUS.ACTIVE) throw new BadRequestError('Activate the lecturer before sending an invite');
+  await issueInvite(user, { actor, to: lecturer.personalEmail ?? user.email });
 };
 
 export const getByUserId = async (userId) => {
@@ -29,30 +208,17 @@ export const getByUserId = async (userId) => {
   return lecturer;
 };
 
-export const create = async (data, actor) => {
-  if (!(await User.findByPk(data.userId))) throw new BadRequestError('User does not exist');
-  if (!(await Department.findByPk(data.departmentId))) throw new BadRequestError('Department does not exist');
-  const lecturer = await Lecturer.create(data);
-  await audit.log({ userId: actor.id, action: 'lecturer.create', entityType: 'Lecturer', entityId: lecturer.id });
-  return getById(lecturer.id);
-};
-
-export const update = async (id, data, actor) => {
-  const lecturer = await getById(id);
-  if (data.departmentId && !(await Department.findByPk(data.departmentId))) throw new BadRequestError('Department does not exist');
-  await lecturer.update(data);
-  await audit.log({ userId: actor.id, action: 'lecturer.update', entityType: 'Lecturer', entityId: id, metadata: data });
-  return getById(id);
-};
-
 /** Sections taught by a lecturer, optionally limited to a semester. */
 export const getSections = async (lecturerId, semesterId) =>
   CourseSection.findAll({
     where: { lecturerId, ...(semesterId ? { semesterId } : {}) },
     include: [
       { model: Course, as: 'course', attributes: ['id', 'code', 'title', 'credits', 'level'] },
-      { model: Semester, as: 'semester', attributes: ['id', 'name', 'isCurrent'] },
-      { model: Schedule, as: 'schedules' },
+      {
+        model: Semester, as: 'semester', attributes: ['id', 'name', 'isCurrent'],
+        include: [{ model: AcademicYear, as: 'academicYear', attributes: ['id', 'name'] }],
+      },
+      { model: Schedule, as: 'schedules', attributes: ['id', 'day', 'startTime', 'endTime', 'room'] },
     ],
     order: [['semesterId', 'DESC'], ['id', 'ASC']],
   });
@@ -67,7 +233,7 @@ export const getRoster = async (sectionId, actor) => {
   if (actor.role === ROLES.LECTURER) {
     const lecturer = await getByUserId(actor.id);
     if (section.lecturerId !== lecturer.id) throw new ForbiddenError('You do not teach this section');
-  } else if (![...ADMIN_ROLES, ROLES.ACADEMIC_ADVISOR].includes(actor.role)) {
+  } else if (!ADMIN_ROLES.includes(actor.role)) {
     throw new ForbiddenError();
   }
 

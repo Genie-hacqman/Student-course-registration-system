@@ -10,16 +10,18 @@ import {
 import * as pinService from '../../src/services/pin.service.js';
 import { MAX_FAILED_LOGINS } from '../../src/services/auth.service.js';
 
+let admin;
 let registrar;
 let lecturer;
 
 before(async () => {
   resetDatabase();
-  [registrar, lecturer] = await Promise.all([loginAs('registrar'), loginAs('lecturer')]);
+  [admin, registrar, lecturer] = await Promise.all([loginAs('admin'), loginAs('registrar'), loginAs('lecturer')]);
 });
 after(() => sequelize.close());
 
-const admit = (body, who = registrar) => api().post('/api/admissions').set(auth(who.token)).send(body);
+// Admission (direct and bulk) is the ADMIN's (student:admit).
+const admit = (body, who = admin) => api().post('/api/admissions').set(auth(who.token)).send(body);
 const newStudent = async (extra = {}) => {
   const res = await admit({ firstName: 'John', lastName: 'Mensah', programId: await programId(), admissionSession: '2026/2027', ...extra });
   assert.equal(res.status, 201, JSON.stringify(res.body));
@@ -30,8 +32,10 @@ const changePin = (session, currentPin, newPin, confirmPin = newPin) => api().pa
   .set(auth(session.token)).set('Cookie', session.cookie).send({ currentPin, newPin, confirmPin });
 
 describe('admission', () => {
-  test('only staff with student:admit can admit', async () => {
-    assert.equal((await admit({ firstName: 'A', lastName: 'B', programCode: 'BSC-CS', admissionSession: '2026/2027' }, lecturer)).status, 403);
+  test('only staff with student:admit (ADMIN) can admit', async () => {
+    const body = { firstName: 'A', lastName: 'B', programCode: 'BSC-CS', admissionSession: '2026/2027' };
+    assert.equal((await admit(body, lecturer)).status, 403);
+    assert.equal((await admit(body, registrar)).status, 403, 'admission belongs to the admin');
   });
 
   test('creates a Student ID, a school email and a one-time PIN, with programme details', async () => {
@@ -191,7 +195,7 @@ describe('staff PIN reset', () => {
     await changePin(session, credentials.pin, '702958');
 
     assert.equal((await api().post(`/api/students/${student.id}/reset-pin`).set(auth(lecturer.token))).status, 403);
-    const res = await api().post(`/api/students/${student.id}/reset-pin`).set(auth(registrar.token));
+    const res = await api().post(`/api/students/${student.id}/reset-pin`).set(auth(admin.token));
     assert.equal(res.status, 200);
     assert.equal(res.headers['cache-control'], 'no-store');
     assert.equal((await signIn(credentials.studentNumber, '702958')).status, 401);
@@ -205,7 +209,7 @@ describe('bulk admission', () => {
     { firstName: 'Ama', lastName: 'Owusu', programCode: 'bsc-cs', admissionSession: '2026/2027', admissionNumber: 'ADM-100' },
     { firstName: 'Kofi', lastName: 'Boateng', programCode: 'BSC-CS', admissionSession: '2026/2027', admissionNumber: 'ADM-101', level: 200 },
   ];
-  const bulk = (body) => api().post('/api/admissions/bulk').set(auth(registrar.token)).send(body);
+  const bulk = (body) => api().post('/api/admissions/bulk').set(auth(admin.token)).send(body);
 
   test('a dry run reports what would happen, returns no credentials and saves nothing', async () => {
     const res = await bulk({ rows, dryRun: true });

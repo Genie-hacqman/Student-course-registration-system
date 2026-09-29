@@ -1,20 +1,22 @@
+/**
+ * The four roles. Applicants are STUDENTs from sign-up: whether one is admitted is their admission
+ * status (a student record), never a role. See docs in CLAUDE.md ("Four roles").
+ */
 export const ROLES = Object.freeze({
-  USER: 'USER', // students
-  LECTURER: 'LECTURER',
-  ACADEMIC_ADVISOR: 'ACADEMIC_ADVISOR',
-  REGISTRAR: 'REGISTRAR',
   ADMIN: 'ADMIN',
-  SUPER_ADMIN: 'SUPER_ADMIN',
-  // Prospective student with an online application; becomes USER on admission.
-  APPLICANT: 'APPLICANT',
+  REGISTRAR: 'REGISTRAR',
+  LECTURER: 'LECTURER',
+  STUDENT: 'STUDENT',
 });
 
-export const ADMIN_ROLES = [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.SUPER_ADMIN];
-export const STAFF_ROLES = [...ADMIN_ROLES, ROLES.ACADEMIC_ADVISOR, ROLES.LECTURER];
+/** Staff who see institution-wide data (e.g. archived courses, cancelled sections). */
+export const ADMIN_ROLES = [ROLES.ADMIN, ROLES.REGISTRAR];
+export const STAFF_ROLES = [...ADMIN_ROLES, ROLES.LECTURER];
 
 export const PERMISSIONS = Object.freeze({
   COURSE_MANAGE: 'course:manage',
   COURSE_CATALOG: 'course:catalog',
+  LECTURER_ASSIGN: 'lecturer:assign',
   SEMESTER_MANAGE: 'semester:manage',
   SECTION_MANAGE: 'section:manage',
   REGISTRATION_SELF: 'registration:self',
@@ -41,24 +43,23 @@ export const PERMISSIONS = Object.freeze({
 
 const P = PERMISSIONS;
 
-/** Role → permissions. Adding a role or capability is a data change here, not a route change. */
+/**
+ * Role → permissions. Adding a capability is a data change here, not a route change.
+ * ADMIN runs the institution (accounts, admission, departments/programmes, settings, audit);
+ * REGISTRAR runs academics (courses, offerings, lecturer assignment, registrations, timetable, records).
+ */
 export const ROLE_PERMISSIONS = Object.freeze({
-  [ROLES.USER]: [P.REGISTRATION_SELF],
-  [ROLES.APPLICANT]: [P.APPLICATION_SELF],
+  [ROLES.STUDENT]: [P.REGISTRATION_SELF, P.APPLICATION_SELF],
   [ROLES.LECTURER]: [P.ROSTER_VIEW, P.GRADE_ENTER, P.ATTENDANCE_RECORD, P.ASSESSMENT_MANAGE, P.ANNOUNCEMENT_CREATE],
-  [ROLES.ACADEMIC_ADVISOR]: [P.REGISTRATION_APPROVE, P.REGISTRATION_VIEW_ALL, P.ROSTER_VIEW, P.PREREQ_OVERRIDE],
   [ROLES.REGISTRAR]: [
-    P.SEMESTER_MANAGE, P.SECTION_MANAGE, P.COURSE_MANAGE, P.COURSE_CATALOG, P.REGISTRATION_APPROVE, P.REGISTRATION_MANAGE,
-    P.REGISTRATION_VIEW_ALL, P.REPORT_VIEW, P.ROSTER_VIEW, P.GRADE_MANAGE, P.PREREQ_OVERRIDE,
-    P.ATTENDANCE_RECORD, P.ANNOUNCEMENT_CREATE, P.STUDENT_ADMIT,
+    P.COURSE_CATALOG, P.LECTURER_ASSIGN, P.SEMESTER_MANAGE, P.SECTION_MANAGE,
+    P.REGISTRATION_APPROVE, P.REGISTRATION_MANAGE, P.REGISTRATION_VIEW_ALL, P.PREREQ_OVERRIDE,
+    P.ROSTER_VIEW, P.GRADE_MANAGE, P.ATTENDANCE_RECORD, P.REPORT_VIEW, P.ANNOUNCEMENT_CREATE,
   ],
   [ROLES.ADMIN]: [
-    P.COURSE_MANAGE, P.SEMESTER_MANAGE, P.SECTION_MANAGE, P.REGISTRATION_APPROVE, P.REGISTRATION_MANAGE,
-    P.REGISTRATION_VIEW_ALL, P.USER_MANAGE, P.REPORT_VIEW, P.AUDIT_VIEW, P.ROSTER_VIEW, P.GRADE_MANAGE, P.PREREQ_OVERRIDE,
-    P.ATTENDANCE_RECORD, P.ANNOUNCEMENT_CREATE, P.STUDENT_ADMIT, P.APPLICATION_REVIEW,
+    P.USER_MANAGE, P.STUDENT_ADMIT, P.APPLICATION_REVIEW, P.COURSE_MANAGE, P.REGISTRATION_VIEW_ALL,
+    P.REPORT_VIEW, P.AUDIT_VIEW, P.SETTINGS_MANAGE, P.ACCOUNT_APPROVE, P.ROLE_MANAGE, P.ANNOUNCEMENT_CREATE,
   ],
-  // SUPER_ADMIN (all permissions) is the only role with account:approve and role:manage.
-  [ROLES.SUPER_ADMIN]: Object.values(P),
 });
 
 /**
@@ -74,8 +75,9 @@ export const PERMISSION_CATALOG = Object.freeze([
   { name: P.STUDENT_ADMIT, group: 'Registration', description: 'Admit students (create their Student ID, school email and PIN) and reset student PINs' },
   { name: P.APPLICATION_SELF, group: 'Admission', description: 'Fill in and submit an online admission application' },
   { name: P.APPLICATION_REVIEW, group: 'Admission', description: 'Review online applications: admit (creating the student record) or reject' },
-  { name: P.COURSE_MANAGE, group: 'Academic structure', description: 'Manage departments, programmes and programme curricula; view courses' },
-  { name: P.COURSE_CATALOG, group: 'Academic structure', description: 'Create, import, edit and archive courses and their prerequisites' },
+  { name: P.COURSE_MANAGE, group: 'Academic structure', description: 'Manage departments and programmes; view courses' },
+  { name: P.COURSE_CATALOG, group: 'Academic structure', description: 'Create, import, edit and archive courses, their prerequisites and programme curricula' },
+  { name: P.LECTURER_ASSIGN, group: 'Academic structure', description: 'Assign, change and remove the lecturer of a course offering' },
   { name: P.SEMESTER_MANAGE, group: 'Academic structure', description: 'Manage academic years, semesters and registration windows' },
   { name: P.SECTION_MANAGE, group: 'Academic structure', description: 'Manage course sections and timetables' },
   { name: P.ROSTER_VIEW, group: 'Teaching', description: 'View class lists' },
@@ -92,10 +94,13 @@ export const PERMISSION_CATALOG = Object.freeze([
   { name: P.ROLE_MANAGE, group: 'System', description: 'Edit role permissions' },
 ]);
 
-/** Roles whose permissions can be edited. Students and the super admin are fixed. */
-export const EDITABLE_ROLES = Object.freeze([ROLES.LECTURER, ROLES.ACADEMIC_ADVISOR, ROLES.REGISTRAR, ROLES.ADMIN]);
+/**
+ * Roles whose permissions can be edited. ADMIN is fixed (so nobody can remove the last way to
+ * manage roles), and STUDENT is fixed.
+ */
+export const EDITABLE_ROLES = Object.freeze([ROLES.REGISTRAR, ROLES.LECTURER]);
 
-/** Never grantable through the editor: role:manage stays with the super admin, registration:self with students, application:self with applicants. */
+/** Never grantable through the editor: role:manage stays with ADMIN; the self-service permissions with STUDENT. */
 export const NON_GRANTABLE_PERMISSIONS = Object.freeze([P.ROLE_MANAGE, P.REGISTRATION_SELF, P.APPLICATION_SELF]);
 
 export const ATTENDANCE_STATUS = Object.freeze({ PRESENT: 'present', ABSENT: 'absent', LATE: 'late', EXCUSED: 'excused' });
@@ -124,12 +129,36 @@ export const REGISTRATION_STATUS = Object.freeze({
   CANCELLED: 'cancelled',
 });
 
+/**
+ * A STUDENT's admission state, derived (auth.service.admissionStatusOf): ADMITTED once a student
+ * record exists (online or staff admission); otherwise from their online application.
+ */
+export const ADMISSION_STATUS = Object.freeze({
+  NOT_SUBMITTED: 'NOT_SUBMITTED', PENDING: 'PENDING', ADMITTED: 'ADMITTED', REJECTED: 'REJECTED',
+});
+
 export const APPLICATION_STATUS = Object.freeze({
   DRAFT: 'draft',
   SUBMITTED: 'submitted',
   ADMITTED: 'admitted',
   REJECTED: 'rejected',
 });
+
+/**
+ * Email delivery states. `sent` = accepted by the provider's API (not yet confirmed delivered);
+ * `delivered`/`bounced`/`complained`/`delivery_delayed` come from the Resend webhook.
+ */
+export const EMAIL_STATUS = Object.freeze({
+  NOT_CONFIGURED: 'not_configured',
+  SENT: 'sent',
+  FAILED: 'failed',
+  DELIVERED: 'delivered',
+  DELIVERY_DELAYED: 'delivery_delayed',
+  BOUNCED: 'bounced',
+  COMPLAINED: 'complained',
+});
+
+export const ASSIGNMENT_STATUS = Object.freeze({ ACTIVE: 'active', ENDED: 'ended' });
 
 export const TIMETABLE_ISSUE_TYPES = Object.freeze(['STUDENT', 'LECTURER', 'ROOM', 'UNSCHEDULED']);
 export const TIMETABLE_ISSUE_STATUS = Object.freeze({ OPEN: 'open', RESOLVED: 'resolved' });

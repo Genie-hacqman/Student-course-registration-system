@@ -1,9 +1,11 @@
 import {
   BarChart3, BookOpen, BookOpenCheck, Building2, CalendarDays, CalendarRange, ClipboardCheck, ClipboardList, FileBarChart,
-  GraduationCap, History, KeyRound, Layers, LayoutDashboard, Library, LogIn, Megaphone, NotebookPen, ScrollText, Settings,
-  ShieldCheck, Upload, UserCheck, UserRound, Users, UsersRound, FileUp, FileSignature, CalendarX2,
+  GraduationCap, History, KeyRound, Layers, LayoutDashboard, Library, LogIn, Mail, Megaphone, NotebookPen, ScrollText, Settings,
+  ShieldCheck, Upload, UserCheck, UserRound, Users, UsersRound, FileUp, FileSignature, CalendarX2, Presentation, UserCog,
 } from 'lucide-react'
-import { DATA_IMPORT_PERMS, PERMS, can, isAdminRole } from './roles'
+import {
+  DATA_IMPORT_PERMS, PERMS, ROLES, can, isAdminRole, isAdmitted,
+} from './roles'
 
 /**
  * Navigation per role. An entry is a link `{ to, label, icon, end?, permission? }` or a group
@@ -11,11 +13,13 @@ import { DATA_IMPORT_PERMS, PERMS, can, isAdminRole } from './roles'
  * also wrapped in RequirePermission, and the API enforces the same permissions.
  */
 
+/** Admitted students. */
 export const STUDENT_NAV = [
-  { to: '/student', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/student/registration', label: 'Registration', icon: ClipboardList },
-  { to: '/student/courses', label: 'Course Catalog', icon: BookOpen },
-  { to: '/student/my-courses', label: 'My Courses', icon: BookOpenCheck },
+  { to: '/student', label: 'Overview', icon: LayoutDashboard, end: true },
+  { to: '/student/admission', label: 'Admission Status', icon: FileSignature },
+  { to: '/student/courses', label: 'Available Courses', icon: BookOpen },
+  { to: '/student/registration', label: 'Course Registration', icon: ClipboardList },
+  { to: '/student/my-courses', label: 'Registration & Slip', icon: BookOpenCheck },
   { to: '/student/results', label: 'Results', icon: GraduationCap },
   { to: '/student/timetable', label: 'Timetable', icon: CalendarDays },
   { to: '/student/calendar', label: 'Academic Calendar', icon: CalendarRange },
@@ -25,9 +29,10 @@ export const STUDENT_NAV = [
   { to: '/student/settings', label: 'Settings', icon: Settings },
 ]
 
-export const APPLICANT_NAV = [
-  { to: '/applicant', label: 'My application', icon: FileSignature, end: true },
-  { to: '/applicant/settings', label: 'Settings', icon: Settings },
+/** Students who aren't admitted yet: their application and account only (the student area redirects the rest). */
+export const STUDENT_APPLYING_NAV = [
+  { to: '/student/admission', label: 'Admission Status', icon: FileSignature },
+  { to: '/student/settings', label: 'Settings', icon: Settings },
 ]
 
 export const LECTURER_NAV = [
@@ -57,7 +62,8 @@ export const ADMIN_NAV = [
     label: 'Users', icon: Users, items: [
       { to: '/staff/users', label: 'All users', icon: Users, permission: PERMS.USER_MANAGE },
       { to: '/staff/applications', label: 'Admission applications', icon: FileSignature, permission: PERMS.APPLICATION_REVIEW },
-      { to: '/staff/students', label: 'Students', icon: GraduationCap, permission: PERMS.PREREQ_OVERRIDE },
+      { to: '/staff/lecturers', label: 'Lecturers', icon: Presentation, permission: PERMS.USER_MANAGE },
+      { to: '/staff/students', label: 'Students', icon: GraduationCap, permission: PERMS.REGISTRATION_VIEW_ALL },
       { to: '/staff/account-requests', label: 'Account requests', icon: UserCheck, permission: PERMS.ACCOUNT_APPROVE },
     ],
   },
@@ -76,6 +82,7 @@ export const ADMIN_NAV = [
     label: 'Audit Logs', icon: ScrollText, items: [
       { to: '/staff/audit-log', label: 'Audit log', icon: ScrollText, permission: PERMS.AUDIT_VIEW },
       { to: '/staff/sign-ins', label: 'Sign-in activity', icon: LogIn, permission: PERMS.AUDIT_VIEW },
+      { to: '/staff/email-log', label: 'Email log', icon: Mail, permission: PERMS.AUDIT_VIEW },
     ],
   },
   {
@@ -94,7 +101,7 @@ export const REGISTRAR_NAV = [
   { to: '/staff', label: 'Dashboard', icon: LayoutDashboard, end: true },
   {
     label: 'Students', icon: GraduationCap, items: [
-      { to: '/staff/students', label: 'All students', icon: GraduationCap, permission: PERMS.PREREQ_OVERRIDE },
+      { to: '/staff/students', label: 'All students', icon: GraduationCap, permission: PERMS.REGISTRATION_VIEW_ALL },
       { to: '/staff/registrations?status=', label: 'Registration status', icon: ClipboardList, permission: PERMS.REGISTRATION_VIEW_ALL, match: regStatus('') },
     ],
   },
@@ -107,6 +114,7 @@ export const REGISTRAR_NAV = [
       { to: '/staff/timetable-issues', label: 'Timetable issues', icon: CalendarX2, permission: PERMS.REGISTRATION_VIEW_ALL },
     ],
   },
+  { to: '/staff/course-assignments', label: 'Course assignments', icon: UserCog, permission: PERMS.LECTURER_ASSIGN },
   { label: 'Academic Structure', icon: Library, items: ACADEMIC_ITEMS },
   {
     label: 'Approvals', icon: UserCheck, items: [
@@ -130,9 +138,8 @@ export const visibleNav = (nav, user) => nav
 
 export const navForUser = (user) => {
   const role = user?.role?.name
-  if (role === 'USER') return STUDENT_NAV
-  if (role === 'APPLICANT') return APPLICANT_NAV
-  if (role === 'LECTURER') return visibleNav(LECTURER_NAV, user)
+  if (role === ROLES.STUDENT) return isAdmitted(user) ? STUDENT_NAV : STUDENT_APPLYING_NAV
+  if (role === ROLES.LECTURER) return visibleNav(LECTURER_NAV, user)
   return visibleNav(isAdminRole(role) ? ADMIN_NAV : REGISTRAR_NAV, user)
 }
 
@@ -147,7 +154,8 @@ export const SEGMENT_LABELS = {
   profile: 'Profile', settings: 'Settings', account: 'Account', students: 'Students', attendance: 'Attendance',
   assessments: 'Assessments', registrations: 'Registrations', reports: 'Reports', departments: 'Departments',
   programs: 'Programmes', semesters: 'Semesters', sections: 'Course Offerings', users: 'Users', 'audit-log': 'Audit Log',
-  'sign-ins': 'Sign-in Activity', 'account-requests': 'Account Requests', 'results-import': 'Import Results', 'data-import': 'Import Data',
+  'sign-ins': 'Sign-in Activity', 'email-log': 'Email Log','account-requests': 'Account Requests', 'results-import': 'Import Results', 'data-import': 'Import Data',
   roles: 'Roles & Permissions', class: 'Class', import: 'Import',
-  applicant: 'Applicant', applications: 'Applications', 'timetable-issues': 'Timetable Issues',
+  admission: 'Admission Status', applications: 'Applications', 'timetable-issues': 'Timetable Issues',
+  lecturers: 'Lecturers', 'course-assignments': 'Course Assignments',
 }

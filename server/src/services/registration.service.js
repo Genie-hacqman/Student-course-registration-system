@@ -610,7 +610,11 @@ export const submit = async (userId, req) => {
       message: requireApproval
         ? `Your ${semester.name} registration (${totalCredits} credits) was submitted and is awaiting approval.`
         : `Your ${semester.name} registration (${totalCredits} credits) is confirmed.`,
-      data: { registrationId: reg.id },
+      // Also what the confirmation email shows; `submittedAt` keys it, so a resubmission emails again.
+      data: {
+        registrationId: reg.id, reference: reg.referenceNumber, semester: semester.name, credits: totalCredits,
+        needsApproval: Boolean(requireApproval), submittedAt: now.toISOString(),
+      },
     }, { transaction });
     await audit.log({ userId, action: 'registration.submit', entityType: 'Registration', entityId: reg.id, metadata: { totalCredits }, req, transaction });
     return reg;
@@ -714,7 +718,7 @@ const review = async (id, decision, remarks, actor, req) => {
       message: approved
         ? 'Your course registration has been approved and your timetable is confirmed.'
         : `Your course registration was not approved.${remarks ? ` Reason: ${remarks}` : ''} Please update it and resubmit.`,
-      data: { registrationId: reg.id },
+      data: { registrationId: reg.id, ...(remarks ? { reason: remarks } : {}) },
     }, { transaction });
     await audit.log({ userId: actor.id, action: `registration.${decision}`, entityType: 'Registration', entityId: reg.id, metadata: { remarks }, req, transaction });
 

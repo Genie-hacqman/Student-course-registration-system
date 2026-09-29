@@ -18,10 +18,10 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/me', authorize(ROLES.USER), ctrl.me);
-router.get('/me/results', authorize(ROLES.USER), ctrl.myResults);
-router.get('/me/attendance', authorize(ROLES.USER), attendance.mine);
-router.get('/me/assessments', authorize(ROLES.USER), assessments.mine);
+router.get('/me', authorize(ROLES.STUDENT), ctrl.me);
+router.get('/me/results', authorize(ROLES.STUDENT), ctrl.myResults);
+router.get('/me/attendance', authorize(ROLES.STUDENT), attendance.mine);
+router.get('/me/assessments', authorize(ROLES.STUDENT), assessments.mine);
 
 router.get('/', requirePermission(PERMISSIONS.REGISTRATION_VIEW_ALL), validate({ query: listStudentsQuery }), ctrl.list);
 router.get('/:id', requirePermission(PERMISSIONS.REGISTRATION_VIEW_ALL), validate({ params: idParam }), ctrl.getById);

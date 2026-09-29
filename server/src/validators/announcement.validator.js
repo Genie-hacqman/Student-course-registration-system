@@ -14,6 +14,8 @@ export const announcementSchema = z.object({
   audience: z.enum(Object.values(ANNOUNCEMENT_AUDIENCE)),
   courseSectionId: id.optional(),
   programId: id.optional(),
+  // Also email every recipient (for important notices); once, after the announcement is saved.
+  emailRecipients: z.boolean().optional(),
 }).superRefine((d, ctx) => {
   if (d.audience === ANNOUNCEMENT_AUDIENCE.SECTION && !d.courseSectionId) {
     ctx.addIssue({ code: 'custom', path: ['courseSectionId'], message: 'Choose a section' });

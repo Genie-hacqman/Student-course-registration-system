@@ -9,7 +9,7 @@ import { authApi } from '../../api/auth'
 import { Badge, Button, Card, CardHeader, EmptyState, Input, QueryState } from '../ui'
 import { applyServerErrors } from '../../lib/forms'
 import { formatDateTime, fullName } from '../../lib/format'
-import { ROLES, needsApproval } from '../../lib/roles'
+import { isAdmitted, needsApproval } from '../../lib/roles'
 import { NameForm, PasswordForm } from './Account'
 import ChangePinForm from './ChangePinForm'
 
@@ -146,8 +146,9 @@ function PinCard() {
 }
 
 /**
- * Name + password section of Profile/Account: direct for the super admin, request-and-approve for other
- * staff. Students change their PIN directly; only their name change needs approval.
+ * Name + password section of Profile/Account: direct for admins and for students still applying,
+ * request-and-approve for registrars and lecturers. Admitted students change their PIN directly; only
+ * their name change needs approval.
  */
 export default function AccountSecurity() {
   const { user } = useAuth()
@@ -167,7 +168,7 @@ export default function AccountSecurity() {
         return (
           <>
             <NameRequestForm pending={pending('name_change')} />
-            {user.role?.name === ROLES.USER ? <PinCard /> : <PasswordRequestCard pending={pending('password_reset')} />}
+            {isAdmitted(user) ? <PinCard /> : <PasswordRequestCard pending={pending('password_reset')} />}
             <MyRequests requests={rows} />
           </>
         )

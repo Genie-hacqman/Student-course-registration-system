@@ -10,8 +10,8 @@ export const listUsersQuery = z.object({
   status: z.enum(Object.values(USER_STATUS)).optional(),
 });
 
-// Applicant accounts only come from online sign-up (POST /api/applications/account), never from staff.
-const assignableRole = z.enum(Object.values(ROLES).filter((r) => r !== ROLES.APPLICANT));
+// Exactly the four roles; anything else (including removed legacy names) is rejected.
+const assignableRole = z.enum(Object.values(ROLES));
 
 export const createUserSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
@@ -60,18 +60,50 @@ export const listStudentsQuery = z.object({
   status: z.enum(Object.values(STUDENT_STATUS)).optional(),
 });
 
-export const createLecturerSchema = z.object({
-  userId: id,
-  departmentId: id,
-  staffNumber: z.string().trim().min(2).max(30),
-  title: z.string().trim().max(50).optional(),
-});
+const staffNumber = z.string().trim().min(2).max(30);
+const optionalEmail = z.email().max(191).transform((v) => v.toLowerCase());
+const lecturerProfile = {
+  title: z.string().trim().max(50),
+  phone: z.string().trim().regex(/^\+?[0-9 ()-]{7,20}$/, 'Enter a valid phone number'),
+  specialization: z.string().trim().max(150),
+  personalEmail: optionalEmail,
+};
 
+/**
+ * Two shapes: `{ userId, … }` attaches a lecturer profile to an existing account (older flow);
+ * otherwise the account is created too, and the lecturer is emailed a set-your-password link.
+ * `schoolEmail` may be omitted when institution.staffEmailDomain is set (it's then generated).
+ */
+export const createLecturerSchema = z.union([
+  z.object({
+    userId: id,
+    departmentId: id,
+    staffNumber,
+    title: lecturerProfile.title.optional(),
+  }),
+  z.object({
+    firstName: z.string().trim().min(1).max(100),
+    lastName: z.string().trim().min(1).max(100),
+    departmentId: id,
+    staffNumber,
+    schoolEmail: optionalEmail.optional(),
+    personalEmail: lecturerProfile.personalEmail.optional(),
+    title: lecturerProfile.title.optional(),
+    phone: lecturerProfile.phone.optional(),
+    specialization: lecturerProfile.specialization.optional(),
+  }),
+]);
+
+// No defaults: zod applies them even inside .partial(), which would reset fields on every PATCH.
 export const updateLecturerSchema = z
   .object({
+    firstName: z.string().trim().min(1).max(100),
+    lastName: z.string().trim().min(1).max(100),
     departmentId: id,
-    staffNumber: z.string().trim().min(2).max(30),
-    title: z.string().trim().max(50),
+    staffNumber,
+    ...lecturerProfile,
+    personalEmail: lecturerProfile.personalEmail.nullable(),
+    phone: lecturerProfile.phone.nullable(),
   })
   .partial()
   .refine((d) => Object.keys(d).length > 0, 'Provide at least one field to update');
@@ -106,7 +138,12 @@ export const updateDepartmentSchema = departmentSchema
   .partial()
   .refine((d) => Object.keys(d).length > 0, 'Provide at least one field to update');
 
-export const listLecturersQuery = z.object({ ...paginationQuery, departmentId: id.optional() });
+export const listLecturersQuery = z.object({
+  ...paginationQuery,
+  departmentId: id.optional(),
+  search: z.string().trim().max(100).optional(),
+  status: z.enum(Object.values(USER_STATUS)).optional(),
+});
 export const programCourseSchema = z.object({
   courseId: id,
   type: z.enum(['core', 'elective']).default('core'),

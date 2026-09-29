@@ -39,7 +39,7 @@ export const assertCanTeach = async (section, actor, permission) => {
   if (actor.role === ROLES.LECTURER) {
     const lecturer = await lecturerService.getByUserId(actor.id);
     if (section.lecturerId !== lecturer.id) throw new ForbiddenError('You do not teach this section');
-  } else if (actor.role === ROLES.USER) {
+  } else if (actor.role === ROLES.STUDENT) {
     throw new ForbiddenError();
   }
 };

@@ -105,7 +105,7 @@ export const importSectionsSchema = importBody(z.object({
 
 export const sendInvitesSchema = z.object({
   // Students are admitted with a PIN instead (POST /api/admissions); invites are for staff accounts.
-  role: z.enum([ROLES.LECTURER, ROLES.ACADEMIC_ADVISOR, ROLES.REGISTRAR, ROLES.ADMIN]).optional(),
+  role: z.enum([ROLES.LECTURER, ROLES.REGISTRAR, ROLES.ADMIN]).optional(),
   // Invites are emailed one by one, so a large backlog is sent in batches; `remaining` says how many are left.
   limit: z.coerce.number().int().min(1).max(1000).default(200),
 });

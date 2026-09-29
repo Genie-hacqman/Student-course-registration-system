@@ -3,7 +3,7 @@
 /**
  * Demo-only — never run this in production:
  * - two CS201 assessments (one published, one draft) for the demo lecturer
- * - a campus-wide announcement from the super admin and a CS201 announcement from the lecturer
+ * - a campus-wide announcement from the admin and a CS201 announcement from the lecturer
  * No attendance: the demo semester starts after seed time, so there are no past classes to record.
  */
 module.exports = {
@@ -23,7 +23,7 @@ module.exports = {
     );
     const [[lecturer]] = await q.query("SELECT id FROM users WHERE email = 'lecturer@scrs.local'");
     const [[admin]] = await q.query(
-      "SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'SUPER_ADMIN' ORDER BY u.id LIMIT 1",
+      "SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'ADMIN' ORDER BY u.id LIMIT 1",
     );
     if (!section || !lecturer) return; // demo academic data not seeded
 

@@ -72,7 +72,7 @@ export function SocketBridge() {
       clearTimeout(staffTimer)
       staffTimer = setTimeout(() => qc.invalidateQueries({ queryKey: staffKeys.all }), 1000)
     }
-    const isStudent = user.role?.name === 'USER'
+    const isStudent = user.role?.name === 'STUDENT'
 
     socket.on(EVENTS.REGISTRATION_CREATED, () => !isStudent && refreshStaff())
     socket.on(EVENTS.REGISTRATION_STATUS, () => (isStudent ? invalidateRegistration(qc) : refreshStaff()))

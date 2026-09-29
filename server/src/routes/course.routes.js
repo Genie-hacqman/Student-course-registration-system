@@ -26,7 +26,7 @@ router.delete('/:id', academicStaff, validate({ params: idParam }), courses.remo
 
 // Prerequisites
 router.get('/:courseId/prerequisites', validate({ params: courseIdParam }), prerequisites.list);
-router.get('/:courseId/prerequisites/check', authorize(ROLES.USER), validate({ params: courseIdParam }), prerequisites.check);
+router.get('/:courseId/prerequisites/check', authorize(ROLES.STUDENT), validate({ params: courseIdParam }), prerequisites.check);
 router.post(
   '/:courseId/prerequisites',
   academicStaff,

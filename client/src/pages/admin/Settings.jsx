@@ -16,6 +16,11 @@ const schema = z.object({
     z.literal(''),
     z.string().trim().toLowerCase().regex(/^(?=.{3,120}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/, 'A domain such as school.edu.gh'),
   ]),
+  'institution.staffEmailDomain': z.union([
+    z.literal(''),
+    z.string().trim().toLowerCase().regex(/^(?=.{3,120}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/, 'A domain such as staff.school.edu.gh'),
+  ]),
+  'teaching.restrictLecturerDepartment': z.boolean(),
   'registration.requireApproval': z.boolean(),
   'registration.waitlistEnabled': z.boolean(),
   'registration.defaultMaxCredits': requiredNumber(z.number().int().min(1).max(60)),
@@ -29,6 +34,8 @@ const field = (key) => key.replaceAll('.', '__')
 const DEFAULTS = {
   'institution.name': 'Student Course Registration System',
   'institution.studentEmailDomain': '',
+  'institution.staffEmailDomain': '',
+  'teaching.restrictLecturerDepartment': true,
   'registration.requireApproval': true,
   'registration.waitlistEnabled': true,
   'registration.defaultMaxCredits': 24,
@@ -67,6 +74,23 @@ function SettingsForm({ rows }) {
             hint="Admitted students get <studentId>@this domain, e.g. stu202600123@school.edu.gh. Required before admitting students."
             error={err('institution.studentEmailDomain')}
             {...register(field('institution.studentEmailDomain'))}
+          />
+          <Input
+            label="Staff email domain (optional)"
+            placeholder="staff.school.edu.gh"
+            hint="When set, a new lecturer without a school email gets first.last@this domain."
+            error={err('institution.staffEmailDomain')}
+            {...register(field('institution.staffEmailDomain'))}
+          />
+        </div>
+      </Card>
+      <Card>
+        <CardHeader title="Teaching" />
+        <div className="px-5 py-5">
+          <Checkbox
+            label="Lecturers teach only their own department's courses"
+            hint="When on, the registry can only assign a lecturer to courses of the lecturer's department."
+            {...register(field('teaching.restrictLecturerDepartment'))}
           />
         </div>
       </Card>

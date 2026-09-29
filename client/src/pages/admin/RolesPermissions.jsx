@@ -123,7 +123,7 @@ export default function RolesPermissions() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Roles & Permissions" subtitle="Decide what each staff role can do. Students and the super admin have fixed access." />
+      <PageHeader title="Roles & Permissions" subtitle="Adjust what registrars and lecturers can do. Admin and Student access is fixed." />
       {failed ? <Card><ErrorState error={failed.error} onRetry={() => failed.refetch()} /></Card> : (
         <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <Card className="self-start">

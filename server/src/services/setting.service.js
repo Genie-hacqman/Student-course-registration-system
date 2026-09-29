@@ -8,6 +8,8 @@ export const DEFAULTS = Object.freeze({
   'grades.passingGrade': 'D',
   'institution.name': 'Student Course Registration System',
   'institution.studentEmailDomain': '',
+  'institution.staffEmailDomain': '',
+  'teaching.restrictLecturerDepartment': true,
 });
 
 export const list = () => Setting.findAll({ order: [['key', 'ASC']] });

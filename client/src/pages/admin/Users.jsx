@@ -12,7 +12,7 @@ import { emailSchema, optionalNumber, passwordSchema } from '../../lib/forms'
 import { ROLE_LABELS } from '../../lib/roles'
 
 export const USER_TONE = { active: 'green', suspended: 'red', pending: 'amber' }
-const ROLE_ORDER = ['USER', 'LECTURER', 'ACADEMIC_ADVISOR', 'REGISTRAR', 'ADMIN', 'SUPER_ADMIN']
+const ROLE_ORDER = ['STUDENT', 'LECTURER', 'REGISTRAR', 'ADMIN']
 
 const createSchema = z.object({
   firstName: z.string().trim().min(1, 'Required').max(100),
@@ -30,7 +30,7 @@ const createSchema = z.object({
   staffNumber: z.string().trim().max(30).optional(),
   title: z.string().trim().max(50).optional(),
 })
-  .refine((d) => d.role !== 'USER' || d.programId, { message: 'Choose a program', path: ['programId'] })
+  .refine((d) => d.role !== 'STUDENT' || d.programId, { message: 'Choose a program', path: ['programId'] })
   .refine((d) => d.role !== 'LECTURER' || d.departmentId, { message: 'Choose a department', path: ['departmentId'] })
   .refine((d) => d.role !== 'LECTURER' || (d.staffNumber?.length ?? 0) >= 2, { message: 'At least 2 characters', path: ['staffNumber'] })
   .refine((d) => !d.studentNumber || d.studentNumber.length >= 3, { message: 'At least 3 characters', path: ['studentNumber'] })
@@ -45,7 +45,7 @@ function CreateUser({ open, onClose }) {
       firstName: v.firstName, lastName: v.lastName, email: v.email, role: v.role, ...(v.password ? { password: v.password } : {}),
     })
     try {
-      if (v.role === 'USER') {
+      if (v.role === 'STUDENT') {
         await http.post('/students', { userId: user.id, programId: v.programId, level: v.level ?? 100, ...(v.studentNumber ? { studentNumber: v.studentNumber } : {}) })
       }
       if (v.role === 'LECTURER') {
@@ -53,7 +53,7 @@ function CreateUser({ open, onClose }) {
       }
     } catch (err) {
       // The account exists; its profile can be added from the user's page.
-      toast.error(`Account created, but the ${v.role === 'USER' ? 'student' : 'lecturer'} profile failed: ${err.message}`)
+      toast.error(`Account created, but the ${v.role === 'STUDENT' ? 'student' : 'lecturer'} profile failed: ${err.message}`)
     }
     return user
   }, { success: 'Account created' })
@@ -65,7 +65,7 @@ function CreateUser({ open, onClose }) {
       wide
       title="New user"
       schema={createSchema}
-      defaultValues={{ firstName: '', lastName: '', email: '', password: '', role: 'USER', programId: '', level: 100, studentNumber: '', departmentId: '', staffNumber: '', title: '' }}
+      defaultValues={{ firstName: '', lastName: '', email: '', password: '', role: 'STUDENT', programId: '', level: 100, studentNumber: '', departmentId: '', staffNumber: '', title: '' }}
       onSubmit={async (v) => {
         const user = await create.mutateAsync(v)
         navigate(`/staff/users/${user.id}`)
@@ -87,7 +87,7 @@ function CreateUser({ open, onClose }) {
             <Select label="Role" {...register('role')}>
               {ROLE_ORDER.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
             </Select>
-            {role === 'USER' && (
+            {role === 'STUDENT' && (
               <fieldset className="grid gap-4 rounded-lg bg-slate-50 p-4 sm:grid-cols-3">
                 <legend className="px-1 text-sm font-medium text-slate-700">Student record</legend>
                 <Select label="Program" error={errors.programId?.message} {...register('programId')}>

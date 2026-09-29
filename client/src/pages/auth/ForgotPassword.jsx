@@ -27,7 +27,7 @@ export default function ForgotPassword() {
   return (
     <>
       <h1 className="text-xl font-semibold tracking-tight text-slate-900">Reset your password</h1>
-      <p className="mt-1 text-sm text-slate-500">Staff: the administrator reviews password resets, and once approved we email you a link to choose a new password. Applicants: we email the link straight away.</p>
+      <p className="mt-1 text-sm text-slate-500">Admins and applicants: we email you a link straight away. Registrars and lecturers: an administrator approves the request first, then we email the link. The link works once and expires soon.</p>
       <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
         Student? <Link to="/forgot-pin" className="font-medium text-brand-600 hover:text-brand-700">Reset your PIN instead</Link>
       </p>

@@ -53,7 +53,7 @@ function RulesStep({ semester, acknowledged, setAcknowledged, onNext }) {
     semester.addDropEnd && { icon: Clock, title: 'Add/drop period', text: `After you submit, you can still add or drop courses until ${formatDateTime(semester.addDropEnd)}.` },
     { icon: ShieldCheck, title: 'Eligibility', text: 'You can only register for courses on your programme’s curriculum, at your level, with their prerequisites met.' },
     { icon: AlertTriangle, title: 'Timetable clashes', text: 'Two courses that meet at the same time cannot both be registered.' },
-    { icon: ClipboardCheck, title: 'Approval', text: 'A submitted registration may need approval by an academic advisor or the registry. You’ll be notified of the decision.' },
+    { icon: ClipboardCheck, title: 'Approval', text: 'A submitted registration may need approval by the registrar or the registry. You’ll be notified of the decision.' },
     { icon: Info, title: 'Seats', text: 'Seats are allocated when you add a course, not when you submit. Waitlists don’t hold seats for you.' },
   ].filter(Boolean)
 

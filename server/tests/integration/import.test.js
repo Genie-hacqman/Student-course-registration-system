@@ -6,15 +6,20 @@ import {
 import { hashToken } from '../../src/utils/jwt.js';
 
 let admin;
+let registrar;
 let lecturer;
 
 before(async () => {
   resetDatabase();
-  [admin, lecturer] = await Promise.all([loginAs('admin'), loginAs('lecturer')]);
+  [admin, registrar, lecturer] = await Promise.all([loginAs('admin'), loginAs('registrar'), loginAs('lecturer')]);
 });
 after(() => sequelize.close());
 
-const post = (path, body, who = admin) => api().post(`/api/admin/import/${path}`).set(auth(who.token)).send(body);
+// Go-live loading is split: the admin loads departments, programmes and people; the registry loads
+// the academic catalogue (courses, curricula, prerequisites) and course offerings (sections).
+const REGISTRY_IMPORTS = ['courses', 'program-courses', 'prerequisites', 'sections', 'course-catalog'];
+const post = (path, body, who = REGISTRY_IMPORTS.includes(path) ? registrar : admin) =>
+  api().post(`/api/admin/import/${path}`).set(auth(who.token)).send(body);
 const count = async (sql, replacements) => Number((await query(sql, replacements))[0].n);
 
 // A small but complete institution, in dependency order. Codes avoid the demo seed's.
@@ -121,7 +126,7 @@ describe('bulk import', () => {
     assert.equal(res.body.data.created, 1);
     assert.deepEqual(res.body.data.errors.map((e) => e.row), [1, 2, 3]);
     assert.match(res.body.data.errors[0].message, /Unknown department code NOPE/);
-    assert.match(res.body.data.errors[1].message, /already belongs to a USER account/);
+    assert.match(res.body.data.errors[1].message, /already belongs to a STUDENT account/);
     assert.match(res.body.data.errors[2].message, /Duplicate value/);
     // The failed lecturer profile left no orphan account behind.
     assert.equal(await count("SELECT COUNT(*) n FROM users WHERE email = 'dup.number@test.local'"), 0);

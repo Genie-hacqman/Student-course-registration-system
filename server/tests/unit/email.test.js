@@ -42,14 +42,17 @@ describe('token redaction in logged emails', () => {
 });
 
 describe('notification email allowlist', () => {
-  test('emails status changes and time-sensitive events', () => {
-    for (const type of ['REGISTRATION_APPROVED', 'REGISTRATION_REJECTED', 'WAITLIST_SEAT_AVAILABLE', 'GRADES_RELEASED', 'GRADE_AMENDED']) {
+  test('emails status changes, time-sensitive events, submission confirmations and admin alerts', () => {
+    for (const type of [
+      'REGISTRATION_SUBMITTED', 'REGISTRATION_APPROVED', 'REGISTRATION_REJECTED', 'WAITLIST_SEAT_AVAILABLE', 'GRADES_RELEASED',
+      'GRADE_AMENDED', 'SECTION_RESCHEDULED', 'SECTION_CANCELLED', 'ACCOUNT_REQUEST_CREATED', 'APPLICATION_SUBMITTED',
+    ]) {
       assert.equal(isEmailable(type), true, `expected ${type} to be emailed`);
     }
   });
 
   test('does not email actions the student just took in-app', () => {
-    for (const type of ['COURSE_REGISTERED', 'REGISTRATION_SUBMITTED', 'PREREQUISITE_OVERRIDE', 'REGISTRATION_TIME']) {
+    for (const type of ['COURSE_REGISTERED', 'PREREQUISITE_OVERRIDE', 'REGISTRATION_TIME']) {
       assert.equal(isEmailable(type), false, `expected ${type} not to be emailed`);
     }
   });

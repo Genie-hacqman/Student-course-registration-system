@@ -38,7 +38,7 @@ export const initSocketServer = (httpServer) => {
   io.on('connection', (socket) => {
     const { id, role } = socket.data.user;
     socket.join([userRoom(id), tokenRoom(socket.data.jti)]);
-    if ([...ADMIN_ROLES, ROLES.ACADEMIC_ADVISOR].includes(role)) socket.join(ADMIN_ROOM);
+    if (ADMIN_ROLES.includes(role)) socket.join(ADMIN_ROOM);
 
     registerCourseHandlers(socket);
 

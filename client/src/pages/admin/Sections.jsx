@@ -4,6 +4,8 @@ import { Plus, X } from 'lucide-react'
 import { z } from 'zod'
 import { Controller } from 'react-hook-form'
 import { http, useApi, useApiMutation } from '../../api/admin'
+import { useAuth } from '../../auth/AuthProvider'
+import { PERMS, can } from '../../lib/roles'
 import { Badge, Button, Card, Input, PageHeader, QueryState, Select } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import FormModal, { Checkbox } from '../../components/admin/FormModal'
@@ -28,6 +30,9 @@ export const timetableSummary = (schedules) =>
     : 'No timetable yet'
 
 export default function Sections() {
+  const { user } = useAuth()
+  // Choosing the lecturer is the registry's (lecturer:assign); section managers without it leave it alone.
+  const canAssign = can(user, PERMS.LECTURER_ASSIGN)
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const { semesterId, setSemesterId, semesters, semester } = useSemesterParam()
@@ -100,7 +105,8 @@ export default function Sections() {
         schema={createSchema}
         defaultValues={{ courseId: courseId ? Number(courseId) : '', sectionCode: 'A', capacity: 40, lecturerId: '', waitlistEnabled: true }}
         onSubmit={async (v) => {
-          const created = await create.mutateAsync({ ...v, semesterId: Number(semesterId) })
+          const { lecturerId, ...rest } = v
+          const created = await create.mutateAsync({ ...rest, ...(canAssign && lecturerId ? { lecturerId } : {}), semesterId: Number(semesterId) })
           navigate(`/staff/sections/${created.id}`)
         }}
         submitLabel="Create section"
@@ -120,7 +126,9 @@ export default function Sections() {
               <Input label="Section code" error={errors.sectionCode?.message} {...register('sectionCode')} />
               <Input label="Capacity" type="number" error={errors.capacity?.message} {...register('capacity')} />
             </div>
-            <LecturerSelect error={errors.lecturerId?.message} {...register('lecturerId')} />
+            {canAssign
+              ? <LecturerSelect error={errors.lecturerId?.message} {...register('lecturerId')} />
+              : <p className="text-xs text-slate-500">The registry assigns the lecturer (Course assignments).</p>}
             <Checkbox label="Waitlist when full" hint="Also needs waitlists switched on in system settings" {...register('waitlistEnabled')} />
             <p className="text-xs text-slate-500">Add the timetable after creating the section.</p>
           </>

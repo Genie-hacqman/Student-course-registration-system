@@ -28,7 +28,7 @@ const runEnvJs = (extraEnv) => {
   }
 };
 
-const PRODUCTION_SMTP = { SMTP_HOST: 'smtp.example.com', SMTP_FROM: 'x' };
+const PRODUCTION_SMTP = { SMTP_HOST: 'smtp.example.com', SMTP_FROM: 'x', EMAIL_FROM: '' };
 
 describe('env.js refuses an unsafe cross-origin setup in production', () => {
   test('a wildcard CORS_ORIGIN is rejected', () => {
@@ -77,5 +77,36 @@ describe('env.js refuses an unsafe cross-origin setup in production', () => {
   test('development keeps its localhost/http defaults — this check is production-only', () => {
     const result = runEnvJs({ NODE_ENV: 'development' });
     assert.equal(result.exitCode, 0);
+  });
+});
+
+describe('env.js requires a working email sender in production', () => {
+  // Empty values are set explicitly: dotenv never overrides them with the developer's local .env.
+  const PROD = {
+    NODE_ENV: 'production', CORS_ORIGIN: 'https://app.university.edu', FRONTEND_URL: 'https://app.university.edu',
+    RESEND_API_KEY: '', SMTP_HOST: '', EMAIL_FROM: '', SMTP_FROM: '',
+  };
+
+  test('no Resend key and no SMTP host is rejected', () => {
+    const result = runEnvJs({ ...PROD, EMAIL_FROM: 'SCRS <no-reply@mail.university.edu>' });
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stderr, /RESEND_API_KEY \(or SMTP_HOST\) is required in production/);
+  });
+
+  test('a Resend key without EMAIL_FROM is rejected', () => {
+    const result = runEnvJs({ ...PROD, RESEND_API_KEY: 're_test_key' });
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stderr, /EMAIL_FROM is required in production/);
+  });
+
+  test('the Resend onboarding sender is refused in production', () => {
+    const result = runEnvJs({ ...PROD, RESEND_API_KEY: 're_test_key', EMAIL_FROM: 'SCRS <onboarding@resend.dev>' });
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stderr, /onboarding sender/);
+  });
+
+  test('Resend with a verified-domain sender boots', () => {
+    const result = runEnvJs({ ...PROD, RESEND_API_KEY: 're_test_key', EMAIL_FROM: 'SCRS <no-reply@mail.university.edu>' });
+    assert.equal(result.exitCode, 0, result.stderr);
   });
 });

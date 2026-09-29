@@ -8,7 +8,6 @@ import {
   resetDatabase, api, loginAs, login, auth, query, createStudent, sequelize,
 } from './helpers.js';
 
-let superAdmin;
 let registrar;
 let admin;
 let lecturer;
@@ -26,23 +25,16 @@ const row = (overrides = {}) => ({
 
 before(async () => {
   resetDatabase();
-  [superAdmin, registrar, lecturer] = await Promise.all(['admin', 'registrar', 'lecturer'].map((w) => loginAs(w)));
-  // The seeded "admin" is the super admin; a plain ADMIN is created to prove admins can't manage courses.
-  const created = await api().post('/api/users').set(auth(superAdmin.token)).send({
-    firstName: 'Plain', lastName: 'Admin', email: 'plain.admin@test.local', password: 'Passw0rd!', role: 'ADMIN',
-  });
-  assert.equal(created.status, 201, JSON.stringify(created.body));
-  admin = await login('plain.admin@test.local', 'Passw0rd!');
+  [admin, registrar, lecturer] = await Promise.all(['admin', 'registrar', 'lecturer'].map((w) => loginAs(w)));
   student = await loginAs('student');
   [{ name: year }] = await query('SELECT name FROM academic_years ORDER BY start_date LIMIT 1');
 });
 after(() => sequelize.close());
 
 describe('authorization', () => {
-  test('only course:catalog holders (registrar, super admin) import; admins, lecturers and students get 403', async () => {
+  test('only course:catalog holders (the registrar) import; admins, lecturers and students get 403', async () => {
     for (const who of [admin, lecturer, student]) assert.equal((await importCatalog(who, [row()], true)).status, 403);
     assert.equal((await importCatalog(registrar, [row()], true)).status, 200);
-    assert.equal((await importCatalog(superAdmin, [row()], true)).status, 200);
   });
 
   test('admins can view courses but not create, edit or archive them; the registrar can', async () => {

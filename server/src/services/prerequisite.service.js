@@ -260,7 +260,7 @@ export const check = async (studentId, courseId) => {
   };
 };
 
-// ── overrides (advisor / registrar) ───────────────────────────────────────────
+// ── overrides (registrar) ───────────────────────────────────────────
 
 const overrideIncludes = [
   { model: Course, as: 'course', attributes: ['id', 'code', 'title'] },

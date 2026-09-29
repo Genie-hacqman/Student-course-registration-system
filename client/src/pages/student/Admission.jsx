@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,6 +10,7 @@ import { useApplicationOptions, useMyApplication, useSaveApplication, useSubmitA
 import { Button, Card, CardHeader, Input, PageHeader, QueryState, Select, StatusBadge } from '../../components/ui'
 import { applyServerErrors, requiredNumber } from '../../lib/forms'
 import { APPLICATION_STATUS, formatDate, formatDateTime } from '../../lib/format'
+import { isAdmitted } from '../../lib/roles'
 
 // Mirrors SCRS-backend validators/application.validator.js; completeness is checked again on submit.
 const schema = z.object({
@@ -33,17 +35,55 @@ const toBody = (values) => Object.fromEntries(Object.entries(values)
   .filter(([, v]) => v !== '' && v != null)
   .map(([k, v]) => [k, ['departmentId', 'programId', 'entryLevel'].includes(k) ? Number(v) : v]))
 
-export default function Application() {
+/**
+ * Admission status for every STUDENT. Before admission: the application form, then its progress.
+ * Once admitted (online or by staff): the student record, with the way into course registration.
+ */
+export default function Admission() {
+  const { user } = useAuth()
   const mine = useMyApplication()
+  const admitted = isAdmitted(user)
   return (
     <div className="space-y-6">
-      <PageHeader title="My application" subtitle="Apply for admission, then follow your application's progress here." />
+      <PageHeader
+        title="Admission status"
+        subtitle={admitted ? 'You are admitted. Your student record is below.' : 'Apply for admission, then follow your application\'s progress here.'}
+      />
+      {admitted && <AdmittedCard student={user.student} email={user.email} />}
       <QueryState query={mine}>
-        {({ application, emailVerified }) => (application && application.status !== 'draft'
-          ? <ApplicationStatus application={application} />
-          : <ApplicationForm application={application} emailVerified={emailVerified} />)}
+        {({ application, emailVerified }) => {
+          if (admitted) return application ? <ApplicationStatus application={application} /> : null
+          return application && application.status !== 'draft'
+            ? <ApplicationStatus application={application} />
+            : <ApplicationForm application={application} emailVerified={emailVerified} />
+        }}
       </QueryState>
     </div>
+  )
+}
+
+function AdmittedCard({ student, email }) {
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <CheckCircle2 className="mt-0.5 size-8 shrink-0 text-green-600" aria-hidden />
+          <div className="space-y-1">
+            <StatusBadge status="approved" tone="green" label="Admitted" />
+            <h2 className="text-lg font-semibold text-slate-900">Course registration is open to you</h2>
+            <p className="text-sm text-slate-600">Register for the courses on your programme during the registration period.</p>
+          </div>
+        </div>
+        <Link to="/student/registration"><Button>Go to course registration</Button></Link>
+      </div>
+      <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-3">
+        <Item label="Student ID">{student?.studentNumber}</Item>
+        <Item label="School email">{email}</Item>
+        <Item label="Programme">{student?.program?.name}</Item>
+        <Item label="Department">{student?.program?.department?.name}</Item>
+        <Item label="Level">{student?.level && `Level ${student.level}`}</Item>
+      </dl>
+    </Card>
   )
 }
 
@@ -131,7 +171,7 @@ function ApplicationForm({ application, emailVerified }) {
 
 const HEADLINE = {
   submitted: { icon: Clock, tone: 'text-amber-600', title: 'Your application is under review', body: "We'll email you at your personal address as soon as a decision is made." },
-  admitted: { icon: CheckCircle2, tone: 'text-green-600', title: 'Congratulations — you have been admitted!', body: 'We emailed your Student ID and an activation link to your personal email. Activate your student account there; this applicant account then closes.' },
+  admitted: { icon: CheckCircle2, tone: 'text-green-600', title: 'Congratulations — you have been admitted!', body: 'We emailed your Student ID and an activation link to your personal email. Activate your account there, then sign in with your Student ID and PIN.' },
   rejected: { icon: XCircle, tone: 'text-red-600', title: 'Your application was not successful', body: 'Thank you for applying. The reason, if one was given, is shown below.' },
 }
 

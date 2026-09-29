@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthProvider'
-import { areaForRole, can, homeForRole } from '../lib/roles'
+import { areaForRole, can, homeForRole, isAdmitted } from '../lib/roles'
 import { FullPageSpinner } from '../components/ui'
 
 /** Only for signed-in users whose role belongs to `area`; others are sent to their own home. */
@@ -11,8 +11,15 @@ export function RequireArea({ area }) {
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   if (user.mustChangePassword) return <Navigate to="/change-pin" replace />
   if (areaForRole(user.role?.name) !== area) return <Navigate to={homeForRole(user.role?.name)} replace />
+  // Students who aren't admitted yet only have their admission page and account settings (the API
+  // refuses everything else with ADMISSION_REQUIRED anyway).
+  if (area === 'student' && !isAdmitted(user) && !APPLYING_PATHS.some((p) => location.pathname.startsWith(p))) {
+    return <Navigate to="/student/admission" replace />
+  }
   return <Outlet />
 }
+
+const APPLYING_PATHS = ['/student/admission', '/student/settings', '/student/notifications']
 
 /** The change-PIN screen: only for a signed-in user whose PIN is still temporary. */
 export function RequirePinChange() {
@@ -38,8 +45,11 @@ export function GuestOnly() {
   return <Outlet />
 }
 
+/** Where a user lands: their area's home, or the admission page for a student not yet admitted. */
+const landingFor = (user) => (user.role?.name === 'STUDENT' && !isAdmitted(user) ? '/student/admission' : homeForRole(user.role?.name))
+
 export function HomeRedirect() {
   const { user, status } = useAuth()
   if (status === 'loading') return <FullPageSpinner />
-  return <Navigate to={user ? homeForRole(user.role?.name) : '/login'} replace />
+  return <Navigate to={user ? landingFor(user) : '/login'} replace />
 }

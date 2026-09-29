@@ -1,26 +1,32 @@
 import { Op } from 'sequelize';
 import {
-  sequelize, CourseSection, Course, Semester, Lecturer, User, Schedule, RegistrationItem,
+  sequelize, CourseSection, Course, Semester, Lecturer, User, Schedule, RegistrationItem, AcademicYear,
 } from '../models/index.js';
 import { buildPagination } from '../utils/pagination.js';
-import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
-import { COURSE_STATUS, SECTION_STATUS, REGISTRATION_ITEM_STATUS, ADMIN_ROLES } from '../utils/constants.js';
+import { NotFoundError, BadRequestError, ConflictError, ForbiddenError } from '../utils/errors.js';
+import {
+  COURSE_STATUS, SECTION_STATUS, REGISTRATION_ITEM_STATUS, ADMIN_ROLES, PERMISSIONS,
+} from '../utils/constants.js';
 import { emitCapacityUpdated } from '../sockets/registration.socket.js';
-import { findConflicts } from './schedule.service.js';
 import * as waitlistService from './waitlist.service.js';
 import * as notificationService from './notification.service.js';
 import * as teachingService from './teaching.service.js';
 import * as audit from './audit.service.js';
+import { hasPermission } from './permission.service.js';
+import { assignLocked, unassignLocked } from './lecturer-assignment.service.js';
 
 export const sectionIncludes = [
-  { model: Course, as: 'course', attributes: ['id', 'code', 'title', 'credits', 'level', 'status'] },
-  { model: Semester, as: 'semester', attributes: ['id', 'name', 'isCurrent'] },
+  { model: Course, as: 'course', attributes: ['id', 'code', 'title', 'credits', 'level', 'status', 'departmentId'] },
+  {
+    model: Semester, as: 'semester', attributes: ['id', 'name', 'isCurrent', 'status', 'academicYearId'],
+    include: [{ model: AcademicYear, as: 'academicYear', attributes: ['id', 'name'] }],
+  },
   { model: Schedule, as: 'schedules', attributes: ['id', 'day', 'startTime', 'endTime', 'room'] },
   {
     model: Lecturer,
     as: 'lecturer',
-    attributes: ['id', 'title', 'staffNumber'],
-    include: [{ model: User, as: 'user', attributes: ['firstName', 'lastName'] }],
+    attributes: ['id', 'title', 'staffNumber', 'departmentId'],
+    include: [{ model: User, as: 'user', attributes: ['firstName', 'lastName', 'status'] }],
   },
 ];
 
@@ -30,6 +36,16 @@ export const list = async (query, actor) => {
   if (query.semesterId) where.semesterId = query.semesterId;
   if (query.courseId) where.courseId = query.courseId;
   if (query.lecturerId) where.lecturerId = query.lecturerId;
+  if (query.unassigned) where.lecturerId = null;
+  // Combined with (not replacing) any semesterId/courseId filter above.
+  const subqueries = [];
+  if (query.academicYearId) {
+    subqueries.push({ semesterId: { [Op.in]: sequelize.literal(`(SELECT id FROM semesters WHERE academic_year_id = ${sequelize.escape(query.academicYearId)})`) } });
+  }
+  if (query.departmentId) {
+    subqueries.push({ courseId: { [Op.in]: sequelize.literal(`(SELECT id FROM courses WHERE department_id = ${sequelize.escape(query.departmentId)})`) } });
+  }
+  if (subqueries.length) where[Op.and] = subqueries;
   if (ADMIN_ROLES.includes(actor?.role)) {
     if (query.status) where.status = query.status;
   } else {
@@ -48,15 +64,11 @@ export const getById = async (id) => {
   return section;
 };
 
-const assertLecturerFree = async (section, lecturerId) => {
-  const slots = await Schedule.findAll({ where: { courseSectionId: section.id }, raw: true });
-  const conflicts = await findConflicts({
-    semesterId: section.semesterId,
-    lecturerId,
-    slots: slots.map(({ room, ...s }) => s), // only lecturer clashes matter here
-    excludeSectionId: section.id,
-  });
-  if (conflicts.length) throw new ConflictError('Lecturer is already teaching at these times', conflicts);
+/** Setting a section's lecturer is the registry's job (lecturer:assign), whichever endpoint carries it. */
+const assertCanAssign = (actor) => {
+  if (!hasPermission(actor.role, PERMISSIONS.LECTURER_ASSIGN)) {
+    throw new ForbiddenError('Assigning lecturers is done by the registry (Course assignments)');
+  }
 };
 
 export const create = async (data, actor) => {
@@ -64,10 +76,16 @@ export const create = async (data, actor) => {
   if (!course) throw new BadRequestError('Course does not exist');
   if (course.status !== COURSE_STATUS.ACTIVE) throw new BadRequestError('Cannot open a section for an inactive course');
   if (!(await Semester.findByPk(data.semesterId))) throw new BadRequestError('Semester does not exist');
-  if (data.lecturerId && !(await Lecturer.findByPk(data.lecturerId))) throw new BadRequestError('Lecturer does not exist');
+  const { lecturerId, ...fields } = data;
+  if (lecturerId) assertCanAssign(actor);
 
-  const section = await CourseSection.create({ ...data, seatsTaken: 0 });
-  await audit.log({ userId: actor.id, action: 'section.create', entityType: 'CourseSection', entityId: section.id });
+  const section = await sequelize.transaction(async (transaction) => {
+    const created = await CourseSection.create({ ...fields, seatsTaken: 0 }, { transaction });
+    await audit.log({ userId: actor.id, action: 'section.create', entityType: 'CourseSection', entityId: created.id, transaction });
+    // Validated and recorded like any other assignment (history, audit, notification).
+    if (lecturerId) await assignLocked(created, lecturerId, actor, { transaction });
+    return created;
+  });
   return getById(section.id);
 };
 
@@ -114,15 +132,18 @@ export const update = async (id, data, actor) => {
     if (data.capacity != null && data.capacity < section.seatsTaken) {
       throw new BadRequestError(`Capacity cannot be below the ${section.seatsTaken} seats already taken`);
     }
-    if (data.lecturerId) {
-      if (!(await Lecturer.findByPk(data.lecturerId, { transaction }))) throw new BadRequestError('Lecturer does not exist');
-      await assertLecturerFree(section, data.lecturerId);
+    const { lecturerId, ...fields } = data;
+    if (lecturerId !== undefined && lecturerId !== section.lecturerId) {
+      assertCanAssign(actor);
+      if (lecturerId) await assignLocked(section, lecturerId, actor, { transaction });
+      else await unassignLocked(section, actor, { transaction });
     }
 
-    const capacityGrew = data.capacity != null && data.capacity > section.capacity;
+    const capacityGrew = fields.capacity != null && fields.capacity > section.capacity;
+    // Lecturer changes notify on their own (lecturer-assignment.service); only cancellation is left here.
     const previousLecturerId = section.lecturerId;
     const previousStatus = section.status;
-    await section.update(data, { transaction });
+    await section.update(fields, { transaction });
 
     if (capacityGrew) {
       await waitlistService.notifyNext(section, { transaction, count: section.capacity - section.seatsTaken });

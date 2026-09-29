@@ -15,6 +15,7 @@ Announcement.init(
     courseSectionId: { type: DataTypes.INTEGER },
     programId: { type: DataTypes.INTEGER },
     pinned: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    emailedAt: { type: DataTypes.DATE }, // set once, when the announcement's email fan-out starts
     recipientCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   },
   { sequelize, modelName: 'Announcement', tableName: 'announcements' },

@@ -44,7 +44,7 @@ module.exports = {
     // Users
     const roleId = async (name) => idOf(`SELECT id FROM roles WHERE name = '${name}'`);
     await queryInterface.bulkInsert('users', [
-      { role_id: await roleId('USER'), first_name: 'Ama', last_name: 'Mensah', email: 'student@scrs.local', password_hash: await bcrypt.hash('Student@12345', 12), status: 'active', email_verified_at: ts.created_at, ...ts },
+      { role_id: await roleId('STUDENT'), first_name: 'Ama', last_name: 'Mensah', email: 'student@scrs.local', password_hash: await bcrypt.hash('Student@12345', 12), status: 'active', email_verified_at: ts.created_at, ...ts },
       { role_id: await roleId('LECTURER'), first_name: 'Kofi', last_name: 'Owusu', email: 'lecturer@scrs.local', password_hash: await bcrypt.hash('Lecturer@12345', 12), status: 'active', email_verified_at: ts.created_at, ...ts },
       { role_id: await roleId('REGISTRAR'), first_name: 'Esi', last_name: 'Boateng', email: 'registrar@scrs.local', password_hash: await bcrypt.hash('Registrar@12345', 12), status: 'active', email_verified_at: ts.created_at, ...ts },
     ]);

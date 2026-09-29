@@ -1,4 +1,5 @@
 import * as sectionService from '../services/section.service.js';
+import * as assignmentService from '../services/lecturer-assignment.service.js';
 import { ok, created, noContent, paginated } from '../utils/response.js';
 
 export const list = async (req, res) => {
@@ -12,3 +13,10 @@ export const remove = async (req, res) => {
   await sectionService.remove(req.validated.params.id, req.user);
   return noContent(res);
 };
+
+// Lecturer assignment (lecturer:assign); responses are the offering's assignment history.
+export const assignLecturer = async (req, res) =>
+  ok(res, await assignmentService.assign(req.validated.params.id, req.validated.body, req.user));
+export const unassignLecturer = async (req, res) =>
+  ok(res, await assignmentService.unassign(req.validated.params.id, req.validated.body, req.user));
+export const lecturerHistory = async (req, res) => ok(res, await assignmentService.history(req.validated.params.id));

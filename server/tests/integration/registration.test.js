@@ -103,7 +103,7 @@ describe('registration flow', () => {
     assert.equal((await add(student.token, 'MATH201')).status, 201);
   });
 
-  test('submit validates the whole selection, then an advisor approves it', async () => {
+  test('submit validates the whole selection, then the registrar approves it', async () => {
     const submitted = await api().post('/api/registrations/submit').set(auth(student.token));
     assert.equal(submitted.status, 200);
     assert.equal(submitted.body.data.status, 'submitted');

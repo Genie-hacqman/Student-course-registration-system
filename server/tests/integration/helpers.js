@@ -61,12 +61,12 @@ export const programId = async () => (await query('SELECT id FROM programs LIMIT
 export const STUDENT_PIN = '482915';
 
 /**
- * Admits a fresh level-200 student who has passed CS101 and MATH101, the real way: the registrar
+ * Admits a fresh level-200 student who has passed CS101 and MATH101, the real way: an admin
  * admits them, they sign in with the temporary PIN and change it, then they're logged in.
  */
 export const createStudent = async (n) => {
-  const registrar = await loginAs('registrar');
-  const admitted = await api().post('/api/admissions').set(auth(registrar.token)).send({
+  const admin = await loginAs('admin');
+  const admitted = await api().post('/api/admissions').set(auth(admin.token)).send({
     firstName: 'Test', lastName: `Student${n}`, programId: await programId(), admissionSession: '2026/2027', level: 200,
   });
   if (admitted.status !== 201) throw new Error(`Admission failed: ${JSON.stringify(admitted.body)}`);
@@ -86,20 +86,21 @@ export const createStudent = async (n) => {
   return { token: changed.body.data.accessToken, studentId, userId: changed.body.data.user.id, email: schoolEmail, studentNumber };
 };
 
-/** A throwaway super admin — the only role that changes its own password or name without approval. */
-export const createSuperAdmin = async (n) => {
+
+/** A second ADMIN — the role that changes its own password or name without approval. */
+export const createAdmin = async (n) => {
   const admin = await loginAs('admin');
-  const email = `superadmin${n}@test.local`;
+  const email = `admin${n}@test.local`;
   const res = await api().post('/api/users').set(auth(admin.token)).send({
-    firstName: 'Super', lastName: `Admin${n}`, email, password: 'Passw0rd!', role: 'SUPER_ADMIN',
+    firstName: 'Extra', lastName: `Admin${n}`, email, password: 'Passw0rd!', role: 'ADMIN',
   });
-  if (res.status !== 201) throw new Error(`Create super admin failed: ${JSON.stringify(res.body)}`);
+  if (res.status !== 201) throw new Error(`Create admin failed: ${JSON.stringify(res.body)}`);
   return { ...(await login(email, 'Passw0rd!')), email };
 };
 
 /**
- * The approved password-reset path for anyone but the super admin: "forgot password" files a request,
- * the super admin approves it, and a reset link is emailed. The raw token only exists in that email, so
+ * The approved password-reset path for registrars and lecturers: "forgot password" files a request,
+ * an admin approves it, and a reset link is emailed. The raw token only exists in that email, so
  * after checking approval stored one, a known token is planted the same way and returned.
  */
 export const approvedResetToken = async (email) => {
@@ -125,16 +126,16 @@ export const approvedResetToken = async (email) => {
 
 // ── online admission ──────────────────────────────────────────────────────────
 
-export const APPLICANT_PASSWORD = 'Applicant1pass';
+export const SIGN_UP_PASSWORD = 'Applicant1pass';
 
 /** Signs up an applicant with a personal email, confirms the email (unless `verify: false`) and signs in. */
 export const createApplicant = async (n, { verify = true } = {}) => {
   const email = `applicant${n}@personal.test`;
   const res = await api().post('/api/applications/account')
-    .send({ firstName: 'Ada', lastName: `Applicant${n}`, email, password: APPLICANT_PASSWORD });
+    .send({ firstName: 'Ada', lastName: `Applicant${n}`, email, password: SIGN_UP_PASSWORD });
   if (res.status !== 202) throw new Error(`Sign-up failed: ${res.status} ${JSON.stringify(res.body)}`);
   if (verify) await query('UPDATE users SET email_verified_at = NOW() WHERE email = :email', { email });
-  return { ...(await login(email, APPLICANT_PASSWORD)), email };
+  return { ...(await login(email, SIGN_UP_PASSWORD)), email };
 };
 
 /** A complete application for the demo BSC-CS programme at level 200 (the level the demo courses need). */

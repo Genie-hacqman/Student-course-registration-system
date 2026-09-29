@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { BookOpen, ChevronRight } from 'lucide-react'
 import { useMySections } from '../../api/lecturer'
 import { Badge, Card, CardHeader, EmptyState, PageHeader, ProgressBar, QueryState, SkeletonTable } from '../../components/ui'
-import { timetableSummary } from '../admin/Sections'
+import { DAY_NAMES, formatTime } from '../../lib/format'
 
 /** Sections grouped by semester, current semester first. */
 const bySemester = (sections) => {
@@ -23,7 +23,10 @@ export default function LecturerCourses() {
       <QueryState query={sections} fallback={<Card><SkeletonTable rows={4} /></Card>} errorTitle="Unable to load your courses">
         {(rows) => (rows.length ? bySemester(rows).map(({ semester, sections: list }) => (
           <Card key={semester?.id ?? 'none'}>
-            <CardHeader title={<>{semester?.name ?? 'No semester'} {semester?.isCurrent && <Badge tone="blue">Current</Badge>}</>} subtitle={`${list.length} course${list.length === 1 ? '' : 's'}`} />
+            <CardHeader
+              title={<>{semester?.name ?? 'No semester'}{semester?.academicYear ? ` · ${semester.academicYear.name}` : ''} {semester?.isCurrent && <Badge tone="blue">Current</Badge>}</>}
+              subtitle={`${list.length} course${list.length === 1 ? '' : 's'}`}
+            />
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="border-b border-slate-100 text-left text-xs tracking-wide text-slate-500 uppercase">
@@ -44,7 +47,13 @@ export default function LecturerCourses() {
                         <p className="text-slate-600">{s.course.title}</p>
                       </td>
                       <td className="py-3">{s.course.level}</td>
-                      <td className="py-3 text-slate-600">{timetableSummary(s.schedules)}</td>
+                      <td className="py-3 text-slate-600">
+                        {s.schedules?.length
+                          ? s.schedules.map((slot) => (
+                            <p key={slot.id}>{DAY_NAMES[slot.day]} {formatTime(slot.startTime)}–{formatTime(slot.endTime)}{slot.room ? ` · ${slot.room}` : ''}</p>
+                          ))
+                          : 'No timetable yet'}
+                      </td>
                       <td className="py-3 pr-4">
                         <div className="mb-1 flex justify-between text-xs text-slate-500"><span>{s.seatsTaken} enrolled</span><span className="tabular-nums">cap. {s.capacity}</span></div>
                         <ProgressBar value={s.seatsTaken} max={s.capacity} size="sm" label={`${s.course.code} enrolment`} />

@@ -58,17 +58,17 @@ describe('email verification', () => {
 });
 
 describe('profile', () => {
-  test('only the super admin renames themselves directly, and nothing but the name changes', async () => {
+  test('an admin renames themselves directly, and nothing but the name changes', async () => {
     const student = await loginAs('student');
     const refused = await api().patch('/api/auth/me').set(auth(student.token)).send({ firstName: 'Amma' });
     assert.equal(refused.status, 403);
     assert.match(refused.body.error.message, /approval/);
 
     const { token } = await loginAs('admin');
-    const res = await api().patch('/api/auth/me').set(auth(token)).send({ firstName: 'Root', email: 'hijack@test.local', role: 'USER' });
+    const res = await api().patch('/api/auth/me').set(auth(token)).send({ firstName: 'Root', email: 'hijack@test.local', role: 'STUDENT' });
     assert.equal(res.status, 200);
     assert.equal(res.body.data.firstName, 'Root');
-    assert.equal(res.body.data.role.name, 'SUPER_ADMIN');
+    assert.equal(res.body.data.role.name, 'ADMIN');
     assert.notEqual(res.body.data.email, 'hijack@test.local');
     assert.equal((await api().patch('/api/auth/me').set(auth(token)).send({})).status, 422);
     assert.equal((await api().patch('/api/auth/me').send({ firstName: 'X' })).status, 401);
@@ -124,7 +124,7 @@ describe('user administration', () => {
   test('a student profile created by staff gets a generated number unless one is given', async () => {
     const admin = await loginAs('admin');
     const make = async (email) => (await api().post('/api/users').set(auth(admin.token)).send({
-      firstName: 'New', lastName: 'Student', email, password: 'Passw0rd!', role: 'USER',
+      firstName: 'New', lastName: 'Student', email, password: 'Passw0rd!', role: 'STUDENT',
     })).body.data.id;
 
     const generated = await api().post('/api/students').set(auth(admin.token)).send({ userId: await make('gen@test.local'), programId: await programId() });

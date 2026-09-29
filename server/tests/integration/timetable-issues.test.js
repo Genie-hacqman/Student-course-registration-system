@@ -122,14 +122,13 @@ describe('lecturer and room clashes with other sections', () => {
 
 describe('sections with no configured slot', () => {
   test('a section without class times is an issue, not a silent pass', async () => {
-    const admin = await loginAs('admin');
     const [program] = await query("SELECT id FROM programs WHERE code = 'BSC-CS'");
     const [dept] = await query("SELECT id FROM departments WHERE code = 'CS'");
     const [semester] = await query('SELECT id FROM semesters WHERE is_current = 1');
-    const course = await api().post('/api/courses').set(auth(admin.token))
+    const course = await api().post('/api/courses').set(auth(registrar.token))
       .send({ departmentId: dept.id, code: 'CS250', title: 'Unscheduled Seminar', credits: 3, level: 200 });
     assert.equal(course.status, 201);
-    await api().post(`/api/programs/${program.id}/courses`).set(auth(admin.token)).send({ courseId: course.body.data.id, type: 'elective' });
+    await api().post(`/api/programs/${program.id}/courses`).set(auth(registrar.token)).send({ courseId: course.body.data.id, type: 'elective' });
     const section = await api().post('/api/sections').set(auth(registrar.token)).send({ courseId: course.body.data.id, semesterId: semester.id, capacity: 10 });
     assert.equal(section.status, 201);
 

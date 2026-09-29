@@ -11,6 +11,9 @@ import { hasPermission } from './permission.service.js';
 import * as lecturerService from './lecturer.service.js';
 import * as notificationService from './notification.service.js';
 import * as audit from './audit.service.js';
+import { sendTemplate } from './mail.service.js';
+import env from '../config/env.js';
+import logger from '../config/logger.js';
 
 const includes = [
   {
@@ -54,7 +57,13 @@ const recipients = async ({ audience, courseSectionId, programId }, transaction)
         include: [{ model: User, as: 'user', where: { status: USER_STATUS.ACTIVE }, attributes: [] }],
         transaction,
       })).map((s) => s.userId);
-    case A.ALL_STUDENTS: return activeUsersWithRoles([ROLES.USER], transaction);
+    // Admitted students only (a student record): applicants are STUDENTs too, but not yet enrolled.
+    case A.ALL_STUDENTS:
+      return (await Student.findAll({
+        attributes: ['userId'],
+        include: [{ model: User, as: 'user', where: { status: USER_STATUS.ACTIVE }, attributes: [] }],
+        transaction,
+      })).map((s) => s.userId);
     case A.ALL_LECTURERS: return activeUsersWithRoles([ROLES.LECTURER], transaction);
     case A.ALL_STAFF: return activeUsersWithRoles(STAFF_ROLES, transaction);
     default: return activeUsersWithRoles(null, transaction);
@@ -85,8 +94,37 @@ const getById = async (id) => {
   return announcement;
 };
 
+/**
+ * Emails an announcement to its recipients, at most once per announcement (claimed by setting
+ * `emailed_at` conditionally) and once per recipient (idempotency key). Runs after the response, paced
+ * for the provider's rate limit; failures are recorded per recipient in email_deliveries, never thrown.
+ */
+export const emailAnnouncement = async (announcementId, userIds) => {
+  const [claimed] = await Announcement.update({ emailedAt: new Date() }, { where: { id: announcementId, emailedAt: null } });
+  if (!claimed) return { sent: 0, skipped: true };
+  const announcement = await Announcement.findByPk(announcementId, { include: includes });
+  const author = announcement.author ? `${announcement.author.firstName} ${announcement.author.lastName}` : null;
+  const users = await User.findAll({ where: { id: userIds, status: USER_STATUS.ACTIVE }, attributes: ['id', 'email', 'firstName'] });
+  let sent = 0;
+  for (const user of users) {
+    const result = await sendTemplate('announcement', {
+      name: user.firstName, title: announcement.title, body: announcement.body, author,
+    }, {
+      to: user.email,
+      idempotencyKey: `announcement:${announcement.id}:${user.id}`,
+      userId: user.id,
+      entityType: 'Announcement',
+      entityId: announcement.id,
+    });
+    if (result.sent) sent += 1;
+    if (!env.isTest) await new Promise((resolve) => { setTimeout(resolve, 550); }); // Resend's default limit is 2 requests/second
+  }
+  return { sent, total: users.length };
+};
+
 export const create = async (data, actor, req) => {
   await assertCanTarget(data, actor);
+  let emailTo = null;
   const id = await sequelize.transaction(async (transaction) => {
     const announcement = await Announcement.create({
       authorId: actor.id,
@@ -107,23 +145,28 @@ export const create = async (data, actor, req) => {
       data: { announcementId: announcement.id },
     }, { transaction });
     await announcement.update({ recipientCount: userIds.length }, { transaction });
+    if (data.emailRecipients) emailTo = userIds;
 
     await audit.log({
       userId: actor.id, action: 'announcement.create', entityType: 'Announcement', entityId: announcement.id,
-      metadata: { audience: announcement.audience, recipients: userIds.length }, req, transaction,
+      metadata: { audience: announcement.audience, recipients: userIds.length, emailed: Boolean(data.emailRecipients) }, req, transaction,
     });
     return announcement.id;
   });
+  // After commit and after the response: a large audience must not hold the request open.
+  if (emailTo?.length) {
+    emailAnnouncement(id, emailTo).catch((err) => logger.error(`Announcement ${id} email fan-out failed: ${err.message}`));
+  }
   return getById(id);
 };
 
 /** Which announcements a user should see: their audiences, their program and sections, and their own posts. */
 const feedWhere = async (user) => {
   const or = [{ audience: A.EVERYONE }, { authorId: user.id }];
-  if (user.role === ROLES.USER) {
-    or.push({ audience: A.ALL_STUDENTS });
+  if (user.role === ROLES.STUDENT) {
     const student = await Student.findOne({ where: { userId: user.id }, attributes: ['id', 'programId'] });
     if (student) {
+      or.push({ audience: A.ALL_STUDENTS });
       or.push({ audience: A.PROGRAM, programId: student.programId });
       const items = await RegistrationItem.findAll({
         where: { status: REGISTRATION_ITEM_STATUS.REGISTERED },

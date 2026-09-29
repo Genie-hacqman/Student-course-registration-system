@@ -41,6 +41,15 @@ const schema = z
     SMTP_USER: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM: z.string().optional(),
+    // Resend (preferred email provider). With RESEND_API_KEY set, email goes through Resend; otherwise
+    // SMTP_HOST (nodemailer); otherwise emails are only logged (dev/test).
+    RESEND_API_KEY: z.string().trim().optional(),
+    // Signing secret of the Resend webhook (whsec_…); without it POST /api/webhooks/resend refuses events.
+    RESEND_WEBHOOK_SECRET: z.string().trim().optional(),
+    // Sender, e.g. "SCRS <no-reply@mail.school.edu>" (a Resend-verified domain). Falls back to SMTP_FROM.
+    EMAIL_FROM: z.string().trim().optional(),
+    // Name used in emails when the institution.name setting still holds its stock default.
+    SCHOOL_NAME: z.string().trim().max(150).optional(),
     // Fallback for the institution.studentEmailDomain setting (the setting wins when set).
     SCHOOL_EMAIL_DOMAIN: z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, 'SCHOOL_EMAIL_DOMAIN must be a domain like school.edu').optional().or(z.literal('')),
     // Development only: include token links in the "email not configured" log instead of redacting them.
@@ -54,18 +63,21 @@ const schema = z
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== 'production') return;
-    if (!data.SMTP_HOST) {
+    if (!data.RESEND_API_KEY && !data.SMTP_HOST) {
       ctx.addIssue({
         code: 'custom',
-        path: ['SMTP_HOST'],
-        message: 'SMTP_HOST is required in production, so password resets and grade/registration emails can actually be sent.',
+        path: ['RESEND_API_KEY'],
+        message: 'RESEND_API_KEY (or SMTP_HOST) is required in production, so activation, password-reset and registration emails can actually be sent.',
       });
     }
     if (data.EMAIL_LOG_LINKS) {
       ctx.addIssue({ code: 'custom', path: ['EMAIL_LOG_LINKS'], message: 'EMAIL_LOG_LINKS must not be enabled in production: it writes raw account tokens to the logs.' });
     }
-    if (!data.SMTP_FROM) {
-      ctx.addIssue({ code: 'custom', path: ['SMTP_FROM'], message: 'SMTP_FROM is required in production.' });
+    const from = data.EMAIL_FROM || data.SMTP_FROM;
+    if (!from) {
+      ctx.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'EMAIL_FROM is required in production (an address on your Resend-verified domain).' });
+    } else if (/@resend\.dev\b/i.test(from)) {
+      ctx.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'EMAIL_FROM cannot be the Resend onboarding sender in production; use your verified domain.' });
     }
 
     // The refresh cookie is Secure + SameSite=Strict, which only works over HTTPS, and a wildcard

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { id, paginationQuery } from './common.validator.js';
 import {
-  REGISTRATION_STATUS, ACCOUNT_REQUEST_STATUS, ACCOUNT_REQUEST_TYPE, ROLES, TIMETABLE_ISSUE_STATUS, TIMETABLE_ISSUE_TYPES,
+  REGISTRATION_STATUS, ACCOUNT_REQUEST_STATUS, ACCOUNT_REQUEST_TYPE, ROLES, TIMETABLE_ISSUE_STATUS, TIMETABLE_ISSUE_TYPES, EMAIL_STATUS,
 } from '../utils/constants.js';
 import { PASSABLE_GRADES } from '../utils/grades.js';
 
@@ -58,6 +58,9 @@ export const SETTING_VALUES = {
   'institution.name': z.string().trim().min(2).max(150),
   'institution.studentEmailDomain': z.string().trim().toLowerCase()
     .regex(/^(?=.{3,120}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/, 'Must be a domain such as school.edu.gh'),
+  'institution.staffEmailDomain': z.string().trim().toLowerCase()
+    .regex(/^$|^(?=.{3,120}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/, 'Must be empty or a domain such as staff.school.edu.gh'),
+  'teaching.restrictLecturerDepartment': z.boolean(),
 };
 
 export const settingUpdateSchema = z.object({
@@ -91,7 +94,7 @@ export const staffAddSchema = z
   .refine((d) => !d.override || d.reason, { message: 'Give a reason for overriding the checks', path: ['reason'] });
 export const staffDropSchema = z.object({ reason: z.string().trim().min(5).max(500) });
 
-// Account change requests (super admin)
+// Account change requests (ADMIN, account:approve)
 export const accountRequestsQuery = z.object({
   ...paginationQuery,
   status: z.enum(Object.values(ACCOUNT_REQUEST_STATUS)).optional(),
@@ -109,4 +112,11 @@ export const signInsQuery = z.object({
   result: z.enum(['success', 'failed']).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+});
+
+export const emailDeliveriesQuery = z.object({
+  ...paginationQuery,
+  status: z.enum(Object.values(EMAIL_STATUS)).optional(),
+  template: z.string().trim().max(60).optional(),
+  search: z.string().trim().max(100).optional(),
 });

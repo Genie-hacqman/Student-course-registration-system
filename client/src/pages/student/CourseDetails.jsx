@@ -61,7 +61,7 @@ function PrerequisitePanel({ course, check }) {
             <div className="text-sm">
               <p className="font-medium text-green-800">Prerequisite satisfied</p>
               <p className="text-green-700">
-                {check.overridden ? 'Your advisor has waived the requirement for you.' : 'You have completed the required course(s).'}
+                {check.overridden ? 'The registry has waived the requirement for you.' : 'You have completed the required course(s).'}
               </p>
             </div>
           </div>

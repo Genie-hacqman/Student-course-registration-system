@@ -1,18 +1,30 @@
 import { createHmac, timingSafeEqual, randomInt } from 'node:crypto';
-import { sequelize, User, Student, Role } from '../models/index.js';
+import { sequelize, User, Student, Role, AdmissionApplication } from '../models/index.js';
 import env from '../config/env.js';
 import { hashPassword, hashTemporaryPin, comparePassword } from '../utils/password.js';
 import { pinProblem, generatePin } from '../utils/pin.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors.js';
 import { ROLES, USER_STATUS } from '../utils/constants.js';
 import * as sessionService from './session.service.js';
-import * as emailService from './email.service.js';
+import { sendTemplate } from './mail.service.js';
 import * as audit from './audit.service.js';
-import * as settingService from './setting.service.js';
 import { issueTokens, loadProfile } from './auth.service.js';
 
+/**
+ * PIN-change alert to the school email and, when the student applied online, their personal email too
+ * (they may not use the school mailbox yet). After commit; keyed on token_version (one per change).
+ */
+const sendPinAlert = async (userId, { recovered }) => {
+  const user = await User.findByPk(userId, { attributes: ['id', 'email', 'firstName', 'tokenVersion'] });
+  const application = await AdmissionApplication.findOne({ where: { userId }, attributes: ['personalEmail'] });
+  const to = [...new Set([user.email, application?.personalEmail].filter(Boolean))];
+  await sendTemplate('pinChanged', { name: user.firstName, when: new Date().toUTCString(), recovered }, {
+    to, idempotencyKey: `pinChanged:${user.id}:${user.tokenVersion}`, userId: user.id, entityType: 'User', entityId: user.id,
+  });
+};
+
 /*
- * Student PINs. Students change and recover their own PIN without the super admin's approval
+ * Student PINs. Students change and recover their own PIN without an admin's approval
  * (staff passwords still need it): the PIN was issued by the school, and recovery goes through
  * the school email, which only the student can read.
  */
@@ -57,16 +69,21 @@ export const changePin = async (userId, { currentPin, newPin }, meta) => {
     include: [{ model: Student, as: 'student', attributes: ['studentNumber'] }, { model: Role, as: 'role' }],
   });
   if (!user) throw new NotFoundError('User');
-  if (user.role.name !== ROLES.USER) throw new ForbiddenError('Only students have a PIN; staff change their password instead');
+  if (user.role.name !== ROLES.STUDENT || !user.student) {
+    throw new ForbiddenError('Only admitted students have a PIN; everyone else changes their password instead');
+  }
   if (!(await comparePassword(currentPin, user.passwordHash))) throw new BadRequestError('Current PIN is incorrect');
   if (currentPin === newPin) throw new BadRequestError('New PIN must differ from the current PIN');
   assertPin(newPin, user.student?.studentNumber);
 
+  const wasTemporary = user.mustChangePassword;
   const tokens = await sequelize.transaction(async (transaction) => {
     await setPin(user, newPin, { mustChange: false, action: 'auth.change_pin', transaction });
     await user.reload({ transaction }); // endAllSessions bumped token_version; the new tokens must carry it
     return issueTokens(user, user.role.name, meta, transaction);
   });
+  // Replacing a temporary PIN is the expected first step, not a security event worth an alert.
+  if (!wasTemporary) await sendPinAlert(user.id, { recovered: false });
   return { user: await loadProfile(user.id), ...tokens };
 };
 
@@ -88,11 +105,9 @@ export const forgotPin = async ({ studentNumber, email }) => {
     pinOtpSentAt: new Date(),
   });
 
-  const institution = await settingService.get('institution.name');
-  await emailService.sendMail({
-    to: user.email,
-    subject: `Your ${institution} PIN reset code`,
-    text: `Your code to reset the PIN for ${user.student.studentNumber} is:\n\n${otp}\n\nIt expires in ${OTP_TTL_MS / 60000} minutes. If you didn't ask to reset your PIN, ignore this email; your PIN has not changed.`,
+  // Keyed on the send time (one code per minute at most), so a retried request can't mail a second code.
+  await sendTemplate('pinResetCode', { studentNumber: user.student.studentNumber, code: otp, minutes: OTP_TTL_MS / 60000 }, {
+    to: user.email, idempotencyKey: `pinResetCode:${user.id}:${user.pinOtpSentAt.getTime()}`, userId: user.id, entityType: 'User', entityId: user.id,
   });
   await audit.log({ userId: user.id, action: 'auth.pin_otp_sent', entityType: 'User', entityId: user.id });
   return otp;
@@ -119,6 +134,8 @@ export const resetPinWithOtp = async ({ studentNumber, otp, newPin }) => {
     return 'ok';
   });
   if (outcome !== 'ok') throw new BadRequestError('The code is invalid or has expired. Request a new one.');
+  const student = await Student.findOne({ where: { studentNumber }, attributes: ['userId'] });
+  await sendPinAlert(student.userId, { recovered: true });
 };
 
 /**

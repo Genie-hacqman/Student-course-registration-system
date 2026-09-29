@@ -2,7 +2,7 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 import { ACCOUNT_REQUEST_STATUS, ACCOUNT_REQUEST_TYPE } from '../utils/constants.js';
 
-/** A password reset or name change waiting for the super admin (see account-request.service). */
+/** A password reset or name change waiting for an admin (see account-request.service). */
 class AccountChangeRequest extends Model {}
 
 AccountChangeRequest.init(

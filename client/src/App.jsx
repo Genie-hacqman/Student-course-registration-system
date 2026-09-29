@@ -8,7 +8,6 @@ import AuthLayout from './layouts/AuthLayout'
 import StudentLayout from './layouts/StudentLayout'
 import StaffLayout from './layouts/StaffLayout'
 import LecturerLayout from './layouts/LecturerLayout'
-import ApplicantLayout from './layouts/ApplicantLayout'
 import Login from './pages/auth/Login'
 import ChangePin from './pages/auth/ChangePin'
 import ForgotPin from './pages/auth/ForgotPin'
@@ -17,7 +16,7 @@ import ResetPassword from './pages/auth/ResetPassword'
 import VerifyEmail from './pages/auth/VerifyEmail'
 import Apply from './pages/auth/Apply'
 import Activate from './pages/auth/Activate'
-import Application from './pages/applicant/Application'
+import Admission from './pages/student/Admission'
 import Dashboard from './pages/student/Dashboard'
 import Catalog from './pages/student/Catalog'
 import CourseDetails from './pages/student/CourseDetails'
@@ -42,6 +41,9 @@ const Programs = lazy(() => import('./pages/admin/Programs'))
 const ProgramDetail = lazy(() => import('./pages/admin/ProgramDetail'))
 const Courses = lazy(() => import('./pages/admin/Courses'))
 const CourseImport = lazy(() => import('./pages/admin/CourseImport'))
+const Lecturers = lazy(() => import('./pages/admin/Lecturers'))
+const LecturerDetail = lazy(() => import('./pages/admin/LecturerDetail'))
+const CourseAssignments = lazy(() => import('./pages/staff/CourseAssignments'))
 const CourseDetail = lazy(() => import('./pages/admin/CourseDetail'))
 const Semesters = lazy(() => import('./pages/admin/Semesters'))
 const SemesterDetail = lazy(() => import('./pages/admin/SemesterDetail'))
@@ -57,6 +59,7 @@ const ResultsImport = lazy(() => import('./pages/admin/ResultsImport'))
 const DataImport = lazy(() => import('./pages/admin/DataImport'))
 const AccountRequests = lazy(() => import('./pages/admin/AccountRequests'))
 const SignIns = lazy(() => import('./pages/admin/SignIns'))
+const EmailLog = lazy(() => import('./pages/admin/EmailLog'))
 const Applications = lazy(() => import('./pages/admin/Applications'))
 const ApplicationDetail = lazy(() => import('./pages/admin/ApplicationDetail'))
 const TimetableIssues = lazy(() => import('./pages/staff/TimetableIssues'))
@@ -109,6 +112,7 @@ export default function App() {
           <Route element={<RequireArea area="student" />}>
             <Route path="/student" element={<StudentLayout />}>
               <Route index element={<Dashboard />} />
+              <Route path="admission" element={<Admission />} />
               <Route path="courses" element={<Catalog />} />
               <Route path="courses/:id" element={<CourseDetails />} />
               <Route path="registration" element={<RegistrationWizard />} />
@@ -124,12 +128,8 @@ export default function App() {
             </Route>
           </Route>
 
-          <Route element={<RequireArea area="applicant" />}>
-            <Route path="/applicant" element={<ApplicantLayout />}>
-              <Route index element={<Application />} />
-              <Route path="settings" element={<Account />} />
-            </Route>
-          </Route>
+          {/* Links from before the four-role model: applicants are students now. */}
+          <Route path="/applicant/*" element={<Navigate to="/student/admission" replace />} />
 
           <Route element={<RequireArea area="lecturer" />}>
             <Route path="/lecturer" element={<LecturerLayout />}>
@@ -180,6 +180,13 @@ export default function App() {
               <Route element={<RequirePermission permission={PERMS.COURSE_CATALOG} />}>
                 <Route path="courses/import" element={<CourseImport />} />
               </Route>
+              <Route element={<RequirePermission permission={PERMS.USER_MANAGE} />}>
+                <Route path="lecturers" element={<Lecturers />} />
+                <Route path="lecturers/:id" element={<LecturerDetail />} />
+              </Route>
+              <Route element={<RequirePermission permission={PERMS.LECTURER_ASSIGN} />}>
+                <Route path="course-assignments" element={<CourseAssignments />} />
+              </Route>
               <Route element={<RequirePermission permission={PERMS.SEMESTER_MANAGE} />}>
                 <Route path="semesters" element={<Semesters />} />
                 <Route path="semesters/:id" element={<SemesterDetail />} />
@@ -191,7 +198,7 @@ export default function App() {
               <Route element={<RequirePermission permission={PERMS.ROSTER_VIEW} />}>
                 <Route path="sections/:id/class" element={<SectionClass backTo="/staff/sections" backLabel="Sections" />} />
               </Route>
-              <Route element={<RequirePermission permission={PERMS.PREREQ_OVERRIDE} />}>
+              <Route element={<RequirePermission permission={PERMS.REGISTRATION_VIEW_ALL} />}>
                 <Route path="students" element={<Students />} />
                 <Route path="students/:id" element={<StudentDetail />} />
               </Route>
@@ -202,6 +209,7 @@ export default function App() {
               <Route element={<RequirePermission permission={PERMS.AUDIT_VIEW} />}>
                 <Route path="audit-log" element={<AuditLog />} />
                 <Route path="sign-ins" element={<SignIns />} />
+                <Route path="email-log" element={<EmailLog />} />
               </Route>
               <Route element={<RequirePermission permission={PERMS.ACCOUNT_APPROVE} />}>
                 <Route path="account-requests" element={<AccountRequests />} />

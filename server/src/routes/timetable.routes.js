@@ -9,7 +9,7 @@ import { ROLES } from '../utils/constants.js';
 const router = Router();
 
 router.use(authenticate);
-router.get('/me', authorize(ROLES.USER), validate({ query: semesterFilterQuery }), ctrl.mine);
+router.get('/me', authorize(ROLES.STUDENT), validate({ query: semesterFilterQuery }), ctrl.mine);
 router.get('/lecturer/me', authorize(ROLES.LECTURER), validate({ query: semesterFilterQuery }), ctrl.lecturerMine);
 
 export default router;

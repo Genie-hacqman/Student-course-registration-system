@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { Op } from 'sequelize';
 import {
-  sequelize, User, Role, Student, Lecturer, Program, Department, RefreshToken,
+  sequelize, User, Role, Student, Lecturer, Program, Department, RefreshToken, AdmissionApplication,
 } from '../models/index.js';
 import env from '../config/env.js';
 import { hashPassword, comparePassword } from '../utils/password.js';
@@ -9,23 +9,41 @@ import { signAccessToken, generateOpaqueToken, hashToken } from '../utils/jwt.js
 import {
   ConflictError, NotFoundError, UnauthorizedError, ForbiddenError, BadRequestError, TooManyAttemptsError,
 } from '../utils/errors.js';
-import { ROLES, USER_STATUS } from '../utils/constants.js';
+import { ROLES, USER_STATUS, ADMISSION_STATUS } from '../utils/constants.js';
 import { permissionsFor } from './permission.service.js';
 import * as audit from './audit.service.js';
 import * as sessionService from './session.service.js';
-import * as emailService from './email.service.js';
+import { sendTemplate, tokenKey } from './mail.service.js';
 import { issuePasswordReset } from './password-reset.service.js';
-import { requiresApproval, requestPasswordReset } from './account-request.service.js';
+import {
+  requiresApproval, requestPasswordReset, hasPin, roleAndStudent,
+} from './account-request.service.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Compared against when the email is unknown, so response time doesn't reveal whether an account exists.
 const DUMMY_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEeO5J8m7bY1qH1d5b0zjz1yQWf0rP9e8m2';
 
-/** The signed-in user's profile plus their effective permissions, so clients never keep their own copy of them. */
+const APPLICATION_TO_ADMISSION = {
+  submitted: ADMISSION_STATUS.PENDING,
+  rejected: ADMISSION_STATUS.REJECTED,
+  admitted: ADMISSION_STATUS.ADMITTED,
+};
+
+/** A STUDENT's admission state (never a role): ADMITTED with a student record, else from their application. */
+export const admissionStatusOf = async (user) => {
+  if (user.role?.name !== ROLES.STUDENT) return undefined;
+  if (user.student) return ADMISSION_STATUS.ADMITTED;
+  const application = await AdmissionApplication.findOne({ where: { userId: user.id }, attributes: ['status'] });
+  return APPLICATION_TO_ADMISSION[application?.status] ?? ADMISSION_STATUS.NOT_SUBMITTED;
+};
+
+/** The signed-in user's profile plus their effective permissions (and a student's admission status). */
 export const loadProfile = async (userId) => {
   const user = await findProfile(userId);
-  return user && { ...user.toJSON(), permissions: permissionsFor(user.role?.name) };
+  if (!user) return user;
+  const admissionStatus = await admissionStatusOf(user);
+  return { ...user.toJSON(), permissions: permissionsFor(user.role?.name), ...(admissionStatus ? { admissionStatus } : {}) };
 };
 
 const findProfile = (userId) =>
@@ -85,10 +103,25 @@ export const issueVerificationToken = async (userId, transaction) => {
   return token;
 };
 
-export const sendVerificationEmail = (email, token) => emailService.sendMail({
-  to: email,
-  subject: 'Confirm your email address',
-  text: `Confirm your email address for your student registration account. This link expires in 24 hours:\n\n${env.FRONTEND_URL}/verify-email?token=${token}\n\nIf you didn't create an account, you can ignore this email.`,
+/** `user` needs id, email and firstName. Keyed on the token, so a retried request doesn't send twice. */
+export const sendVerificationEmail = (user, token) => sendTemplate('emailVerification', {
+  name: user.firstName,
+  verifyUrl: `${env.FRONTEND_URL}/verify-email?token=${token}`,
+  hours: VERIFICATION_TTL_MS / 3_600_000,
+}, { to: user.email, idempotencyKey: `verify:${user.id}:${tokenKey(hashToken(token))}`, userId: user.id, entityType: 'User', entityId: user.id });
+
+const formatWhen = (date = new Date()) => date.toUTCString();
+
+/** Security alert after a credential change; after commit, never blocking the change itself. */
+export const sendCredentialAlert = (user, template, data = {}) => sendTemplate(template, {
+  name: user.firstName, when: formatWhen(), ...data,
+}, {
+  to: user.email,
+  // One alert per change: token_version is bumped by every credential change (endAllSessions).
+  idempotencyKey: `${template}:${user.id}:${user.tokenVersion ?? Date.now()}`,
+  userId: user.id,
+  entityType: 'User',
+  entityId: user.id,
 });
 
 // Sign-in lockout, per account (on top of the per-IP authLimiter): student PINs are only 6 digits.
@@ -228,46 +261,58 @@ export const logoutAll = async (userId, req) => {
   });
 };
 
-const loadWithRole = (userId) => User.findByPk(userId, { include: [{ model: Role, as: 'role', attributes: ['name'] }] });
+const loadWithRole = (userId) => User.findByPk(userId, { include: roleAndStudent });
 
 /**
  * Always resolves the same way whether or not the email exists, to avoid account enumeration.
- * The super admin gets a reset link straight away; for anyone else this files a request for the
- * super admin to approve. Students have a PIN instead and recover it with POST /auth/pin/forgot,
- * so nothing happens for them here. Returns the raw token (super admin only) for internal use (tests).
+ * ADMINs and not-yet-admitted students get a reset link straight away; REGISTRAR and LECTURER file a
+ * request for an admin to approve. Admitted students have a PIN instead and recover it with
+ * POST /auth/pin/forgot, so nothing happens for them here. Returns the raw token (direct resets only)
+ * for internal use (tests).
  */
 export const forgotPassword = async (email) => {
-  const user = await User.findOne({ where: { email }, include: [{ model: Role, as: 'role', attributes: ['name'] }] });
-  if (!user || user.status !== USER_STATUS.ACTIVE || user.role.name === ROLES.USER) return null;
-  if (requiresApproval(user.role.name)) {
+  const user = await User.findOne({ where: { email }, include: roleAndStudent });
+  if (!user || user.status !== USER_STATUS.ACTIVE || hasPin(user)) return null;
+  if (requiresApproval(user)) {
     await requestPasswordReset(user);
     return null;
   }
   return issuePasswordReset(user);
 };
 
+/**
+ * The token is consumed atomically: a conditional UPDATE that only matches the unexpired, unused hash,
+ * so two requests racing with the same link can't both succeed (the loser gets the same 400).
+ */
 export const resetPassword = async ({ token, password }) => {
+  const hash = hashToken(token);
   const user = await User.scope('withSecrets').findOne({
-    where: { passwordResetHash: hashToken(token), passwordResetExpires: { [Op.gt]: new Date() } },
-    include: [{ model: Role, as: 'role', attributes: ['name'] }],
+    where: { passwordResetHash: hash, passwordResetExpires: { [Op.gt]: new Date() } },
+    include: roleAndStudent,
   });
   if (!user) throw new BadRequestError('Reset token is invalid or has expired');
-  if (user.role.name === ROLES.USER) throw new ForbiddenError('Students change their PIN instead (PATCH /auth/pin)');
+  if (hasPin(user)) throw new ForbiddenError('Students change their PIN instead (PATCH /auth/pin)');
 
   const passwordHash = await hashPassword(password);
   await sequelize.transaction(async (transaction) => {
-    await user.update({ passwordHash, passwordResetHash: null, passwordResetExpires: null }, { transaction });
+    const [consumed] = await User.update(
+      { passwordHash, passwordResetHash: null, passwordResetExpires: null },
+      { where: { id: user.id, passwordResetHash: hash, passwordResetExpires: { [Op.gt]: new Date() } }, transaction },
+    );
+    if (consumed !== 1) throw new BadRequestError('Reset token is invalid or has expired');
     await sessionService.endAllSessions(user.id, transaction);
     await audit.log({ userId: user.id, action: 'auth.reset_password', entityType: 'User', entityId: user.id, transaction });
   });
+  await user.reload({ attributes: ['id', 'email', 'firstName', 'tokenVersion'] });
+  await sendCredentialAlert(user, 'passwordResetCompleted');
 };
 
 export const changePassword = async (userId, { currentPassword, newPassword }) => {
-  const user = await User.scope('withSecrets').findByPk(userId, { include: [{ model: Role, as: 'role', attributes: ['name'] }] });
+  const user = await User.scope('withSecrets').findByPk(userId, { include: roleAndStudent });
   if (!user) throw new NotFoundError('User');
-  if (user.role.name === ROLES.USER) throw new ForbiddenError('Students change their PIN instead (PATCH /auth/pin)');
-  if (requiresApproval(user.role.name)) {
-    throw new ForbiddenError("Password changes need the super admin's approval — request a password reset from your profile");
+  if (hasPin(user)) throw new ForbiddenError('Students change their PIN instead (PATCH /auth/pin)');
+  if (requiresApproval(user)) {
+    throw new ForbiddenError("Password changes need an administrator's approval — request a password reset from your profile");
   }
   if (!(await comparePassword(currentPassword, user.passwordHash))) {
     throw new BadRequestError('Current password is incorrect');
@@ -279,6 +324,8 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
     await sessionService.endAllSessions(user.id, transaction);
     await audit.log({ userId, action: 'auth.change_password', entityType: 'User', entityId: userId, transaction });
   });
+  await user.reload({ attributes: ['id', 'email', 'firstName', 'tokenVersion'] });
+  await sendCredentialAlert(user, 'passwordChanged');
 };
 
 export const me = async (userId) => {
@@ -290,23 +337,26 @@ export const me = async (userId) => {
 /** Self-service profile edit. Email changes are deliberately not supported here (they'd need re-verification). */
 export const updateProfile = async (userId, data, req) => {
   const user = await loadWithRole(userId);
-  if (requiresApproval(user.role.name)) {
-    throw new ForbiddenError("Name changes need the super admin's approval — send a name change request from your profile");
+  if (requiresApproval(user)) {
+    throw new ForbiddenError("Name changes need an administrator's approval — send a name change request from your profile");
   }
   await User.update(data, { where: { id: userId } });
   await audit.log({ userId, action: 'auth.update_profile', entityType: 'User', entityId: userId, metadata: data, req });
   return me(userId);
 };
 
+/** Consumed atomically (conditional UPDATE), so a link can't be used twice even by parallel requests. */
 export const verifyEmail = async ({ token }) => {
+  const hash = hashToken(token);
   const user = await User.findOne({
-    where: { emailVerificationHash: hashToken(token), emailVerificationExpires: { [Op.gt]: new Date() } },
+    where: { emailVerificationHash: hash, emailVerificationExpires: { [Op.gt]: new Date() } },
   });
   if (!user) throw new BadRequestError('Verification link is invalid or has expired');
-  await User.update(
+  const [consumed] = await User.update(
     { emailVerifiedAt: new Date(), emailVerificationHash: null, emailVerificationExpires: null },
-    { where: { id: user.id } },
+    { where: { id: user.id, emailVerificationHash: hash, emailVerificationExpires: { [Op.gt]: new Date() } } },
   );
+  if (consumed !== 1) throw new BadRequestError('Verification link is invalid or has expired');
   await audit.log({ userId: user.id, action: 'auth.verify_email', entityType: 'User', entityId: user.id });
 };
 
@@ -314,7 +364,7 @@ export const resendVerification = async (userId) => {
   const user = await User.findByPk(userId);
   if (!user) throw new NotFoundError('User');
   if (user.emailVerifiedAt) throw new ConflictError('Your email address is already verified');
-  await sendVerificationEmail(user.email, await issueVerificationToken(user.id));
+  await sendVerificationEmail(user, await issueVerificationToken(user.id));
   await audit.log({ userId, action: 'auth.resend_verification', entityType: 'User', entityId: userId });
 };
 

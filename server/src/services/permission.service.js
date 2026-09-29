@@ -1,5 +1,5 @@
 import { RolePermissionOverride, Role } from '../models/index.js';
-import { PERMISSIONS, ROLE_PERMISSIONS, ROLES } from '../utils/constants.js';
+import { PERMISSIONS, ROLE_PERMISSIONS, EDITABLE_ROLES } from '../utils/constants.js';
 import logger from '../config/logger.js';
 
 /**
@@ -11,12 +11,13 @@ let overrides = new Map(); // role name → Map(permission → granted)
 
 const ALL = Object.values(PERMISSIONS);
 
-export const defaultsFor = (role) => (role === ROLES.SUPER_ADMIN ? ALL : [...(ROLE_PERMISSIONS[role] ?? [])]);
+export const defaultsFor = (role) => [...(ROLE_PERMISSIONS[role] ?? [])];
 
+/** Unknown role names get nothing; only editable roles (REGISTRAR, LECTURER) take overrides. */
 export const permissionsFor = (role) => {
-  if (role === ROLES.SUPER_ADMIN) return ALL;
   const effective = new Set(ROLE_PERMISSIONS[role] ?? []);
-  for (const [permission, granted] of overrides.get(role) ?? []) {
+  const roleOverrides = EDITABLE_ROLES.includes(role) ? overrides.get(role) : null;
+  for (const [permission, granted] of roleOverrides ?? []) {
     if (granted) effective.add(permission);
     else effective.delete(permission);
   }
