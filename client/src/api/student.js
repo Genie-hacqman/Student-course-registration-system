@@ -95,12 +95,20 @@ export const printSlip = async (registrationId) => {
   const url = URL.createObjectURL(await fetchSlip(registrationId))
   const frame = document.createElement('iframe')
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+  const cleanup = (delay) => setTimeout(() => { frame.remove(); URL.revokeObjectURL(url) }, delay)
   frame.src = url
   frame.onload = () => {
-    frame.contentWindow?.focus()
-    frame.contentWindow?.print()
-    // Removing the frame immediately would cancel the dialog in some browsers.
-    setTimeout(() => { frame.remove(); URL.revokeObjectURL(url) }, 60_000)
+    try {
+      frame.contentWindow.focus()
+      frame.contentWindow.print()
+      // Removing the frame immediately would cancel the dialog in some browsers.
+      cleanup(60_000)
+    } catch {
+      // Printing from the frame was refused; show the PDF in a tab so it can be printed from there.
+      window.open(url, '_blank')
+      cleanup(60_000)
+    }
   }
+  frame.onerror = () => { window.open(url, '_blank'); cleanup(60_000) }
   document.body.appendChild(frame)
 }

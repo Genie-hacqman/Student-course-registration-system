@@ -103,6 +103,10 @@ api.interceptors.response.use(
         sessionExpiredHandler()
       }
     }
+    // With responseType 'blob' (slip PDFs) an error body arrives as a Blob; decode it so its message survives.
+    if (response?.data instanceof Blob) {
+      try { response.data = JSON.parse(await response.data.text()) } catch { /* not JSON; keep generic message */ }
+    }
     const error = toApiError(err)
     if (error.code === 'PIN_CHANGE_REQUIRED') pinChangeHandler()
     throw error
