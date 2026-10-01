@@ -1,12 +1,13 @@
-# Security headers for the static site (Render reads this file natively, same convention as Netlify).
+# Security headers for the static site — read natively by Render/Netlify-style static hosting (NOT by
+# Vercel, which needs vercel.json instead; see that file for the version actually in effect while the
+# frontend is deployed there). Kept here too in case this ever gets deployed to Render's static hosting.
 # The API itself already sets its own headers via helmet() — this covers the HTML/JS/CSS the browser
 # actually renders, which ships from this separate static origin and would otherwise carry none.
 #
-# IMPORTANT: the connect-src origins below assume the planned domain, api.unireg.geniehackman.com.
-# Update both the https:// and wss:// entries here if the deployed API ends up on a different domain —
-# a static file like this can't pick that up automatically from an env var.
+# IMPORTANT: the connect-src origins below must match wherever the API actually is (currently
+# unireg-api.onrender.com). A static file like this can't pick that up automatically from an env var.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://api.unireg.geniehackman.com wss://api.unireg.geniehackman.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://unireg-api.onrender.com wss://unireg-api.onrender.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
