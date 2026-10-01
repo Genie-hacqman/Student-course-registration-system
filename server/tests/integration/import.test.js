@@ -15,8 +15,10 @@ before(async () => {
 });
 after(() => sequelize.close());
 
-// Go-live loading is split: the admin loads departments, programmes and people; the registry loads
-// the academic catalogue (courses, curricula, prerequisites) and course offerings (sections).
+// Either ADMIN or REGISTRAR may run the departments→sections pipeline (see import.routes.js's
+// `academic` guard) — people (lecturers/students/invites) stay ADMIN-only, and `course-catalog` (the
+// separate one-row-per-course×programme tool) stays REGISTRAR-only. This just picks a sensible
+// default actor per path for tests that don't care which of the two valid roles is used.
 const REGISTRY_IMPORTS = ['courses', 'program-courses', 'prerequisites', 'sections', 'course-catalog'];
 const post = (path, body, who = REGISTRY_IMPORTS.includes(path) ? registrar : admin) =>
   api().post(`/api/admin/import/${path}`).set(auth(who.token)).send(body);

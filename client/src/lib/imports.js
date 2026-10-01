@@ -81,11 +81,15 @@ const LEVEL = int(100, 900)
  * The import steps, in the order they must be loaded: each may only reference records from the
  * steps above it. `permission` mirrors the backend route's requirement.
  */
+// Departments through course offerings is one connected go-live job — either ADMIN or REGISTRAR
+// (whichever permission they hold) can run all of it. Mirrors `academic` in import.routes.js.
+const ACADEMIC_IMPORT = [PERMS.COURSE_MANAGE, PERMS.COURSE_CATALOG, PERMS.SECTION_MANAGE]
+
 export const IMPORT_STEPS = [
   {
     key: 'departments',
     label: 'Departments',
-    permission: PERMS.COURSE_MANAGE,
+    permission: ACADEMIC_IMPORT,
     description: 'Academic departments. Everything else hangs off these.',
     columns: [
       col('code', upper, { required: true, hint: 'Short unique code, e.g. CS' }),
@@ -96,7 +100,7 @@ export const IMPORT_STEPS = [
   {
     key: 'programs',
     label: 'Programmes',
-    permission: PERMS.COURSE_MANAGE,
+    permission: ACADEMIC_IMPORT,
     description: 'Degree programmes students are admitted to.',
     columns: [
       col('code', upper, { required: true, hint: 'e.g. BSC-CS' }),
@@ -111,7 +115,7 @@ export const IMPORT_STEPS = [
   {
     key: 'courses',
     label: 'Courses',
-    permission: PERMS.COURSE_CATALOG,
+    permission: ACADEMIC_IMPORT,
     description: 'The course catalogue.',
     columns: [
       col('code', upper, { required: true, hint: 'Letters, numbers and dashes, e.g. CS101' }),
@@ -127,7 +131,7 @@ export const IMPORT_STEPS = [
   {
     key: 'program-courses',
     label: 'Curriculum',
-    permission: PERMS.COURSE_CATALOG,
+    permission: ACADEMIC_IMPORT,
     description: 'Which courses each programme\'s students may register for. A course missing here is invisible to students.',
     columns: [
       col('programCode', upper, { required: true }),
@@ -140,7 +144,7 @@ export const IMPORT_STEPS = [
   {
     key: 'prerequisites',
     label: 'Prerequisites',
-    permission: PERMS.COURSE_CATALOG,
+    permission: ACADEMIC_IMPORT,
     description: 'One row is one requirement. Separate alternatives with | (any one satisfies it); separate rows are all required.',
     columns: [
       col('courseCode', upper, { required: true }),
@@ -191,7 +195,7 @@ export const IMPORT_STEPS = [
   {
     key: 'sections',
     label: 'Course offerings',
-    permission: PERMS.SECTION_MANAGE,
+    permission: ACADEMIC_IMPORT,
     description: 'Sections for a semester, with lecturer and timetable. Rooms and lecturers are checked for clashes.',
     columns: [
       col('courseCode', upper, { required: true }),
