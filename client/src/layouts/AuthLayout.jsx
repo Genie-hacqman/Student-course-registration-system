@@ -11,12 +11,21 @@ const FEATURES = [
 
 export default function AuthLayout() {
   return (
-    <div className="flex min-h-full flex-col lg:flex-row">
-      <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-12 lg:max-w-xl lg:px-16 xl:max-w-2xl">
+    <div className="relative flex min-h-full flex-col overflow-hidden bg-linear-to-br from-brand-50 via-white to-slate-50 lg:flex-row">
+      {/* One shared mesh-gradient background for the whole page — visible on every screen size,
+          not just the desktop side panel, so the mobile view isn't left plain. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-20 left-[15%] size-80 rounded-full bg-brand-200/50 blur-3xl animate-float sm:size-96" />
+        <div className="absolute top-1/3 -right-16 size-72 rounded-full bg-brand-300/35 blur-3xl animate-float-delayed sm:size-80" />
+        <div className="absolute -bottom-24 left-[20%] size-64 rounded-full bg-brand-100/60 blur-3xl animate-float sm:size-72" />
         <div
           aria-hidden="true"
-          className="absolute -top-24 left-1/2 -z-10 h-96 w-xl -translate-x-1/2 rounded-full bg-brand-200/40 blur-3xl lg:hidden"
+          className="absolute inset-0 mask-[radial-gradient(ellipse_at_center,black,transparent_70%)] opacity-50"
+          style={{ backgroundImage: 'radial-gradient(#bdd0fd 1px, transparent 1px)', backgroundSize: '28px 28px' }}
         />
+      </div>
+
+      <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-12 lg:max-w-xl lg:px-16 xl:max-w-2xl">
         <div className="w-full max-w-md">
           <div className="mb-8 flex flex-col items-center gap-2 text-center lg:mb-12 lg:flex-row lg:items-center lg:justify-start lg:gap-3 lg:text-left">
             <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/25 lg:size-10 lg:rounded-xl">
@@ -33,10 +42,7 @@ export default function AuthLayout() {
         </div>
       </div>
 
-      <aside className="relative hidden flex-1 flex-col items-center justify-center overflow-hidden bg-linear-to-br from-brand-50 via-white to-brand-100 px-12 py-16 lg:flex">
-        <div aria-hidden="true" className="absolute -top-16 -right-10 -z-10 size-72 rounded-full bg-brand-200/50 blur-3xl animate-float" />
-        <div aria-hidden="true" className="absolute -left-16 bottom-0 -z-10 size-64 rounded-full bg-brand-300/30 blur-3xl animate-float-delayed" />
-
+      <aside className="relative hidden flex-1 flex-col items-center justify-center px-12 py-16 lg:flex">
         <div className="relative mx-auto max-w-md text-center">
           <h2 className="animate-slide-up-1 text-3xl font-semibold tracking-tight text-slate-900">
             Your whole semester, one login away.
