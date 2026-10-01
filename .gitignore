@@ -29,6 +29,7 @@ lerna-debug.log*
 .env.*
 !.env.example
 *.local
+server/ca.pem
 
 # Personal API scratch requests
 server/request.http
