@@ -1,0 +1,2 @@
+courseCode,semesterId,sectionCode,capacity,lecturerStaffNumber,status,waitlistEnabled,schedules
+CS101,,A,60,STF1001,open,true,MON 09:00-10:00 LT1; WED 09:00-10:00 LT1

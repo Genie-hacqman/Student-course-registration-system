@@ -1,0 +1,2 @@
+line,courseCode,courseTitle,department,programme,level,semester,creditHours,courseType,prerequisiteCourseCodes,academicYear
+1,CS201,Data Structures,CS,BSC-CS,200,first,3,core,CS101,

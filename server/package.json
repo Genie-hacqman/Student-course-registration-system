@@ -46,5 +46,8 @@
     "sequelize-cli": "^6.6.5",
     "socket.io-client": "^4.8.4",
     "supertest": "^7.3.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

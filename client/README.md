@@ -1,13 +1,13 @@
 # UniReg frontend
 
-React + Vite frontend for [SCRS-backend](../SCRS-backend). Each role lands in its own area:
+React + Vite frontend for [the SCRS backend](../server). Each role lands in its own area:
 students in `/student` (applicants too — until admitted they only see their admission page), lecturers
 in `/lecturer`, and admins and registrars in `/staff`, where each screen appears only if the role has the
 permission for it. There are exactly four roles: ADMIN, REGISTRAR, LECTURER and STUDENT.
 
 ## Run it
 
-1. Start SCRS-backend (`npm run dev` there). Note the `PORT` in its `.env`.
+1. Start the backend (`npm run dev` in `server/`). Note the `PORT` in its `.env`.
 2. Point the dev proxy at it. Create `.env.local` here:
    ```
    API_TARGET=http://localhost:6060
@@ -40,9 +40,12 @@ then invites for staff.
 - Server errors are reported against the CSV line they came from.
 
 The cell formats (e.g. `MATH101|MATH102`, `MON 09:00-10:00 LT1; WED 09:00-10:00 LT1`) and the go-live
-order are documented in SCRS-backend's `docs/import-templates/README.md` and `docs/deployment-runbook.md`.
+order are documented in the backend's `docs/import-templates/README.md` and `docs/deployment-runbook.md`
+(`server/docs/`).
 
-`npm test` runs the parser tests (`node --test`, no browser needed).
+`npm test` runs the parser tests (`node --test`, no browser needed). `npm run test:components` runs
+component tests (Vitest + Testing Library + jsdom, `src/**/*.test.jsx`) — a thin layer over the
+highest-stakes screens (password reset, the admin email log), not full page coverage.
 
 ## Student accounts
 

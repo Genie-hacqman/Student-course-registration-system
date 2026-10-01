@@ -13,6 +13,10 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    # The backend lives in server/ (its own package.json), not the repo root.
+    defaults:
+      run:
+        working-directory: server
 
     services:
       # Only <DB_NAME>_test is ever touched (tests/integration/helpers.js drops/recreates it),
@@ -45,6 +49,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
+          cache-dependency-path: server/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -62,3 +67,34 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  client:
+    name: Client
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Component tests
+        run: npm run test:components
+
+      - name: Build
+        run: npm run build

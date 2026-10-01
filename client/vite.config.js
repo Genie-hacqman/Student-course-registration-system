@@ -17,5 +17,12 @@ export default defineConfig(({ mode }) => {
         '/socket.io': { target: apiTarget, changeOrigin: true, ws: true },
       },
     },
+    // Component tests only (`npm run test:components`) — the plain-function tests in src/lib use
+    // Node's own test runner instead (`npm test`) and need no DOM, so they're left out of this config.
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./src/test/setup.js'],
+      include: ['src/**/*.test.jsx'],
+    },
   }
 })
