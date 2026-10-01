@@ -1,0 +1,5 @@
+# SPA catch-all: this is a client-side-routed app (React Router) — every path that isn't a real static
+# file (an actual JS/CSS/image asset) must serve index.html so the router can take over. Without this,
+# a fresh page load of any route but "/" (e.g. an emailed /verify-email?token=... or /activate-account
+# link) 404s at the host before React ever runs, even though in-app navigation works fine.
+/*   /index.html   200
