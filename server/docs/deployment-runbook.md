@@ -23,10 +23,16 @@ a fresh one for production rather than trying to clean it out afterward.
    dedicated one.
 3. Add your Render service's outbound IP (or Aiven's "allow all" if you're relying on TLS + a strong
    password only) to the MySQL service's allowed IPs.
-4. Aiven for MySQL requires TLS. Set `DB_SSL=true` in the API's environment (step 2.4) — and
-   `DB_SSL_CA` too if you want to pin Aiven's own CA certificate rather than rely on Node's default
-   trusted CA list (usually fine for a managed provider's public cert, but pin it if you want to be
-   strict). Without `DB_SSL=true` the connection to Aiven will simply fail.
+4. Aiven for MySQL requires TLS. Set `DB_SSL=true` in the API's environment (step 2.4) — **and
+   `DB_SSL_CA` is required too, not just for strictness.** Aiven's default service certificate is
+   self-signed, so without `DB_SSL_CA` the connection fails at boot with `Unable to connect to the
+   database: self-signed certificate in certificate chain` — confirmed by an actual deploy, not just
+   theory. Get the CA certificate from the Aiven console (the service's Overview/Connection
+   information tab has a downloadable or copyable PEM block, including the `-----BEGIN
+   CERTIFICATE-----`/`-----END CERTIFICATE-----` lines) and paste the whole thing as `DB_SSL_CA`'s
+   value in Render (its environment variable fields accept multi-line values — paste real line breaks,
+   not escaped `\n`). Without `DB_SSL=true` at all, the connection to Aiven fails a different way
+   (Aiven requires TLS outright).
 
 ## 2. Deploy the API (Render web service)
 
@@ -65,12 +71,18 @@ a fresh one for production rather than trying to clean it out afterward.
 7. Once it's up, run the database setup **once**, from your own machine, pointed at the production
    database (never from inside the running container — there's no shell step in this build):
    ```bash
+   # Save Aiven's CA certificate locally first (same one used for DB_SSL_CA on Render, step 1.4).
    DB_HOST=<aiven-host> DB_PORT=<port> DB_NAME=<name> DB_USER=<user> DB_PASSWORD=<password> \
+     DB_SSL=true DB_SSL_CA="$(cat aiven-ca.pem)" \
      NODE_ENV=production npm run db:migrate
    DB_HOST=<aiven-host> DB_PORT=<port> DB_NAME=<name> DB_USER=<user> DB_PASSWORD=<password> \
+     DB_SSL=true DB_SSL_CA="$(cat aiven-ca.pem)" \
      SEED_ADMIN_EMAIL=<real-email> SEED_ADMIN_PASSWORD=<real-password> \
      NODE_ENV=production npm run db:seed
    ```
+   Without `DB_SSL=true`/`DB_SSL_CA` here too, this fails with the exact same self-signed-certificate
+   error as the running service did in step 2 — Aiven requires TLS for every connection, including
+   this one-off local run, not just the deployed app's.
    `npm run db:seed` is the **only** seed command safe to run against a real database — it creates the
    four roles, the default settings and one real admin, nothing else. **Never** run `db:seed:demo` or
    `db:reset` here; every demo seeder refuses to run under `NODE_ENV=production` as a hard backstop,
