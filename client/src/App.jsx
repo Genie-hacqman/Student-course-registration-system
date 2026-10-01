@@ -16,21 +16,22 @@ import ResetPassword from './pages/auth/ResetPassword'
 import VerifyEmail from './pages/auth/VerifyEmail'
 import Apply from './pages/auth/Apply'
 import Activate from './pages/auth/Activate'
-import Admission from './pages/student/Admission'
-import Dashboard from './pages/student/Dashboard'
-import Catalog from './pages/student/Catalog'
-import CourseDetails from './pages/student/CourseDetails'
-import MyRegistration from './pages/student/MyRegistration'
-import Timetable from './pages/student/Timetable'
-import History from './pages/student/History'
-import Results from './pages/student/Results'
-import Notifications from './pages/student/Notifications'
-import Profile from './pages/student/Profile'
-import RegistrationWizard from './pages/student/RegistrationWizard'
-import AcademicCalendar from './pages/student/AcademicCalendar'
 import NotFound from './pages/NotFound'
 
-// Staff and lecturer pages (and Recharts) load on demand, so students never download them.
+// Every role's own pages (and Recharts) load on demand — only the layout shells and the auth pages
+// needed before anyone's signed in (Login above all) are in the initial bundle.
+const Admission = lazy(() => import('./pages/student/Admission'))
+const Dashboard = lazy(() => import('./pages/student/Dashboard'))
+const Catalog = lazy(() => import('./pages/student/Catalog'))
+const CourseDetails = lazy(() => import('./pages/student/CourseDetails'))
+const MyRegistration = lazy(() => import('./pages/student/MyRegistration'))
+const Timetable = lazy(() => import('./pages/student/Timetable'))
+const History = lazy(() => import('./pages/student/History'))
+const Results = lazy(() => import('./pages/student/Results'))
+const Notifications = lazy(() => import('./pages/student/Notifications'))
+const Profile = lazy(() => import('./pages/student/Profile'))
+const RegistrationWizard = lazy(() => import('./pages/student/RegistrationWizard'))
+const AcademicCalendar = lazy(() => import('./pages/student/AcademicCalendar'))
 const Account = lazy(() => import('./pages/Account'))
 const StaffDashboard = lazy(() => import('./pages/staff/Dashboard'))
 const Registrations = lazy(() => import('./pages/staff/Registrations'))

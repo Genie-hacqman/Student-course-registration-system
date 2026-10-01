@@ -15,15 +15,20 @@ NODE_ENV=test node --test tests/integration/registration.test.js
 NODE_ENV=test node --test --test-name-pattern="last seat" tests/integration/registration.test.js
 ```
 
-There is no linter or build step. CI (`.github/workflows/ci.yml`) runs `npm test` against a MySQL 8 service
-container on every push/PR — it needs no repo secrets; `JWT_ACCESS_SECRET` there is a hardcoded CI-only
-placeholder, and only `<DB_NAME>_test` is ever touched, matching local runs. The code is plain JavaScript ESM (`"type": "module"`), running on Node 24.
+There is no linter or build step for the server itself. CI (`.github/workflows/ci.yml`, at the repo
+root — not under `server/`, since GitHub Actions only discovers workflows there) has two jobs: `test`
+runs `npm test` against a MySQL 8 service container on every push/PR — it needs no repo secrets;
+`JWT_ACCESS_SECRET` there is a hardcoded CI-only placeholder, and only `<DB_NAME>_test` is ever touched,
+matching local runs — and `client` runs the frontend's lint, unit tests, component tests and build. The
+server's code is plain JavaScript ESM (`"type": "module"`), running on Node 24.
 
 **Integration tests are destructive.** They run `sequelize-cli db:drop` / `db:create` / `migrate` / `seed:all` against `<DB_NAME>_test`; see `resetDatabase()` in `tests/integration/helpers.js`. `helpers.js` refuses to load unless `NODE_ENV=test`.
 
 To point tests at a different server without editing `.env`, override the variables inline, e.g. `DB_PORT=3307 DB_PASSWORD= DB_NAME=scrs npm test`. dotenv never overwrites variables already in the environment, including empty ones.
 
 If a test's `before` hook fails, the process can hang instead of exiting. Use `--test-timeout=30000` when debugging.
+
+**The full suite's runtime is dominated by `resetDatabase()`:** every integration file does its own full `db:drop`/`create`/`migrate`/`seed:all` in `before()`, which is correct (real cross-file isolation, no shared state to reason about) but means runtime grows roughly linearly with the number of files, not the number of tests. At 389 tests this is still a few minutes end to end — fine for CI today. The lever to pull if it ever becomes a bottleneck is switching files that don't need a truly fresh schema (most rule/behavior tests, as opposed to ones specifically testing migrations or seeders) to a transaction-per-test rollback instead of a per-file rebuild — a bigger refactor of `helpers.js`, so it's deliberately not done preemptively.
 
 ## Architecture
 
@@ -175,6 +180,9 @@ Request flow: route → middleware (`authenticate`, `authorize`/`requirePermissi
 - **`error.middleware.js`** calls both `logger.error` and `captureException` for any response `status >= 500` — every 5xx is treated as a bug or outage, never a "known" expected failure (those are 4xx). Both are tagged with the same `requestId` that's already in the JSON error body and the `X-Request-Id` header, so a user-reported error, a log line, and a Sentry issue can all be found from the same id.
 - **`server.js`** reports to Sentry from both `unhandledRejection` (logged, not fatal — matches Node's own default, and every fire-and-forget call in this codebase already catches its own errors internally) and `uncaughtException` (logged, reported, then `process.exit(1)` — Node's own recommendation, since the process may be in a broken state; let the process manager restart it).
 - **`GET /api/health`** is excluded from `pino-http`'s request logging (`autoLogging.ignore`) — it's polled constantly by uptime monitors, and logging every hit is pure noise. Add any other pure-polling endpoint to that same ignore check rather than letting it spam the logs.
+- **Two things deliberately left out, not overlooked:**
+  - **No API versioning** (`/api/v1/...` or similar): there's exactly one consumer of this API — the frontend in this same repo — so there's nothing to version against yet. Revisit only if a third-party integration or a genuinely separate client ever needs to consume this API independently of the frontend's own release cycle.
+  - **No APM/tracing beyond Sentry + `/api/health`**: fine for this scale (one institution, one API process). Revisit if Render's own request metrics stop being enough to answer "why is this slow" once real traffic exists — that's the trigger, not a fixed timeline.
 
 ### Lecturers and course-offering assignment
 - **Course offering = `course_sections`** (course + semester → academic year + section code). `course_sections.lecturer_id` is the *current* lecturer and everything reads it (teaching, roster, timetable, student views). `section_lecturer_assignments` holds every assignment period (`active`/`ended`, assigned/ended by + at, end reason); the migration backfilled one active row per already-assigned section.
@@ -215,3 +223,5 @@ Request flow: route → middleware (`authenticate`, `authorize`/`requirePermissi
 `scripts/load-test-registration.mjs` — see the README for how to run it. Findings from the last run, so they aren't re-litigated from scratch: correctness (never more than `capacity` succeeds per section) holds under real concurrency at every scale tried (300 and 600 simultaneous students). Tail latency on the most-contested section (multiple seconds under heavy contention) is MySQL's row lock on that `course_sections` row correctly serializing concurrent attempts — confirmed by ruling out the connection pool first (tripling `pool.max` in `database.js` changed nothing). `addItem` in `registration.service.js` holds that lock for its entire transaction, including the rule checks, notification, and audit-log write, not just the seat check-and-increment — that's the lever to pull if this latency ever needs to come down, not the pool size.
 
 The original design doc (referenced in earlier notes as `docs/unireg-technical-project-plan.md`) isn't in this repo — if you have it elsewhere, know that the code deliberately departs from it: no Redis or BullMQ, and a MySQL-only stack.
+
+This is a live constraint, not just history: `rate-limit.middleware.js`'s limiters use `express-rate-limit`'s default **in-memory** store, and `sockets/socket.server.js` creates its `Server` with **no adapter**. Both are correct for a single instance and silently wrong across more than one (rate limits undercount per-instance; a Socket.IO broadcast only reaches sockets on the same instance as the emitter). Don't "fix" either in isolation — see `docs/deployment-runbook.md`'s "Scaling beyond one instance" for the actual trigger condition and the two changes (`rate-limit-redis`, `@socket.io/redis-adapter`) that go together when it's time.

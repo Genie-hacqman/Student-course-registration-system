@@ -39,7 +39,7 @@
     "oxlint": "^1.81.0",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.0",
-    "vitest": "^2.1.8",
+    "vitest": "^5.0.3",
     "write-excel-file": "^4.1.1"
   }
 }

@@ -7,6 +7,14 @@ run the app locally at least once.
 
 ## 1. Provision the database (Aiven for MySQL)
 
+**This must be a brand-new database that has never had `db:seed:demo` run against it, at any point in
+its history** — not just one where `NODE_ENV` is now set to `production`. The demo seeders' hard
+refusal under `NODE_ENV=production` protects the *seeding action itself*; it does nothing to stop a
+database that already has demo data in it (from an earlier dev session, say) from being pointed at by
+production later — the fake departments, courses and students are just already there, real-looking,
+with no flag anywhere marking them as demo. If a database has ever run `db:seed:demo`, start over with
+a fresh one for production rather than trying to clean it out afterward.
+
 1. Create a MySQL service on [Aiven](https://aiven.io/mysql) (or any managed MySQL 8 provider — the
    app only needs a standard MySQL 8 connection, nothing Aiven-specific). Pick a plan with automated
    backups enabled; see `backup-verification.md` for what to check once it's running.
@@ -89,6 +97,29 @@ If you're loading a real institution's existing data (not just the essential see
 curriculum → prerequisites → lecturers → students (bulk admission) → course offerings → staff invites.
 Every import supports `dryRun: true` — always dry-run a real file first and read the per-row report
 before committing.
+
+## Scaling beyond one instance
+
+A single Render instance is the right choice for a first real deployment, and nothing here needs
+changing to go live that way. But two things in this codebase are deliberately built single-instance
+only, and **break silently, not loudly, if you scale to more than one instance without touching them
+first:**
+
+- **Rate limiting** (`src/middleware/rate-limit.middleware.js`) uses `express-rate-limit`'s default
+  in-memory store. With two instances behind a load balancer, each one counts requests separately — a
+  limit of 20 per 15 minutes quietly becomes up to 40, since whichever instance a request lands on has
+  no idea what the other has already counted.
+- **Socket.IO** (`src/sockets/socket.server.js`) has no adapter configured. A live update (e.g.
+  `course.capacity.updated`) only reaches sockets connected to the *same* instance that emitted it — a
+  student connected to a different instance simply never gets it, with no error anywhere to notice.
+
+Neither of these needs fixing now. The trigger is the day you need more than one instance — for real
+uptime requirements, or because one instance can't absorb a registration-rush load spike (see the load
+testing section in `server/README.md` for what that load actually looks like). When that day comes:
+add a Redis instance, then `rate-limit-redis` (a drop-in `store` option for the existing limiters) and
+`@socket.io/redis-adapter` (passed to the `Server` constructor in `socket.server.js`). Both are small,
+well-documented changes — the point of this note is making sure they happen *before* the second
+instance goes live, not after someone notices rate limits or live updates behaving strangely.
 
 ## 5. Post-deploy checklist
 
