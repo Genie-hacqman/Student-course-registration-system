@@ -55,6 +55,13 @@ export const updateProfileSchema = z
   .partial()
   .refine((d) => Object.keys(d).length > 0, 'Provide at least one field to update');
 
+// ~200 KB of image is ~270K base64 characters; the service checks the decoded size and the real file type.
+export const avatarSchema = z.object({
+  image: z.string().max(300_000).regex(/^data:image\/(jpeg|png|webp);base64,/, 'Upload a JPG, PNG or WebP image'),
+  // Optional small version for lists; the service checks its real type and size.
+  thumb: z.string().max(20_000).regex(/^data:image\/jpeg;base64,/, 'The thumbnail must be a JPEG').optional(),
+});
+
 export const verifyEmailSchema = z.object({ token: z.string().min(20).max(200) });
 
 export const changePasswordSchema = z

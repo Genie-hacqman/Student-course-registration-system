@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { Badge, Card, CardHeader, PageHeader, Tabs } from '../components/ui'
 import { Sessions } from '../components/account/Account'
 import AccountSecurity from '../components/account/ChangeRequests'
+import AvatarUploader from '../components/account/AvatarUploader'
 import { ROLE_LABELS } from '../lib/roles'
 
 const TABS = [
@@ -22,6 +23,13 @@ export default function Account() {
     <div className="space-y-6">
       <PageHeader title="Account" subtitle={`${user?.email} · ${ROLE_LABELS[user?.role?.name]}`} />
       <Tabs variant="underline" items={TABS} value={tab} onChange={setTab} />
+
+      {tab === 'profile' && (
+        <Card>
+          <CardHeader title="Profile picture" subtitle="Shown in the header and on your profile." />
+          <div className="px-5 py-4"><AvatarUploader required={user?.role?.name === 'STUDENT'} /></div>
+        </Card>
+      )}
 
       {tab === 'profile' && (
         <Card>

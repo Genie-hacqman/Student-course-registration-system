@@ -72,6 +72,10 @@ export const me = async (req, res) => ok(res, await authService.me(req.user.id))
 
 export const updateProfile = async (req, res) => ok(res, await authService.updateProfile(req.user.id, req.validated.body, req));
 
+export const setAvatar = async (req, res) => ok(res, await authService.setAvatar(req.user.id, req.validated.body, req));
+
+export const removeAvatar = async (req, res) => ok(res, await authService.removeAvatar(req.user.id, req));
+
 export const verifyEmail = async (req, res) => {
   await authService.verifyEmail(req.validated.body);
   return ok(res, { message: 'Your email address is verified.' });

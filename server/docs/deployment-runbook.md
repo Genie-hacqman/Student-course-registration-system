@@ -80,6 +80,7 @@ a fresh one for production rather than trying to clean it out afterward.
      SEED_ADMIN_EMAIL=<real-email> SEED_ADMIN_PASSWORD=<real-password> \
      NODE_ENV=production npm run db:seed
    ```
+   Run both from the `server/` folder (that's where `ca.pem` is, and `server/ca.pem` is gitignored).
    Without `DB_SSL=true`/`DB_SSL_CA` here too, this fails with the exact same self-signed-certificate
    error as the running service did in step 2 — Aiven requires TLS for every connection, including
    this one-off local run, not just the deployed app's.
@@ -144,6 +145,46 @@ instance goes live, not after someone notices rate limits or live updates behavi
       two, not stay stuck on `sent`.
 - [ ] Run through `docs/backup-verification.md` once, right after go-live, not just before you need it.
 - [ ] Bookmark `GET /api/health` in your uptime monitor of choice.
+- [ ] Turn on error tracking (see "Turning on error tracking" below) and confirm `/api/health` reports
+      `"errorTracking": true`.
+
+## Updating an existing deployment (migrations first)
+
+The Render start command is just `node server.js`: **nothing migrates the database for you**, and a
+new build assumes the schema it was written for. So every release that includes a new file in
+`server/migrations/` follows the same order:
+
+1. **Migrate first.** From your own machine, run `npm run db:migrate` against production with the
+   explicit `DB_*` / `DB_SSL*` variables, exactly as in step 2.7. Check it prints each new migration as
+   `migrated`.
+2. **Then deploy** the new build (push, or **Manual Deploy** in Render).
+3. Check `GET /api/health` (`database: "up"`) and sign in once as each role you changed.
+
+Why this order: migrations here are written to be additive (new nullable columns or tables), so the
+*old* build keeps working against the *new* schema during the gap. The reverse is not true. Deploying
+the new build first makes every sign-in fail with an "Unknown column" 500 until the migration runs. The
+profile-picture release (`20261011000001-user-avatar.cjs`, `20261011000002-user-avatar-thumb.cjs`) is
+an example: it adds `users.avatar`, `users.avatar_thumb` and `users.avatar_updated_at`, and the login
+path reads them.
+
+Do **not** run migrations from inside the web service on boot: with more than one instance they would
+race, and a schema change should be a deliberate step you watch. A migration that removes or renames a
+column or table is not additive; it needs a two-release sequence (ship code that no longer uses it,
+migrate, then drop it), so don't combine it with the code change.
+
+## Turning on error tracking
+
+The API already reports 5xx responses, unhandled rejections and uncaught exceptions to Sentry (tagged
+with the request id, route and user id) when `SENTRY_DSN` is set. It is the only step left:
+
+1. At sentry.io, create a project of type **Node.js / Express** and copy its **DSN**
+   (Project settings → Client Keys).
+2. In Render, add `SENTRY_DSN=<that DSN>` to the API service's environment and let it redeploy.
+3. `GET /api/health` should now show `"errorTracking": true`.
+4. Optional but worthwhile: in Sentry add an alert rule ("a new issue is created") that emails you.
+   Without a rule you only see errors when you open Sentry.
+
+The frontend is not instrumented; browser-side errors don't reach Sentry yet.
 
 ## Rolling back
 
@@ -151,3 +192,8 @@ There is no automatic rollback. To revert a bad deploy: redeploy the previous bu
 artifacts are immutable per-deploy there), and if a migration needs undoing, run
 `npm run db:migrate:undo` (one step) against production the same way as step 2.7, with the same
 explicit `DB_*` variables — never rely on whatever `.env` your shell happens to have loaded.
+
+Roll the **code** back first (previous Render build), and only then, if you must, undo the migration:
+undoing it while the new build is still serving traffic breaks the same way as deploying before
+migrating. Undoing the profile-picture migrations deletes every stored picture, so avoid it unless the
+columns themselves are the problem.

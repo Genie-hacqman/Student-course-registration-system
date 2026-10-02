@@ -6,7 +6,7 @@ import { authLimiter } from '../middleware/rate-limit.middleware.js';
 import { idParam } from '../validators/common.validator.js';
 import {
   loginSchema, forgotPasswordSchema, resetPasswordSchema, changePasswordSchema,
-  updateProfileSchema, verifyEmailSchema, changeRequestSchema, changePinSchema, forgotPinSchema, resetPinSchema,
+  updateProfileSchema, avatarSchema, verifyEmailSchema, changeRequestSchema, changePinSchema, forgotPinSchema, resetPinSchema,
 } from '../validators/auth.validator.js';
 import * as accountRequests from '../controllers/account-request.controller.js';
 
@@ -23,6 +23,9 @@ router.post('/forgot-password', authLimiter, validate({ body: forgotPasswordSche
 router.post('/reset-password', authLimiter, validate({ body: resetPasswordSchema }), ctrl.resetPassword);
 router.get('/me', allowPendingPinChange, authenticate, ctrl.me);
 router.patch('/me', authenticate, validate({ body: updateProfileSchema }), ctrl.updateProfile);
+// Open to every role (no approval step): a picture isn't an identity change like a name is.
+router.put('/me/avatar', authenticate, validate({ body: avatarSchema }), ctrl.setAvatar);
+router.delete('/me/avatar', authenticate, ctrl.removeAvatar);
 router.patch('/password', authenticate, validate({ body: changePasswordSchema }), ctrl.changePassword);
 
 // Student PINs: the forced first change, and "forgot PIN" via a code sent to the school email.

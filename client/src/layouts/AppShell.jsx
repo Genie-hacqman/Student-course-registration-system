@@ -5,12 +5,13 @@ import {
   UserRound, X,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthProvider'
-import { cx, useFocusTrap } from '../components/ui'
+import { Avatar, cx, useFocusTrap } from '../components/ui'
 import { NotificationCenter } from '../components/dashboard/NotificationItems'
-import { fullName, initials } from '../lib/format'
+import { fullName } from '../lib/format'
 import { ROLE_LABELS } from '../lib/roles'
 import { SEGMENT_LABELS, flatNav } from '../lib/nav'
 import { VerifyEmailBanner } from '../components/account/Account'
+import AddPhotoBanner from '../components/account/AddPhotoBanner'
 
 const COLLAPSE_KEY = 'unireg.sidebar.collapsed'
 
@@ -247,7 +248,7 @@ function ProfileMenu({ user, profilePath, settingsPath, onSignOut }) {
         aria-haspopup="menu"
         className="flex items-center gap-2 rounded-lg py-1 pr-1 pl-1 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-brand-600 sm:pr-2"
       >
-        <span className="flex size-8 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">{initials(user)}</span>
+        <Avatar user={user} size="sm" />
         <span className="hidden text-left leading-tight md:block">
           <span className="block max-w-40 truncate text-sm font-medium">{fullName(user)}</span>
           <span className="block text-xs text-slate-500">{ROLE_LABELS[user?.role?.name]}</span>
@@ -256,9 +257,12 @@ function ProfileMenu({ user, profilePath, settingsPath, onSignOut }) {
       </button>
       {open && (
         <div ref={menu} role="menu" className="absolute right-0 z-50 mt-2 w-64 animate-pop-in rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-slate-200">
-          <div className="border-b border-slate-100 px-3 pt-1.5 pb-2.5">
-            <p className="truncate text-sm font-semibold">{fullName(user)}</p>
-            <p className="truncate text-xs text-slate-500">{user?.email}</p>
+          <div className="flex items-center gap-3 border-b border-slate-100 px-3 pt-1.5 pb-2.5">
+            <Avatar user={user} size="md" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{fullName(user)}</p>
+              <p className="truncate text-xs text-slate-500">{user?.email}</p>
+            </div>
           </div>
           <div className="py-1">
             <Link role="menuitem" to={profilePath} onClick={() => setOpen(false)} className={item}><UserRound className="size-4 text-slate-400" aria-hidden /> Profile</Link>
@@ -377,6 +381,7 @@ export default function AppShell({ nav, home, notificationsPath, profilePath, se
       </header>
 
       <VerifyEmailBanner />
+      <AddPhotoBanner path={profilePath} />
       <main id="main" tabIndex={-1} className="print-area mx-auto max-w-7xl px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
         <Outlet />
       </main>

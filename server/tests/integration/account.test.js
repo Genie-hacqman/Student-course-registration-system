@@ -2,7 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { hashToken } from '../../src/utils/jwt.js';
 import {
-  resetDatabase, api, login, loginAs, auth, query, programId, sequelize,
+  resetDatabase, api, login, loginAs, auth, query, programId, sequelize, uploadAvatar, createApplicant, TEST_AVATAR,
 } from './helpers.js';
 
 before(resetDatabase);
@@ -72,6 +72,70 @@ describe('profile', () => {
     assert.notEqual(res.body.data.email, 'hijack@test.local');
     assert.equal((await api().patch('/api/auth/me').set(auth(token)).send({})).status, 422);
     assert.equal((await api().patch('/api/auth/me').send({ firstName: 'X' })).status, 401);
+  });
+});
+
+describe('profile picture', () => {
+  test('every role can set their own picture, and it comes back from /auth/me', async () => {
+    for (const who of ['admin', 'registrar', 'lecturer', 'student']) {
+      const user = await loginAs(who);
+      assert.equal((await uploadAvatar(user)).status, 200, who);
+      const me = await api().get('/api/auth/me').set(auth(user.token));
+      assert.equal(me.body.data.avatar, TEST_AVATAR, who);
+    }
+  });
+
+  test('anything that is not a real JPG, PNG or WebP is refused', async () => {
+    const user = await loginAs('lecturer');
+    const text = `data:image/jpeg;base64,${Buffer.from('definitely not an image').toString('base64')}`;
+    assert.equal((await uploadAvatar(user, text)).status, 400, 'spoofed type');
+    assert.equal((await uploadAvatar(user, 'data:image/svg+xml;base64,PHN2Zy8+')).status, 422, 'svg');
+    assert.equal((await uploadAvatar(user, 'https://example.com/me.jpg')).status, 422, 'a url');
+    const big = `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(210 * 1024)]).toString('base64')}`;
+    assert.equal((await uploadAvatar(user, big)).status, 400, 'too large');
+  });
+
+  test('staff can remove their picture; students and applicants can only replace theirs', async () => {
+    const lecturer = await loginAs('lecturer');
+    assert.equal((await api().delete('/api/auth/me/avatar').set(auth(lecturer.token))).status, 200);
+    assert.equal((await api().get('/api/auth/me').set(auth(lecturer.token))).body.data.avatar, null);
+
+    const applicant = await createApplicant(30);
+    await uploadAvatar(applicant);
+    assert.equal((await api().delete('/api/auth/me/avatar').set(auth(applicant.token))).status, 400);
+    assert.equal((await api().get('/api/auth/me').set(auth(applicant.token))).body.data.avatar, TEST_AVATAR);
+  });
+
+  test('a small thumbnail is stored beside the picture, is optional, and is checked like the picture', async () => {
+    const user = await loginAs('registrar');
+    assert.equal((await uploadAvatar(user, TEST_AVATAR, TEST_AVATAR)).status, 200);
+    assert.equal((await api().get('/api/auth/me').set(auth(user.token))).body.data.avatarThumb, TEST_AVATAR);
+
+    const text = `data:image/jpeg;base64,${Buffer.from('not an image').toString('base64')}`;
+    assert.equal((await uploadAvatar(user, TEST_AVATAR, text)).status, 400, 'spoofed thumbnail');
+    const big = `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(11 * 1024)]).toString('base64')}`;
+    assert.equal((await uploadAvatar(user, TEST_AVATAR, big)).status, 400, 'oversized thumbnail');
+    assert.equal((await uploadAvatar(user, TEST_AVATAR, 'data:image/png;base64,AAAA')).status, 422, 'thumbnail must be a JPEG');
+
+    // Replacing without a thumbnail clears the old one, so a stale face never outlives its picture.
+    assert.equal((await uploadAvatar(user)).status, 200);
+    assert.equal((await api().get('/api/auth/me').set(auth(user.token))).body.data.avatarThumb, null);
+  });
+
+  test('lists carry the thumbnail but never the full picture', async () => {
+    const admin = await loginAs('admin');
+    const student = await loginAs('student');
+    await uploadAvatar(student, TEST_AVATAR, TEST_AVATAR);
+    const students = await api().get('/api/students').set(auth(admin.token));
+    const row = students.body.data.find((s) => s.studentNumber === 'STU2025001');
+    assert.equal(row.user.avatarThumb, TEST_AVATAR);
+    assert.equal('avatar' in row.user, false);
+    const users = await api().get('/api/users').set(auth(admin.token));
+    assert.equal(users.body.data.some((u) => 'avatar' in u), false);
+  });
+
+  test('requires sign-in', async () => {
+    assert.equal((await api().put('/api/auth/me/avatar').send({ image: TEST_AVATAR })).status, 401);
   });
 });
 

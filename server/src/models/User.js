@@ -8,6 +8,10 @@ const SECRETS = [
   'activationHash', 'activationExpires',
 ];
 
+// The full picture is tens of KB, so it stays out of the many name-only user includes; `withAvatar` opts in.
+// The small `avatarThumb` (about 2 KB) is always loaded, for list pages.
+const AVATAR = ['avatar'];
+
 class User extends Model {
   toJSON() {
     const values = { ...this.get() };
@@ -54,13 +58,19 @@ User.init(
     // Online admission: single-use activation link (sha256 of the token), cleared once used.
     activationHash: { type: DataTypes.CHAR(64) },
     activationExpires: { type: DataTypes.DATE },
+    avatar: { type: DataTypes.TEXT('medium') },
+    avatarThumb: { type: DataTypes.TEXT },
+    avatarUpdatedAt: { type: DataTypes.DATE },
   },
   {
     sequelize,
     modelName: 'User',
     tableName: 'users',
-    defaultScope: { attributes: { exclude: [...SECRETS] } },
-    scopes: { withSecrets: { attributes: { include: [...SECRETS] } } },
+    defaultScope: { attributes: { exclude: [...SECRETS, ...AVATAR] } },
+    scopes: {
+      withSecrets: { attributes: { include: [...SECRETS] } },
+      withAvatar: { attributes: { exclude: [...SECRETS] } },
+    },
   },
 );
 

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { Controller } from 'react-hook-form'
 import { http, useApi, useApiMutation } from '../../api/admin'
 import { useAuth } from '../../auth/AuthProvider'
-import { Badge, Button, Card, CardHeader, ErrorState, Loading, Select } from '../../components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, ErrorState, Loading, Select } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import FormModal, { Textarea } from '../../components/admin/FormModal'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
@@ -103,9 +103,12 @@ export default function StudentDetail() {
       </Link>
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">{fullName(s.user)}</h1>
-            <p className="mt-1 text-sm break-all text-slate-500">{s.user?.email}</p>
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar user={s.user} size="xl" />
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold tracking-tight">{fullName(s.user)}</h1>
+              <p className="mt-1 text-sm break-all text-slate-500">{s.user?.email}</p>
+            </div>
           </div>
           {canResetPin && (
             <Button variant="secondary" onClick={() => setResettingPin(true)}><KeyRound className="size-4" /> Reset PIN</Button>

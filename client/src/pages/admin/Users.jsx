@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { http, useApi, useApiMutation } from '../../api/admin'
-import { Badge, Button, Card, Input, PageHeader, QueryState, SearchInput, Select } from '../../components/ui'
+import { Avatar, Badge, Button, Card, Input, PageHeader, QueryState, SearchInput, Select } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import FormModal from '../../components/admin/FormModal'
 import { formatDateTime, fullName } from '../../lib/format'
@@ -176,7 +176,7 @@ export default function Users() {
               empty="No users match"
               onRowClick={(u) => navigate(`/staff/users/${u.id}`)}
               columns={[
-                { key: 'name', header: 'Name', render: (u) => <span className="font-medium">{fullName(u)}</span> },
+                { key: 'name', header: 'Name', render: (u) => <span className="flex items-center gap-3"><Avatar user={u} thumb size="md" /><span className="font-medium">{fullName(u)}</span></span> },
                 { key: 'email', header: 'Email', render: (u) => <span className="text-slate-600">{u.email}</span> },
                 { key: 'role', header: 'Role', render: (u) => ROLE_LABELS[u.role?.name] },
                 { key: 'lastLoginAt', header: 'Last sign-in', render: (u) => <span className="text-slate-600">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : 'Never'}</span> },

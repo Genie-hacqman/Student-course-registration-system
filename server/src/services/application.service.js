@@ -185,11 +185,12 @@ export const submit = async (userId, req) => {
     if (!application) throw new BadRequestError('Fill in your application first');
     if (application.status !== DRAFT) throw new ConflictError(`Your application has already been ${application.status}`);
 
-    const user = await User.findByPk(userId, { attributes: ['emailVerifiedAt'], transaction });
+    const user = await User.findByPk(userId, { attributes: ['emailVerifiedAt', 'avatar'], transaction });
     if (!user.emailVerifiedAt) {
       throw new BadRequestError('Confirm your email address first — we send your admission decision there');
     }
     const missing = Object.entries(REQUIRED_TO_SUBMIT).filter(([key]) => !application[key]).map(([, label]) => label);
+    if (!user.avatar) missing.push('profile picture');
     if (missing.length) throw new BadRequestError(`Still missing: ${missing.join(', ')}`, { missing });
     await checkChoice(application, transaction);
 
@@ -233,14 +234,21 @@ export const list = async (query) => {
   }
   const result = await AdmissionApplication.findAndCountAll({
     where,
-    include: [programInclude, { model: Student, as: 'student', attributes: ['id', 'studentNumber'] }],
+    include: [
+      programInclude,
+      { model: Student, as: 'student', attributes: ['id', 'studentNumber'] },
+      { model: User, as: 'user', attributes: ['id', 'avatarThumb'] },
+    ],
     limit, offset, order, distinct: true,
   });
   return { result, page, limit };
 };
 
+// The reviewer sees the applicant's photo; lists and the applicant's own view don't need it re-sent.
+const withUserAvatar = (include) => include.map((i) => (i.as === 'user' ? { ...i, attributes: [...i.attributes, 'avatar'] } : i));
+
 export const getById = async (id) => {
-  const application = await AdmissionApplication.findByPk(id, { include: detailInclude });
+  const application = await AdmissionApplication.findByPk(id, { include: withUserAvatar(detailInclude) });
   if (!application || application.status === DRAFT) throw new NotFoundError('Application');
   return application;
 };

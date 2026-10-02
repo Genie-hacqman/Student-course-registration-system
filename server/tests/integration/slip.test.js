@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, auth, sectionIdFor, createStudent, sequelize,
+  resetDatabase, api, loginAs, auth, sectionIdFor, createStudent, sequelize, uploadAvatar, TEST_AVATAR,
 } from './helpers.js';
 
 let student;
@@ -77,6 +77,21 @@ describe('registration slip', () => {
     assert.equal(data.status, 'confirmed');
     assert.equal(data.approvedBy, 'Esi Boateng');
     assert.ok(data.approvedAt);
+  });
+
+  test("the PDF carries the student's picture; the JSON slip and the public verify never do", async () => {
+    const plain = await slip(student, registrationId);
+    assert.equal((await uploadAvatar(student)).status, 200);
+    const withPhoto = await slip(student, registrationId);
+    assert.equal(withPhoto.status, 200);
+    assert.equal(withPhoto.body.subarray(0, 5).toString(), '%PDF-');
+    assert.ok(withPhoto.body.length > plain.body.length, 'the picture is embedded in the PDF');
+
+    const json = (await slip(student, registrationId, 'json')).body.data;
+    assert.equal('photo' in json.student, false);
+    assert.equal(JSON.stringify(json).includes(TEST_AVATAR), false);
+    const verified = await api().get(`/api/registrations/verify/${json.referenceNumber}?code=${json.verificationCode}`);
+    assert.equal(JSON.stringify(verified.body).includes(TEST_AVATAR), false);
   });
 
   test('anyone can verify a printed slip with its code; details are hidden without it', async () => {

@@ -47,7 +47,7 @@ export const loadProfile = async (userId) => {
 };
 
 const findProfile = (userId) =>
-  User.findByPk(userId, {
+  User.scope('withAvatar').findByPk(userId, {
     include: [
       { model: Role, as: 'role', attributes: ['id', 'name'] },
       {
@@ -342,6 +342,53 @@ export const updateProfile = async (userId, data, req) => {
   }
   await User.update(data, { where: { id: userId } });
   await audit.log({ userId, action: 'auth.update_profile', entityType: 'User', entityId: userId, metadata: data, req });
+  return me(userId);
+};
+
+// ── profile picture ──────────────────────────────────────────────────────────
+
+const AVATAR_MAX_BYTES = 200 * 1024;
+const THUMB_MAX_BYTES = 10 * 1024;
+const AVATAR_PATTERN = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
+
+/** The real format from the file's leading bytes, so a renamed or spoofed upload can't pass on its declared type. */
+const sniffImage = (buf) => {
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
+  if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  return null;
+};
+
+/** Any role can set their own picture; it is not gated by the name-change approval flow. */
+export const setAvatar = async (userId, { image, thumb }, req) => {
+  const match = AVATAR_PATTERN.exec(image);
+  if (!match) throw new BadRequestError('Upload a JPG, PNG or WebP image');
+  const bytes = Buffer.from(match[2], 'base64');
+  if (bytes.length > AVATAR_MAX_BYTES) throw new BadRequestError('That picture is too large — choose one under 200 KB');
+  if (sniffImage(bytes) !== match[1]) throw new BadRequestError('That file is not a valid image');
+
+  // The thumbnail is optional (older clients don't send one); when present it gets the same scrutiny.
+  let avatarThumb = null;
+  if (thumb) {
+    const thumbMatch = AVATAR_PATTERN.exec(thumb);
+    const thumbBytes = thumbMatch && Buffer.from(thumbMatch[2], 'base64');
+    if (!thumbMatch || thumbBytes.length > THUMB_MAX_BYTES || sniffImage(thumbBytes) !== 'jpeg') {
+      throw new BadRequestError('The thumbnail is not a valid, small JPEG');
+    }
+    avatarThumb = thumb;
+  }
+  await User.update({ avatar: image, avatarThumb, avatarUpdatedAt: new Date() }, { where: { id: userId } });
+  await audit.log({ userId, action: 'auth.set_avatar', entityType: 'User', entityId: userId, req });
+  return me(userId);
+};
+
+/** Students (applicants included) must keep a picture, so they can replace it but not remove it. */
+export const removeAvatar = async (userId, req) => {
+  const user = await loadWithRole(userId);
+  if (!user) throw new NotFoundError('User');
+  if (user.role?.name === ROLES.STUDENT) throw new BadRequestError('A profile picture is required for students — upload a new one instead');
+  await User.update({ avatar: null, avatarThumb: null, avatarUpdatedAt: null }, { where: { id: userId } });
+  await audit.log({ userId, action: 'auth.remove_avatar', entityType: 'User', entityId: userId, req });
   return me(userId);
 };
 

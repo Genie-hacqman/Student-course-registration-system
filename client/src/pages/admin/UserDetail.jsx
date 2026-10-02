@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
 import { useAuth } from '../../auth/AuthProvider'
-import { Badge, Button, Card, CardHeader, EmptyState, ErrorState, Input, Loading, QueryState, Select, Tabs, userMessage } from '../../components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, EmptyState, ErrorState, Input, Loading, QueryState, Select, Tabs, userMessage } from '../../components/ui'
 import SignInTable from '../../components/admin/SignInTable'
 import FormModal, { Checkbox } from '../../components/admin/FormModal'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
@@ -142,9 +142,12 @@ export default function UserDetail() {
 
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{fullName(u)} {self && <Badge tone="blue">You</Badge>}</h1>
-            <p className="mt-1 text-sm text-slate-500">{u.email}</p>
+          <div className="flex items-center gap-4">
+            <Avatar user={u} size="xl" />
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{fullName(u)} {self && <Badge tone="blue">You</Badge>}</h1>
+              <p className="mt-1 text-sm text-slate-500">{u.email}</p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {/* Students sign in with the PIN from admission; invites are for staff. */}

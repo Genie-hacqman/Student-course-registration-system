@@ -10,7 +10,7 @@ import apiRouter from '../../src/routes/index.js';
 import * as pinService from '../../src/services/pin.service.js';
 import {
   resetDatabase, api, loginAs, login, auth, query, courseIdFor, sectionIdFor, createStudent, approvedResetToken, sequelize,
-  createApplicant, submitApplication, plantActivationToken,
+  createApplicant, submitApplication, plantActivationToken, uploadAvatar,
 } from './helpers.js';
 
 // ── route coverage bookkeeping ────────────────────────────────────────────────
@@ -92,6 +92,8 @@ describe('health & auth', () => {
     const pinCookie = changed.headers['set-cookie'].find((c) => c.startsWith('scrs_refresh='));
     const asDevice = (r) => r.set(auth(changed.body.data.accessToken)).set('Cookie', pinCookie);
     assert.equal((await asDevice(api().patch('/api/auth/me')).send({ lastName: 'Tested' })).status, 403, 'students need approval');
+    assert.equal((await uploadAvatar({ token: changed.body.data.accessToken })).status, 200, 'any role can set a picture');
+    assert.equal((await asDevice(api().delete('/api/auth/me/avatar'))).status, 400, 'a student cannot remove it');
     assert.equal((await asDevice(api().post('/api/auth/verify-email/resend'))).status, 409, 'school email is verified at admission');
     assert.equal((await api().post('/api/auth/verify-email').send({ token: 'x'.repeat(40) })).status, 400);
     const devices = (await asDevice(api().get('/api/auth/sessions'))).body.data;

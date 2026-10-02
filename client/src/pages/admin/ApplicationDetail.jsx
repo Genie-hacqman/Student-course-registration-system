@@ -4,7 +4,7 @@ import { ArrowLeft, Check, MailPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
-import { Badge, Button, Card, CardHeader, ErrorState, Loading, Select, StatusBadge } from '../../components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, ErrorState, Loading, Select, StatusBadge } from '../../components/ui'
 import FormModal, { Textarea } from '../../components/admin/FormModal'
 import { APPLICATION_STATUS, formatDate, formatDateTime, fullName } from '../../lib/format'
 import { optionalNumber } from '../../lib/forms'
@@ -55,10 +55,13 @@ export default function ApplicationDetail() {
 
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{[a.firstName, a.otherNames, a.lastName].filter(Boolean).join(' ')}</h1>
-            <p className="mt-0.5 text-sm text-slate-500">{a.personalEmail}</p>
-            <div className="mt-2"><StatusBadge status={a.status} tone={tone} label={label} /></div>
+          <div className="flex items-center gap-4">
+            <Avatar user={{ firstName: a.firstName, lastName: a.lastName, avatar: a.user?.avatar }} size="xl" />
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{[a.firstName, a.otherNames, a.lastName].filter(Boolean).join(' ')}</h1>
+              <p className="mt-0.5 text-sm text-slate-500">{a.personalEmail}</p>
+              <div className="mt-2"><StatusBadge status={a.status} tone={tone} label={label} /></div>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {a.status === 'submitted' && (

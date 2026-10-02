@@ -4,8 +4,10 @@ import { renderSlipPdf } from '../utils/pdf/registrationSlip.js';
 import { ok } from '../utils/response.js';
 
 /** Sends the slip as a PDF download (default) or as JSON (?format=json) for a frontend to render. */
+const wantsJson = (req) => req.validated.query.format === 'json';
+
 const send = async (req, res, slip) => {
-  if (req.validated.query.format === 'json') return ok(res, slip);
+  if (wantsJson(req)) return ok(res, slip);
 
   await audit.log({
     userId: req.user.id,
@@ -22,7 +24,9 @@ const send = async (req, res, slip) => {
   return undefined;
 };
 
-export const mySlip = async (req, res) => send(req, res, await slipService.getSlipForStudent(req.user.id, req.validated.params.id));
-export const staffSlip = async (req, res) => send(req, res, await slipService.getSlipForStaff(req.validated.params.id));
+export const mySlip = async (req, res) =>
+  send(req, res, await slipService.getSlipForStudent(req.user.id, req.validated.params.id, { withPhoto: !wantsJson(req) }));
+export const staffSlip = async (req, res) =>
+  send(req, res, await slipService.getSlipForStaff(req.validated.params.id, { withPhoto: !wantsJson(req) }));
 export const verify = async (req, res) =>
   ok(res, await slipService.verify(req.validated.params.reference, req.validated.query.code));

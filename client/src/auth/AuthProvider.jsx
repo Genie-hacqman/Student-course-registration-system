@@ -74,6 +74,8 @@ export function AuthProvider({ children }) {
     endSession: clearSession,
     /** Re-reads the profile after it changed on the server (name edit, email verified). */
     refreshUser: async () => setUser(await authApi.me()),
+    /** Swaps in a profile the server just returned (e.g. after a picture change). */
+    setProfile: setUser,
   }), [user, status, establish, clearSession])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

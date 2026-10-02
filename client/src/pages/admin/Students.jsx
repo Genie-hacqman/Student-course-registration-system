@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { http, useApi, useApiMutation } from '../../api/admin'
 import { useAuth } from '../../auth/AuthProvider'
-import { Badge, Button, Card, Input, PageHeader, QueryState, Select } from '../../components/ui'
+import { Avatar, Badge, Button, Card, Input, PageHeader, QueryState, Select } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import FormModal from '../../components/admin/FormModal'
 import CredentialsDialog from '../../components/admin/CredentialsDialog'
@@ -151,7 +151,14 @@ export default function Students() {
               empty="No students match"
               onRowClick={(s) => navigate(`/staff/students/${s.id}`)}
               columns={[
-                { key: 'name', header: 'Name', render: (s) => <><span className="font-medium">{fullName(s.user)}</span><p className="text-xs text-slate-500">{s.user?.email}</p></> },
+                {
+                  key: 'name', header: 'Name', render: (s) => (
+                    <div className="flex items-center gap-3">
+                      <Avatar user={s.user} thumb size="md" />
+                      <div className="min-w-0"><span className="font-medium">{fullName(s.user)}</span><p className="text-xs text-slate-500">{s.user?.email}</p></div>
+                    </div>
+                  ),
+                },
                 { key: 'studentNumber', header: 'Student no.', render: (s) => <span className="tabular-nums">{s.studentNumber}</span> },
                 { key: 'program', header: 'Program', render: (s) => s.program?.name },
                 { key: 'level', header: 'Level' },

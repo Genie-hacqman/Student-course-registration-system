@@ -4,10 +4,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { CheckCircle2, Clock, MailWarning, Send, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, ImageOff, MailWarning, Send, XCircle } from 'lucide-react'
 import { useAuth } from '../../auth/AuthProvider'
 import { useApplicationOptions, useMyApplication, useSaveApplication, useSubmitApplication } from '../../api/applications'
 import { Button, Card, CardHeader, Input, PageHeader, QueryState, Select, StatusBadge } from '../../components/ui'
+import AvatarUploader from '../../components/account/AvatarUploader'
 import { applyServerErrors, requiredNumber } from '../../lib/forms'
 import { APPLICATION_STATUS, formatDate, formatDateTime } from '../../lib/format'
 import { isAdmitted } from '../../lib/roles'
@@ -92,12 +93,16 @@ function ApplicationForm({ application, emailVerified }) {
   const options = useApplicationOptions()
   const save = useSaveApplication()
   const submit = useSubmitApplication()
-  const defaults = useMemo(() => toForm(application ?? { firstName: user?.firstName, lastName: user?.lastName }), [application, user])
+  // Depend on the name strings, not the `user` object: it is replaced whenever the profile changes (e.g. after
+  // uploading the photo), and a new `defaults` resets the form, which would wipe what the applicant has typed.
+  const { firstName, lastName } = user ?? {}
+  const defaults = useMemo(() => toForm(application ?? { firstName, lastName }), [application, firstName, lastName])
   const { register, handleSubmit, getValues, setValue, watch, setError, reset, formState: { errors } } = useForm({
     resolver: zodResolver(schema), defaultValues: defaults,
   })
   useEffect(() => reset(defaults), [defaults, reset])
 
+  const hasPhoto = Boolean(user?.avatar)
   const departments = options.data ?? []
   const departmentId = Number(watch('departmentId')) || null
   const programId = Number(watch('programId')) || null
@@ -118,6 +123,11 @@ function ApplicationForm({ application, emailVerified }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
+      <Card>
+        <CardHeader title="Passport photo" subtitle="Required. Your photo goes on your student record and is seen by the admissions office." />
+        <div className="px-5 py-4"><AvatarUploader required /></div>
+      </Card>
+
       <Card>
         <CardHeader title="Personal details" subtitle={`Decisions are sent to ${user?.email}.`} />
         <div className="grid gap-4 px-5 py-4 sm:grid-cols-2">
@@ -160,9 +170,16 @@ function ApplicationForm({ application, emailVerified }) {
         </p>
       )}
 
+      {!hasPhoto && (
+        <p role="status" className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+          <ImageOff className="mt-0.5 size-4 shrink-0" />
+          Add your passport photo above before submitting. You can still save a draft without it.
+        </p>
+      )}
+
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="secondary" loading={save.isPending && !submit.isPending} onClick={saveDraft}>Save draft</Button>
-        <Button type="submit" disabled={!emailVerified} loading={submit.isPending}><Send className="size-4" /> Submit application</Button>
+        <Button type="submit" disabled={!emailVerified || !hasPhoto} loading={submit.isPending}><Send className="size-4" /> Submit application</Button>
       </div>
       <p className="text-right text-xs text-slate-500">Once submitted, your application can no longer be changed.</p>
     </form>

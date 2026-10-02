@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
-import { Badge, Button, Card, Input, PageHeader, QueryState, SearchInput, Select, Tabs } from '../../components/ui'
+import { Avatar, Badge, Button, Card, Input, PageHeader, QueryState, SearchInput, Select, Tabs } from '../../components/ui'
 import DataTable, { stop } from '../../components/admin/DataTable'
 import FormModal from '../../components/admin/FormModal'
 import { fullName } from '../../lib/format'
@@ -120,9 +120,12 @@ export default function Lecturers() {
               columns={[
                 {
                   key: 'name', header: 'Lecturer', render: (l) => (
-                    <div className="leading-tight">
-                      <p className="font-medium">{[l.title, fullName(l.user)].filter(Boolean).join(' ')}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{l.user?.email}</p>
+                    <div className="flex items-center gap-3">
+                      <Avatar user={l.user} thumb size="md" />
+                      <div className="leading-tight">
+                        <p className="font-medium">{[l.title, fullName(l.user)].filter(Boolean).join(' ')}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{l.user?.email}</p>
+                      </div>
                     </div>
                   ),
                 },

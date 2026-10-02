@@ -17,7 +17,7 @@ import * as settingService from './setting.service.js';
 import * as audit from './audit.service.js';
 
 const includes = [
-  { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'status'] },
+  { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'status', 'avatarThumb'] },
   { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
 ];
 
@@ -53,7 +53,7 @@ export const list = async (query) => {
 export const getById = async (id) => {
   const lecturer = await Lecturer.findByPk(id, {
     include: [
-      ...includes,
+      ...includes.map((i) => (i.as === 'user' ? { ...i, attributes: [...i.attributes, 'avatar'] } : i)),
       {
         model: SectionLecturerAssignment,
         as: 'assignments',
