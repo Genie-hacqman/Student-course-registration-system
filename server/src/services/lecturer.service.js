@@ -17,7 +17,7 @@ import * as settingService from './setting.service.js';
 import * as audit from './audit.service.js';
 
 const includes = [
-  { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'status'] },
+  { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'status', 'avatarThumb'] },
   { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
 ];
 

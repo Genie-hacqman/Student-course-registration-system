@@ -8,7 +8,8 @@ const SECRETS = [
   'activationHash', 'activationExpires',
 ];
 
-// Pictures are tens of KB each, so they stay out of the many name-only user includes; `withAvatar` opts in.
+// The full picture is tens of KB, so it stays out of the many name-only user includes; `withAvatar` opts in.
+// The small `avatarThumb` (about 2 KB) is always loaded, for list pages.
 const AVATAR = ['avatar'];
 
 class User extends Model {
@@ -58,6 +59,7 @@ User.init(
     activationHash: { type: DataTypes.CHAR(64) },
     activationExpires: { type: DataTypes.DATE },
     avatar: { type: DataTypes.TEXT('medium') },
+    avatarThumb: { type: DataTypes.TEXT },
     avatarUpdatedAt: { type: DataTypes.DATE },
   },
   {

@@ -234,7 +234,11 @@ export const list = async (query) => {
   }
   const result = await AdmissionApplication.findAndCountAll({
     where,
-    include: [programInclude, { model: Student, as: 'student', attributes: ['id', 'studentNumber'] }],
+    include: [
+      programInclude,
+      { model: Student, as: 'student', attributes: ['id', 'studentNumber'] },
+      { model: User, as: 'user', attributes: ['id', 'avatarThumb'] },
+    ],
     limit, offset, order, distinct: true,
   });
   return { result, page, limit };

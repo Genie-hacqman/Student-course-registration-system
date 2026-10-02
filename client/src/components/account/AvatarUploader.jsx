@@ -5,7 +5,7 @@ import { Camera, Trash2 } from 'lucide-react'
 import { useAuth } from '../../auth/AuthProvider'
 import { authApi } from '../../api/auth'
 import { Avatar, Button } from '../ui'
-import { AVATAR_TYPES, avatarFileError, fileToAvatarDataUrl } from '../../lib/image'
+import { AVATAR_TYPES, avatarFileError, fileToAvatarImages } from '../../lib/image'
 import { ROLES } from '../../lib/roles'
 
 /**
@@ -45,7 +45,7 @@ export default function AvatarUploader({ required = false, onSaved }) {
     if (problem) return setError(problem)
     setReading(true)
     try {
-      setPreview(await fileToAvatarDataUrl(file))
+      setPreview(await fileToAvatarImages(file))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -53,7 +53,7 @@ export default function AvatarUploader({ required = false, onSaved }) {
     }
   }
 
-  const shown = preview ? { ...user, avatar: preview } : user
+  const shown = preview ? { ...user, avatar: preview.image } : user
   const hasPicture = Boolean(user?.avatar)
 
   return (

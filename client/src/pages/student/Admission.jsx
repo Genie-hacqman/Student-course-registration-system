@@ -93,7 +93,10 @@ function ApplicationForm({ application, emailVerified }) {
   const options = useApplicationOptions()
   const save = useSaveApplication()
   const submit = useSubmitApplication()
-  const defaults = useMemo(() => toForm(application ?? { firstName: user?.firstName, lastName: user?.lastName }), [application, user])
+  // Depend on the name strings, not the `user` object: it is replaced whenever the profile changes (e.g. after
+  // uploading the photo), and a new `defaults` resets the form, which would wipe what the applicant has typed.
+  const { firstName, lastName } = user ?? {}
+  const defaults = useMemo(() => toForm(application ?? { firstName, lastName }), [application, firstName, lastName])
   const { register, handleSubmit, getValues, setValue, watch, setError, reset, formState: { errors } } = useForm({
     resolver: zodResolver(schema), defaultValues: defaults,
   })

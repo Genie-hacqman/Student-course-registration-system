@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useApi } from '../../api/admin'
-import { Badge, Card, PageHeader, QueryState, SearchInput, StatusBadge, Tabs } from '../../components/ui'
+import { Avatar, Badge, Card, PageHeader, QueryState, SearchInput, StatusBadge, Tabs } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import { APPLICATION_STATUS, formatDateTime } from '../../lib/format'
 
@@ -45,9 +45,12 @@ export default function Applications() {
                 { key: 'submitted', header: 'Submitted', className: 'whitespace-nowrap', render: (a) => formatDateTime(a.submittedAt) },
                 {
                   key: 'who', header: 'Applicant', render: (a) => (
-                    <div className="leading-tight">
-                      <p className="font-medium">{a.firstName} {a.lastName}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{a.personalEmail}</p>
+                    <div className="flex items-center gap-3">
+                      <Avatar user={{ firstName: a.firstName, lastName: a.lastName, avatarThumb: a.user?.avatarThumb }} thumb size="md" />
+                      <div className="leading-tight">
+                        <p className="font-medium">{a.firstName} {a.lastName}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{a.personalEmail}</p>
+                      </div>
                     </div>
                   ),
                 },

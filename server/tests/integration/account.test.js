@@ -106,6 +106,34 @@ describe('profile picture', () => {
     assert.equal((await api().get('/api/auth/me').set(auth(applicant.token))).body.data.avatar, TEST_AVATAR);
   });
 
+  test('a small thumbnail is stored beside the picture, is optional, and is checked like the picture', async () => {
+    const user = await loginAs('registrar');
+    assert.equal((await uploadAvatar(user, TEST_AVATAR, TEST_AVATAR)).status, 200);
+    assert.equal((await api().get('/api/auth/me').set(auth(user.token))).body.data.avatarThumb, TEST_AVATAR);
+
+    const text = `data:image/jpeg;base64,${Buffer.from('not an image').toString('base64')}`;
+    assert.equal((await uploadAvatar(user, TEST_AVATAR, text)).status, 400, 'spoofed thumbnail');
+    const big = `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(11 * 1024)]).toString('base64')}`;
+    assert.equal((await uploadAvatar(user, TEST_AVATAR, big)).status, 400, 'oversized thumbnail');
+    assert.equal((await uploadAvatar(user, TEST_AVATAR, 'data:image/png;base64,AAAA')).status, 422, 'thumbnail must be a JPEG');
+
+    // Replacing without a thumbnail clears the old one, so a stale face never outlives its picture.
+    assert.equal((await uploadAvatar(user)).status, 200);
+    assert.equal((await api().get('/api/auth/me').set(auth(user.token))).body.data.avatarThumb, null);
+  });
+
+  test('lists carry the thumbnail but never the full picture', async () => {
+    const admin = await loginAs('admin');
+    const student = await loginAs('student');
+    await uploadAvatar(student, TEST_AVATAR, TEST_AVATAR);
+    const students = await api().get('/api/students').set(auth(admin.token));
+    const row = students.body.data.find((s) => s.studentNumber === 'STU2025001');
+    assert.equal(row.user.avatarThumb, TEST_AVATAR);
+    assert.equal('avatar' in row.user, false);
+    const users = await api().get('/api/users').set(auth(admin.token));
+    assert.equal(users.body.data.some((u) => 'avatar' in u), false);
+  });
+
   test('requires sign-in', async () => {
     assert.equal((await api().put('/api/auth/me/avatar').send({ image: TEST_AVATAR })).status, 401);
   });

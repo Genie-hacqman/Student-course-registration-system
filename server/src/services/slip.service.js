@@ -28,15 +28,19 @@ const formatSlot = (s) => `${s.day} ${s.startTime.slice(0, 5)}–${s.endTime.sli
 
 const PRINTABLE = [REGISTRATION_STATUS.SUBMITTED, REGISTRATION_STATUS.APPROVED];
 
-/** Everything printed on the slip, straight from the database. */
-export const buildSlip = async (registrationId) => {
+/**
+ * Everything printed on the slip, straight from the database. The student's picture (`student.photo`)
+ * is only loaded for the PDF (`withPhoto`): it is ~25 KB, and neither the JSON slip nor the public
+ * verify endpoint should carry it.
+ */
+export const buildSlip = async (registrationId, { withPhoto = false } = {}) => {
   const registration = await Registration.findByPk(registrationId, {
     include: [
       {
         model: Student,
         as: 'student',
         include: [
-          { model: User, as: 'user', attributes: ['firstName', 'lastName', 'email'] },
+          { model: User, as: 'user', attributes: ['firstName', 'lastName', 'email', ...(withPhoto ? ['avatar'] : [])] },
           { model: Program, as: 'program', attributes: ['name', 'code'] },
         ],
       },
@@ -82,6 +86,7 @@ export const buildSlip = async (registrationId) => {
       email: student.user.email,
       program: student.program ? `${student.program.name} (${student.program.code})` : null,
       level: student.level,
+      ...(withPhoto ? { photo: student.user.avatar ?? null } : {}),
     },
     semester: {
       id: semester.id,
@@ -105,14 +110,14 @@ export const buildSlip = async (registrationId) => {
 };
 
 /** Students may only print their own registration (someone else's is reported as not found). */
-export const getSlipForStudent = async (userId, registrationId) => {
+export const getSlipForStudent = async (userId, registrationId, options) => {
   const student = await studentService.getByUserId(userId);
   const owned = await Registration.count({ where: { id: registrationId, studentId: student.id } });
   if (!owned) throw new NotFoundError('Registration');
-  return buildSlip(registrationId);
+  return buildSlip(registrationId, options);
 };
 
-export const getSlipForStaff = (registrationId) => buildSlip(registrationId);
+export const getSlipForStaff = (registrationId, options) => buildSlip(registrationId, options);
 
 const maskStudentNumber = (n) => (n.length <= 4 ? '****' : `${n.slice(0, 3)}${'*'.repeat(n.length - 5)}${n.slice(-2)}`);
 

@@ -24,7 +24,7 @@ export const createStudentRecord = async ({ studentNumber, admissionYear, ...dat
   return student;
 };
 
-const userInclude = { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'status'] };
+const userInclude = { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'status', 'avatarThumb'] };
 const programInclude = {
   model: Program,
   as: 'program',
