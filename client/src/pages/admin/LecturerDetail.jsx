@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, MailPlus, Pencil, Power } from 'lucide-react'
 import { http, useApi, useApiMutation } from '../../api/admin'
-import { Badge, Button, Card, CardHeader, ErrorState, Loading } from '../../components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, ErrorState, Loading } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import FormModal from '../../components/admin/FormModal'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
@@ -49,10 +49,13 @@ export default function LecturerDetail() {
 
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{[l.title, fullName(l.user)].filter(Boolean).join(' ')}</h1>
-            <p className="mt-0.5 text-sm text-slate-500">{l.staffNumber} · {l.department?.name}</p>
-            <div className="mt-2"><Badge tone={st.tone}>{st.label}</Badge></div>
+          <div className="flex items-center gap-4">
+            <Avatar user={l.user} size="xl" />
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">{[l.title, fullName(l.user)].filter(Boolean).join(' ')}</h1>
+              <p className="mt-0.5 text-sm text-slate-500">{l.staffNumber} · {l.department?.name}</p>
+              <div className="mt-2"><Badge tone={st.tone}>{st.label}</Badge></div>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {active && Number(l.invitePending) === 1 && (

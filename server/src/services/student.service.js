@@ -54,8 +54,10 @@ export const list = async (query) => {
   return { result, page, limit };
 };
 
+const userWithAvatarInclude = { ...userInclude, attributes: [...userInclude.attributes, 'avatar'] };
+
 export const getById = async (id) => {
-  const student = await Student.findByPk(id, { include: [userInclude, programInclude] });
+  const student = await Student.findByPk(id, { include: [userWithAvatarInclude, programInclude] });
   if (!student) throw new NotFoundError('Student');
   return student;
 };
@@ -65,7 +67,7 @@ export const getById = async (id) => {
  * isn't admitted yet: every student feature (registration, timetable, results, slip) needs admission.
  */
 export const getByUserId = async (userId) => {
-  const student = await Student.findOne({ where: { userId }, include: [userInclude, programInclude] });
+  const student = await Student.findOne({ where: { userId }, include: [userWithAvatarInclude, programInclude] });
   if (!student) {
     throw new ForbiddenError('Course registration opens once you are admitted and have activated your account', 'ADMISSION_REQUIRED');
   }

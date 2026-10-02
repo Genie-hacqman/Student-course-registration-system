@@ -53,7 +53,7 @@ export const list = async (query) => {
 export const getById = async (id) => {
   const lecturer = await Lecturer.findByPk(id, {
     include: [
-      ...includes,
+      ...includes.map((i) => (i.as === 'user' ? { ...i, attributes: [...i.attributes, 'avatar'] } : i)),
       {
         model: SectionLecturerAssignment,
         as: 'assignments',

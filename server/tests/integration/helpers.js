@@ -151,8 +151,15 @@ export const completeApplication = async (overrides = {}) => {
   };
 };
 
-/** Saves and submits the applicant's application; returns the application row. */
+// A real 1x1 JPEG: the avatar endpoint checks the file's actual bytes, not just its declared type.
+export const TEST_AVATAR = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
+
+export const uploadAvatar = (user, image = TEST_AVATAR) => api().put('/api/auth/me/avatar').set(auth(user.token)).send({ image });
+
+/** Saves and submits the applicant's application (a profile picture is required to submit); returns the application row. */
 export const submitApplication = async (applicant, overrides = {}) => {
+  const photo = await uploadAvatar(applicant);
+  if (photo.status !== 200) throw new Error(`Avatar upload failed: ${JSON.stringify(photo.body)}`);
   const saved = await api().put('/api/applications/me').set(auth(applicant.token)).send(await completeApplication(overrides));
   if (saved.status !== 200) throw new Error(`Save failed: ${JSON.stringify(saved.body)}`);
   const submitted = await api().post('/api/applications/me/submit').set(auth(applicant.token));

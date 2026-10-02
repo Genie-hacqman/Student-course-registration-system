@@ -33,7 +33,7 @@ export const list = async (query) => {
 };
 
 export const getById = async (id) => {
-  const user = await User.findByPk(id, {
+  const user = await User.scope('withAvatar').findByPk(id, {
     include: [
       roleInclude,
       { model: Student, as: 'student', include: [{ model: Program, as: 'program', attributes: ['id', 'name', 'code'] }] },

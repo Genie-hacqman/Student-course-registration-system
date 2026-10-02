@@ -8,6 +8,9 @@ const SECRETS = [
   'activationHash', 'activationExpires',
 ];
 
+// Pictures are tens of KB each, so they stay out of the many name-only user includes; `withAvatar` opts in.
+const AVATAR = ['avatar'];
+
 class User extends Model {
   toJSON() {
     const values = { ...this.get() };
@@ -54,13 +57,18 @@ User.init(
     // Online admission: single-use activation link (sha256 of the token), cleared once used.
     activationHash: { type: DataTypes.CHAR(64) },
     activationExpires: { type: DataTypes.DATE },
+    avatar: { type: DataTypes.TEXT('medium') },
+    avatarUpdatedAt: { type: DataTypes.DATE },
   },
   {
     sequelize,
     modelName: 'User',
     tableName: 'users',
-    defaultScope: { attributes: { exclude: [...SECRETS] } },
-    scopes: { withSecrets: { attributes: { include: [...SECRETS] } } },
+    defaultScope: { attributes: { exclude: [...SECRETS, ...AVATAR] } },
+    scopes: {
+      withSecrets: { attributes: { include: [...SECRETS] } },
+      withAvatar: { attributes: { exclude: [...SECRETS] } },
+    },
   },
 );
 

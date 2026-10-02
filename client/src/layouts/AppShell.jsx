@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, CornerDownLeft, GraduationCap, KeyRound, LogOut, Menu, Search,
+  Camera, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, CornerDownLeft, GraduationCap, KeyRound, LogOut, Menu, Search,
   UserRound, X,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthProvider'
-import { cx, useFocusTrap } from '../components/ui'
+import { Avatar, cx, useFocusTrap } from '../components/ui'
 import { NotificationCenter } from '../components/dashboard/NotificationItems'
-import { fullName, initials } from '../lib/format'
+import { fullName } from '../lib/format'
 import { ROLE_LABELS } from '../lib/roles'
 import { SEGMENT_LABELS, flatNav } from '../lib/nav'
 import { VerifyEmailBanner } from '../components/account/Account'
@@ -247,7 +247,7 @@ function ProfileMenu({ user, profilePath, settingsPath, onSignOut }) {
         aria-haspopup="menu"
         className="flex items-center gap-2 rounded-lg py-1 pr-1 pl-1 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-brand-600 sm:pr-2"
       >
-        <span className="flex size-8 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">{initials(user)}</span>
+        <Avatar user={user} size="sm" />
         <span className="hidden text-left leading-tight md:block">
           <span className="block max-w-40 truncate text-sm font-medium">{fullName(user)}</span>
           <span className="block text-xs text-slate-500">{ROLE_LABELS[user?.role?.name]}</span>
@@ -256,9 +256,12 @@ function ProfileMenu({ user, profilePath, settingsPath, onSignOut }) {
       </button>
       {open && (
         <div ref={menu} role="menu" className="absolute right-0 z-50 mt-2 w-64 animate-pop-in rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-slate-200">
-          <div className="border-b border-slate-100 px-3 pt-1.5 pb-2.5">
-            <p className="truncate text-sm font-semibold">{fullName(user)}</p>
-            <p className="truncate text-xs text-slate-500">{user?.email}</p>
+          <div className="flex items-center gap-3 border-b border-slate-100 px-3 pt-1.5 pb-2.5">
+            <Avatar user={user} size="md" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{fullName(user)}</p>
+              <p className="truncate text-xs text-slate-500">{user?.email}</p>
+            </div>
           </div>
           <div className="py-1">
             <Link role="menuitem" to={profilePath} onClick={() => setOpen(false)} className={item}><UserRound className="size-4 text-slate-400" aria-hidden /> Profile</Link>
@@ -269,6 +272,33 @@ function ProfileMenu({ user, profilePath, settingsPath, onSignOut }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+const PHOTO_DISMISSED = 'unireg.photo-prompt.dismissed'
+
+/** A gentle, dismissible nudge for anyone without a picture (the rule itself is enforced on application submit). */
+function AddPhotoBanner({ path }) {
+  const { user } = useAuth()
+  const [dismissed, setDismissed] = useState(() => {
+    try { return sessionStorage.getItem(PHOTO_DISMISSED) === '1' } catch { return false }
+  })
+  const location = useLocation()
+  // Applicants are asked for it on the application form itself; never nag on the page that has the uploader.
+  if (!user || user.avatar || dismissed || user.mustChangePassword) return null
+  if (user.role?.name === 'STUDENT' && !user.student) return null
+  if (location.pathname === path) return null
+  const dismiss = () => {
+    try { sessionStorage.setItem(PHOTO_DISMISSED, '1') } catch { /* not remembered */ }
+    setDismissed(true)
+  }
+  return (
+    <div className="no-print flex flex-wrap items-center gap-3 border-b border-brand-100 bg-brand-50 px-4 py-2.5 text-sm text-brand-900 sm:px-6">
+      <Camera className="size-4 shrink-0" aria-hidden />
+      <span className="flex-1">Add a profile picture so people can recognise you.</span>
+      <Link to={path} className="font-medium underline underline-offset-2">Add picture</Link>
+      <button type="button" onClick={dismiss} aria-label="Dismiss" className="rounded p-1 hover:bg-brand-100"><X className="size-4" aria-hidden /></button>
     </div>
   )
 }
@@ -377,6 +407,7 @@ export default function AppShell({ nav, home, notificationsPath, profilePath, se
       </header>
 
       <VerifyEmailBanner />
+      <AddPhotoBanner path={profilePath} />
       <main id="main" tabIndex={-1} className="print-area mx-auto max-w-7xl px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
         <Outlet />
       </main>

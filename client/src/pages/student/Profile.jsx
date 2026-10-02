@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
 import { KeyRound } from 'lucide-react'
 import { useAuth } from '../../auth/AuthProvider'
-import { Badge, Button, Card, CardHeader, PageHeader, StatusBadge } from '../../components/ui'
-import { fullName, initials } from '../../lib/format'
+import { Avatar, Badge, Button, Card, CardHeader, PageHeader, StatusBadge } from '../../components/ui'
+import AvatarUploader from '../../components/account/AvatarUploader'
+import { fullName } from '../../lib/format'
 
 function Field({ label, value }) {
   return (
@@ -25,11 +26,15 @@ export default function Profile() {
         action={<Link to="/student/settings"><Button variant="secondary"><KeyRound className="size-4" aria-hidden /> Settings & security</Button></Link>}
       />
       <Card className="flex items-center gap-4 p-5">
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">{initials(user)}</span>
+        <Avatar user={user} size="lg" />
         <div className="min-w-0">
           <p className="text-lg font-semibold">{fullName(user)}</p>
           <p className="text-sm text-slate-500">{s?.studentNumber} · {s?.program?.name}</p>
         </div>
+      </Card>
+      <Card>
+        <CardHeader title="Profile picture" subtitle="Required for students. You can replace it any time." />
+        <div className="px-5 py-4"><AvatarUploader required /></div>
       </Card>
       <Card>
         <CardHeader title="Student record" />

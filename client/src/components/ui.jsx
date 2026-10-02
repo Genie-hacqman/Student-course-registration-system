@@ -30,6 +30,18 @@ export function Button({ variant = 'primary', size = 'md', loading, disabled, cl
   )
 }
 
+const AVATAR_SIZES = { sm: 'size-8 text-xs', md: 'size-10 text-sm', lg: 'size-14 text-lg', xl: 'size-24 text-3xl' }
+
+/** A person's picture, or their initials on the brand colour when they have none. */
+export function Avatar({ user, size = 'md', className }) {
+  const label = [user?.firstName?.[0], user?.lastName?.[0]].filter(Boolean).join('').toUpperCase() || '?'
+  const box = cx('shrink-0 rounded-full', AVATAR_SIZES[size], className)
+  if (user?.avatar) {
+    return <img src={user.avatar} alt={`${[user.firstName, user.lastName].filter(Boolean).join(' ')}'s photo`} className={cx(box, 'object-cover ring-1 ring-slate-200')} />
+  }
+  return <span aria-hidden className={cx(box, 'flex items-center justify-center bg-brand-600 font-semibold text-white')}>{label}</span>
+}
+
 export function Card({ className, children, ...props }) {
   return <div className={cx('min-w-0 rounded-xl bg-white shadow-sm ring-1 ring-slate-200', className)} {...props}>{children}</div>
 }
