@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { authApi } from '../api/auth'
+import { setMonitoringUser } from '../lib/monitoring'
 import {
   onPinChangeRequired, onSessionExpired, refreshAccessToken, setSigningOut, setToken, waitForRefresh,
 } from '../api/client'
@@ -45,6 +46,9 @@ export function AuthProvider({ children }) {
       active = false
     }
   }, [clearSession])
+
+  // Error reports say which account hit them, by id and role only.
+  useEffect(() => { setMonitoringUser(user) }, [user])
 
   const establish = useCallback((data) => {
     setToken(data.accessToken)

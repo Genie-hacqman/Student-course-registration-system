@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Lock, MailPlus, X } from 'lucide-react'
+import { ArrowLeft, Check, MailPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
 import { Badge, Button, Card, CardHeader, ErrorState, Loading, Select, StatusBadge } from '../../components/ui'
-import { PhotoFrame } from '../../components/admission/ApplicationPhoto'
-import { useOfficialPhotoUrl } from '../../api/applications'
+import OfficialPhoto from '../../components/admission/OfficialPhoto'
 import FormModal, { Textarea } from '../../components/admin/FormModal'
 import { APPLICATION_STATUS, formatDate, formatDateTime, fullName } from '../../lib/format'
 import { optionalNumber } from '../../lib/forms'
@@ -25,20 +24,6 @@ function Field({ label, children }) {
 
 // Same convention the admission step uses for the student's admission number (see application.service.admit).
 const applicationNumber = (id) => `APP${String(id).padStart(6, '0')}`
-
-/** The photo submitted with the application, read-only. Not the applicant's profile picture. */
-function OfficialPhoto({ id, photo }) {
-  const { url, isLoading } = useOfficialPhotoUrl({ present: photo?.present, version: photo?.uploadedAt, reviewId: id })
-  return (
-    <figure className="shrink-0">
-      <PhotoFrame url={url} loading={isLoading} alt="Official application photo" className="w-32 sm:w-40" />
-      <figcaption className="mt-2 flex items-center justify-center gap-1 text-center text-xs font-medium text-slate-600">
-        <Lock className="size-3" aria-hidden /> Official Application Photo
-      </figcaption>
-      {!photo?.present && <p className="mt-1 text-center text-xs text-slate-500">No photo on file</p>}
-    </figure>
-  )
-}
 
 export default function ApplicationDetail() {
   const { id } = useParams()
@@ -75,7 +60,7 @@ export default function ApplicationDetail() {
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-wrap items-start gap-5">
-            <OfficialPhoto id={a.id} photo={a.photo} />
+            <OfficialPhoto source={`review:${a.id}`} photo={a.photo} />
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">{[a.firstName, a.otherNames, a.lastName].filter(Boolean).join(' ')}</h1>
               <p className="mt-0.5 text-sm font-medium tabular-nums text-slate-600">Application {applicationNumber(a.id)}</p>

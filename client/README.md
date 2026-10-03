@@ -87,6 +87,10 @@ domain (e.g. `app.university.edu` and `api.university.edu`); see the backend REA
 Set the backend's `CORS_ORIGIN` and `FRONTEND_URL` to this app's URL (password-reset emails link to
 `FRONTEND_URL/reset-password`).
 
+Optional: set `VITE_SENTRY_DSN` (a Sentry React project's DSN) to report browser crashes and errors. Without it nothing
+is reported. It is read at build time, so redeploy after changing it. See `server/docs/deployment-runbook.md`, "Turning on
+error tracking".
+
 ## Layout
 
 ```

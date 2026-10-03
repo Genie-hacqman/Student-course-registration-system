@@ -6,7 +6,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './auth/AuthProvider'
 import App from './App.jsx'
+import AppErrorBoundary from './components/AppErrorBoundary'
+import { initMonitoring } from './lib/monitoring'
 import './index.css'
+
+// Error tracking first, so a crash during start-up is reported too (a no-op without VITE_SENTRY_DSN).
+initMonitoring()
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,7 +29,9 @@ createRoot(document.getElementById('root')).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <AppErrorBoundary>
+            <App />
+          </AppErrorBoundary>
           <Toaster richColors position="top-right" closeButton />
         </AuthProvider>
       </BrowserRouter>

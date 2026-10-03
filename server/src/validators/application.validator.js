@@ -48,6 +48,9 @@ export const admitApplicationSchema = z.object({
   admissionSession: admissionSession.optional(),
 });
 
+/** Official photo reads: the stored photo, or a small square thumbnail for lists. */
+export const photoQuery = z.object({ size: z.enum(['full', 'thumb']).default('full') });
+
 export const rejectApplicationSchema = z.object({ reason: z.string().trim().max(500).optional() });
 
 // Only the PIN's shape here; the strength rules (pinProblem) run in the service, where the Student ID is known.

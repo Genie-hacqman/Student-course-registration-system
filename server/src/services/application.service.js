@@ -6,9 +6,9 @@ import {
 import env from '../config/env.js';
 import logger from '../config/logger.js';
 import { photoEditable } from '../models/AdmissionApplication.js';
-import { normalizeOfficialPhoto, squareDataUrl } from '../utils/image.js';
+import { normalizeOfficialPhoto, squareDataUrl, squareJpeg } from '../utils/image.js';
 import * as storage from './storage.service.js';
-import { BadRequestError, ConflictError, NotFoundError, TooManyAttemptsError } from '../utils/errors.js';
+import { AppError, BadRequestError, ConflictError, NotFoundError, TooManyAttemptsError } from '../utils/errors.js';
 import { APPLICATION_STATUS, ROLES, USER_STATUS } from '../utils/constants.js';
 import { hashPassword, UNUSABLE_PASSWORD_HASH } from '../utils/password.js';
 import { generateOpaqueToken, hashToken } from '../utils/jwt.js';
@@ -184,6 +184,9 @@ export const saveDraft = async (userId, data, req) => {
 // Editable only while the application is an unlocked draft; the lock is checked here, on the server, under the
 // same row lock `submit` takes, so an upload racing a submit can never land after it.
 
+/** The application number everyone sees: the existing APP + 6-digit id convention (also the admission number). */
+export const applicationNumber = (id) => `APP${String(id).padStart(6, '0')}`;
+
 const PHOTO_LOCKED_MESSAGE = 'The official application photo is locked once your application is submitted and can no longer be changed';
 
 const assertPhotoEditable = (application) => {
@@ -252,11 +255,24 @@ export const removePhoto = async (userId, req) => {
   return getMine(userId);
 };
 
-const readPhoto = async (application) => {
+const THUMB_SIDE = 96;
+
+/**
+ * The stored photo, or a 96 px square thumbnail made on the fly (`size: 'thumb'`, for lists). A storage failure is
+ * a 503 PHOTO_UNAVAILABLE, never a 404, so a screen can tell "could not load" apart from "there is no photo".
+ */
+const readPhoto = async (application, size = 'full') => {
   if (!application?.photoKey) throw new NotFoundError('Photo');
-  const bytes = await storage.get(application.photoKey);
+  let bytes;
+  try {
+    bytes = await storage.get(application.photoKey);
+  } catch (err) {
+    if (err instanceof AppError) throw err; // e.g. storage not configured
+    logger.error(`Could not read the official photo of application ${application.id}: ${err.name ?? 'Error'}: ${err.message}`);
+    throw new AppError('The photo could not be loaded from storage right now. Please try again shortly.', 503, 'PHOTO_UNAVAILABLE');
+  }
   if (!bytes) throw new NotFoundError('Photo');
-  return bytes;
+  return size === 'thumb' ? squareJpeg(bytes, THUMB_SIDE, 80) : bytes;
 };
 
 /** The applicant's own official photo, in any status. */
@@ -264,11 +280,39 @@ export const getMyPhoto = async (userId) =>
   readPhoto(await AdmissionApplication.findOne({ where: { userId }, attributes: ['id', 'photoKey'] }));
 
 /** A reviewer's view of a submitted application's official photo (drafts are the applicant's own business). */
-export const getPhotoForReview = async (id) => {
+export const getPhotoForReview = async (id, size) => {
   const application = await AdmissionApplication.findByPk(id, { attributes: ['id', 'status', 'photoKey'] });
   if (!application || application.status === DRAFT) throw new NotFoundError('Application');
-  return readPhoto(application);
+  return readPhoto(application, size);
 };
+
+// ── a student's own application, for staff viewing the student's record ─────────
+// Read-only and gated like the student record itself (registration:view_all: admins and registrars), so the
+// registrar sees the photo the student applied with without getting admit/reject rights.
+
+const studentApplication = async (studentId, options = {}) => {
+  if (!await Student.findByPk(studentId, { attributes: ['id'] })) throw new NotFoundError('Student');
+  // Admission links the application to the student it created; staff-admitted students have none.
+  const application = await AdmissionApplication.findOne({ where: { studentId }, ...options });
+  if (!application) throw new AppError('This student has no online application (admitted by staff)', 404, 'NO_APPLICATION');
+  return application;
+};
+
+/** The application the student was admitted from: every submitted field plus photo state (never the storage key). */
+export const getForStudent = async (studentId) => {
+  const application = await studentApplication(studentId, {
+    include: [
+      programInclude,
+      { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+      { model: User, as: 'reviewer', attributes: ['id', 'firstName', 'lastName'] },
+    ],
+  });
+  return { ...application.toJSON(), applicationNumber: applicationNumber(application.id) };
+};
+
+/** The official photo of the application the student was admitted from. */
+export const getPhotoForStudent = async (studentId, size) =>
+  readPhoto(await studentApplication(studentId, { attributes: ['id', 'photoKey'] }), size);
 
 const REQUIRED_TO_SUBMIT = {
   firstName: 'first name', lastName: 'last name', dateOfBirth: 'date of birth', phone: 'phone number',
@@ -463,7 +507,7 @@ export const admit = async (id, { programId, level, admissionSession } = {}, act
       level: entryLevel,
       admissionSession: session,
       // Ties the student record to its application; unique, so it can never be admitted twice.
-      admissionNumber: `APP${String(app.id).padStart(6, '0')}`,
+      admissionNumber: applicationNumber(app.id),
     }, program, ctx, transaction);
 
     const activation = newActivation();

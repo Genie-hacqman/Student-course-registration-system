@@ -15,7 +15,11 @@ export const applicationsApi = {
   removePhoto: () => api.delete('/applications/me/photo').then(unwrap),
   // Photos are private: they are fetched with the signed-in session and shown from a blob: URL, never a public link.
   myPhoto: () => api.get('/applications/me/photo', { responseType: 'blob' }).then((res) => res.data),
-  reviewPhoto: (id) => api.get(`/applications/${id}/photo`, { responseType: 'blob' }).then((res) => res.data),
+  reviewPhoto: (id, size = 'full') => api.get(`/applications/${id}/photo`, { params: { size }, responseType: 'blob' }).then((res) => res.data),
+  // Staff viewing a student's record: the application they were admitted from (admins and registrars).
+  forStudent: (studentId) => api.get(`/students/${studentId}/application`).then(unwrap),
+  studentPhoto: (studentId, size = 'full') =>
+    api.get(`/students/${studentId}/application/photo`, { params: { size }, responseType: 'blob' }).then((res) => res.data),
 }
 
 export const useApplicationOptions = () => useQuery({ queryKey: ['applications', 'options'], queryFn: applicationsApi.options, staleTime: 5 * 60_000 })
@@ -28,15 +32,23 @@ const useApplicationWrite = (mutationFn) => {
 export const useSaveApplication = () => useApplicationWrite(applicationsApi.save)
 export const useSubmitApplication = () => useApplicationWrite(applicationsApi.submit)
 
+const PHOTO_SOURCES = {
+  me: () => applicationsApi.myPhoto(),
+  review: (id, size) => applicationsApi.reviewPhoto(id, size),
+  student: (id, size) => applicationsApi.studentPhoto(id, size),
+}
+
 /**
- * The official photo as a blob: URL (or undefined while loading / when there is none). `version` should change
- * whenever the stored photo does (its upload time), so a replaced photo is fetched again. `forReview` is the
- * reviewer's application id; omit it for the applicant's own photo.
+ * The official photo as a blob: URL (or undefined while loading / when there is none). `source` says whose photo:
+ * 'me' (the applicant's own), 'review:<applicationId>' (reviewers) or 'student:<studentId>' (staff on a student's
+ * record). `version` should change whenever the stored photo does (its upload time), so a replaced photo is fetched
+ * again; `size` is 'full' or 'thumb'. `isError` means it could not be loaded, which is not the same as "no photo".
  */
-export const useOfficialPhotoUrl = ({ present, version, reviewId }) => {
+export const useOfficialPhotoUrl = ({ present, version, source = 'me', size = 'full' }) => {
+  const [kind, id] = source.split(':')
   const query = useQuery({
-    queryKey: ['applications', reviewId ? `review-${reviewId}` : 'me', 'photo', version ?? null],
-    queryFn: () => (reviewId ? applicationsApi.reviewPhoto(reviewId) : applicationsApi.myPhoto()),
+    queryKey: ['official-photo', source, size, version ?? null],
+    queryFn: () => PHOTO_SOURCES[kind](id, size),
     enabled: Boolean(present),
     staleTime: Infinity, // the bytes for a given version never change
     gcTime: 0,
@@ -44,7 +56,18 @@ export const useOfficialPhotoUrl = ({ present, version, reviewId }) => {
   })
   const url = useMemo(() => (query.data ? URL.createObjectURL(query.data) : undefined), [query.data])
   useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
-  return { url, isLoading: query.isPending && Boolean(present), isError: query.isError }
+  return { url, isLoading: query.isPending && Boolean(present), isError: query.isError, retry: () => query.refetch() }
+}
+
+/** The application a student was admitted from, or `none: true` for students admitted by staff. */
+export const useStudentApplication = (studentId) => {
+  const query = useQuery({
+    queryKey: ['students', String(studentId), 'application'],
+    queryFn: () => applicationsApi.forStudent(studentId),
+    retry: false,
+  })
+  const none = query.error?.status === 404
+  return { ...query, none, isError: query.isError && !none }
 }
 
 /** Upload, replace or remove the official photo. The response is not written into the application cache: the form

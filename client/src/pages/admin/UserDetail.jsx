@@ -143,7 +143,10 @@ export default function UserDetail() {
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Avatar user={u} size="xl" />
+            <figure className="flex shrink-0 flex-col items-center gap-1">
+              <Avatar user={u} size="xl" />
+              <figcaption className="text-xs text-slate-500">Profile picture</figcaption>
+            </figure>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">{fullName(u)} {self && <Badge tone="blue">You</Badge>}</h1>
               <p className="mt-1 text-sm text-slate-500">{u.email}</p>

@@ -55,8 +55,10 @@ export const normalizeOfficialPhoto = async (input, declaredType) => {
   };
 };
 
-/** A square, centred-on-the-subject JPEG data URL of `side` px (used for the profile-picture copy at admission). */
-export const squareDataUrl = async (input, side, quality = 85) => {
-  const out = await sharp(input).resize(side, side, { fit: 'cover', position: sharp.strategy.attention }).jpeg({ quality }).toBuffer();
-  return `data:image/jpeg;base64,${out.toString('base64')}`;
-};
+/** A square JPEG of `side` px, cropped around the subject (list thumbnails; the stored original is never changed). */
+export const squareJpeg = (input, side, quality = 85) =>
+  sharp(input).resize(side, side, { fit: 'cover', position: sharp.strategy.attention }).jpeg({ quality }).toBuffer();
+
+/** The same as a data URL (used for the profile-picture copy at admission). */
+export const squareDataUrl = async (input, side, quality = 85) =>
+  `data:image/jpeg;base64,${(await squareJpeg(input, side, quality)).toString('base64')}`;

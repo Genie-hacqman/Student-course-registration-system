@@ -27,7 +27,13 @@ export const setPhoto = async (req, res) =>
   ok(res, await applicationService.setPhoto(req.user.id, { body: req.body, contentType: req.headers['content-type'] }, req));
 export const removePhoto = async (req, res) => ok(res, await applicationService.removePhoto(req.user.id, req));
 export const myPhoto = async (req, res) => sendPhoto(res, await applicationService.getMyPhoto(req.user.id));
-export const reviewPhoto = async (req, res) => sendPhoto(res, await applicationService.getPhotoForReview(req.validated.params.id));
+export const reviewPhoto = async (req, res) =>
+  sendPhoto(res, await applicationService.getPhotoForReview(req.validated.params.id, req.validated.query.size));
+
+// Staff viewing a student's record: the application they were admitted from, read-only (mounted in student.routes).
+export const studentApplication = async (req, res) => ok(res, await applicationService.getForStudent(req.validated.params.id));
+export const studentPhoto = async (req, res) =>
+  sendPhoto(res, await applicationService.getPhotoForStudent(req.validated.params.id, req.validated.query.size));
 
 // Reviewers. Activation tokens returned by the service are never sent to the client.
 export const list = async (req, res) => {

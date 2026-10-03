@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    // Ties browser error reports to the deployed commit (Vercel sets VERCEL_GIT_COMMIT_SHA at build time).
+    define: { 'import.meta.env.VITE_RELEASE': JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA ?? '') },
     server: {
       port: 5173,
       // The proxy puts the API on the app's own origin, so the httpOnly refresh

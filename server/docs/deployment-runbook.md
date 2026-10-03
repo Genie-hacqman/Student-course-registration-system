@@ -209,17 +209,64 @@ migrate, then drop it), so don't combine it with the code change.
 
 ## Turning on error tracking
 
-The API already reports 5xx responses, unhandled rejections and uncaught exceptions to Sentry (tagged
-with the request id, route and user id) when `SENTRY_DSN` is set. It is the only step left:
+Both halves report to Sentry once their DSN is set. Until then they run normally and report nothing.
+- **The API** reports 5xx responses, unhandled rejections and uncaught exceptions, tagged with the request id, route,
+  user id and the deployed commit.
+- **The site** reports crashes and uncaught errors in the browser, tagged with the user's id and role only. A crash
+  shows a "Something went wrong" page with a reference number instead of a blank screen.
 
-1. At sentry.io, create a project of type **Node.js / Express** and copy its **DSN**
-   (Project settings → Client Keys).
-2. In Render, add `SENTRY_DSN=<that DSN>` to the API service's environment and let it redeploy.
-3. `GET /api/health` should now show `"errorTracking": true`.
-4. Optional but worthwhile: in Sentry add an alert rule ("a new issue is created") that emails you.
-   Without a rule you only see errors when you open Sentry.
+Neither sends personal data. IP addresses, cookies and request bodies are off. Secret link tokens (`token=`,
+`code=`) are redacted, and password, PIN and token fields are dropped.
 
-The frontend is not instrumented; browser-side errors don't reach Sentry yet.
+1. At sentry.io, create a free account and **two projects**, so API and browser errors stay apart:
+   - **Node.js / Express**, for example `unireg-api`;
+   - **React**, for example `unireg-web`.
+
+   Copy each project's **DSN** (Project settings → Client Keys).
+2. **API:** in Render, add `SENTRY_DSN=<the Node project's DSN>` to the API service and let it redeploy.
+   `GET /api/health` should then show `"errorTracking": true`.
+3. **Site:** in Vercel (Project → Settings → Environment Variables), add `VITE_SENTRY_DSN=<the React project's
+   DSN>` for Production, then **redeploy**. The value is built into the site, so it only takes effect on the next
+   build. The site's Content-Security-Policy already allows `https://*.sentry.io`.
+4. **Prove it works** without breaking anything. From `server/`, run
+   `SENTRY_DSN=<the Node project's DSN> npm run sentry:test`. It sends one labelled test error and prints its event
+   id, and the error should appear under Issues within a minute.
+5. In each Sentry project add an alert rule ("a new issue is created" → email). Without a rule you only see errors
+   when you open Sentry.
+
+## Deleting a test applicant
+
+`npm run applicant:delete` removes a test account: the user, the application, the official photo in R2,
+notifications, sessions and change requests. It also removes the student record when the test applicant was
+admitted. Audit and email logs are kept, with the user link cleared, and the deletion itself is audited
+(`applicant.delete`).
+
+It is built to be hard to misuse:
+- It is a **dry run unless you add `--yes`**.
+- It shows **which database it is connected to** first.
+- It refuses staff accounts, students admitted by staff, and admitted students unless you add `--include-admitted`.
+- It always refuses **any student with academic records** (registrations, results, attendance, assessment scores,
+  waitlist entries or waivers), because deleting them would destroy those records.
+
+You can give either the address they signed in with or the personal email on their application. After admission
+the sign-in email changes to the school address, but the personal email still works.
+
+Run it from `server/`, against production, with the same explicit variables as the migration. Add the `S3_*`
+variables so the photo is removed too. **Do not** set `NODE_ENV=production`, because the app's production checks
+would then demand every other setting:
+
+```bash
+cd server
+DB_HOST=<aiven-host> DB_PORT=<port> DB_NAME=<name> DB_USER=<user> DB_PASSWORD='<password>' \
+  DB_SSL=true DB_SSL_CA="$(cat ca.pem)" \
+  S3_ENDPOINT=<endpoint> S3_BUCKET=<bucket> S3_ACCESS_KEY_ID=<key id> S3_SECRET_ACCESS_KEY='<secret>' \
+  npm run applicant:delete -- --email test.applicant@example.com
+```
+
+1. Read the output. The `Database:` line must be your Aiven host, not `127.0.0.1`. If it isn't, a variable is missing.
+2. Run the same command with `--yes` added. Also add `--include-admitted` if the test account was admitted.
+3. If the photo couldn't be removed (for example, the `S3_*` variables were left out), the output prints the
+   exact object key to delete by hand in the R2 dashboard.
 
 ## Rolling back
 

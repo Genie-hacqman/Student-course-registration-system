@@ -23,6 +23,11 @@ const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const row = async (userId) => (await query('SELECT * FROM admission_applications WHERE user_id = :userId', { userId }))[0];
 const userIdOf = async (applicant) => (await query('SELECT id FROM users WHERE email = :email', { email: applicant.email }))[0].id;
 const me = async (applicant) => (await api().get('/api/applications/me').set(auth(applicant.token))).body.data.application;
+const binary = (req) => req.buffer(true).parse((res, cb) => {
+  const chunks = [];
+  res.on('data', (c) => chunks.push(c));
+  res.on('end', () => cb(null, Buffer.concat(chunks)));
+});
 const getPhoto = (applicant) => api().get('/api/applications/me/photo').set(auth(applicant.token)).buffer(true).parse((res, cb) => {
   const chunks = [];
   res.on('data', (c) => chunks.push(c));
@@ -339,4 +344,109 @@ describe('admission: the official photo stays with the application', () => {
     const { application } = await admitApplicant(151, { profilePicture: true });
     assert.equal((await profile(application.userId)).avatar, TEST_AVATAR);
   });
+
+  test('admin and registrar see, on the student record, the application and the photo the student applied with', async () => {
+    const { application } = await admitApplicant(152);
+    const [{ id: studentId }] = await query('SELECT id FROM students WHERE user_id = :userId', { userId: application.userId });
+    const stored = await row(application.userId);
+
+    for (const who of ['admin', 'registrar']) {
+      const staff = who === 'admin' ? admin : await loginAs('registrar');
+      const res = await api().get(`/api/students/${studentId}/application`).set(auth(staff.token));
+      assert.equal(res.status, 200, `${who}: ${JSON.stringify(res.body)}`);
+      const a = res.body.data;
+      assert.equal(a.applicationNumber, `APP${String(a.id).padStart(6, '0')}`);
+      assert.equal(a.status, 'admitted');
+      assert.equal(a.firstName, 'Ada');
+      assert.ok(a.dateOfBirth && a.phone && a.personalEmail && a.submittedAt && a.reviewedAt);
+      assert.ok(a.program?.name && a.department?.name);
+      assert.equal(a.reviewer?.firstName, 'System');
+      assert.deepEqual([a.photo.present, a.photo.locked], [true, true]);
+      assert.equal(JSON.stringify(res.body).includes('photoKey'), false, 'no storage key');
+      assert.equal(JSON.stringify(res.body).includes('photoSha256'), false);
+
+      const photo = await binary(api().get(`/api/students/${studentId}/application/photo`).set(auth(staff.token)));
+      assert.equal(photo.status, 200, who);
+      assert.equal(photo.headers['content-type'], 'image/jpeg');
+      assert.equal(photo.headers['cache-control'], 'private, no-store');
+      assert.equal(sha(photo.body), stored.photo_sha256, `${who} gets the exact stored photo`);
+    }
+  });
+
+  test('the reported case: the student removes their profile picture, and staff still see the application photo', async () => {
+    const { application } = await admitApplicant(153);
+    const [{ id: studentId, student_number: number }] = await query('SELECT id, student_number FROM students WHERE user_id = :userId', { userId: application.userId });
+    const token = await plantActivationToken(application.userId);
+    await api().post('/api/applications/activate').send({ token, pin: '482915', confirmPin: '482915' });
+    const student = await (await import('./helpers.js')).login(number, '482915');
+
+    // Their profile picture is the copy made at admission; they remove it.
+    assert.ok((await api().get('/api/auth/me').set(auth(student.token))).body.data.avatar);
+    assert.equal((await api().delete('/api/auth/me/avatar').set(auth(student.token))).status, 200);
+    assert.equal((await api().get('/api/auth/me').set(auth(student.token))).body.data.avatar, null);
+
+    const registrar = await loginAs('registrar');
+    const details = await api().get(`/api/students/${studentId}/application`).set(auth(registrar.token));
+    assert.equal(details.body.data.photo.present, true);
+    const photo = await binary(api().get(`/api/students/${studentId}/application/photo`).set(auth(registrar.token)));
+    assert.equal(photo.status, 200);
+    assert.equal(sha(photo.body), (await row(application.userId)).photo_sha256);
+  });
+
+  test('thumbnails are small squares made on the fly; the stored original is unchanged', async () => {
+    const { application } = await admitApplicant(154);
+    const [{ id: studentId }] = await query('SELECT id FROM students WHERE user_id = :userId', { userId: application.userId });
+    const before = await row(application.userId);
+
+    for (const url of [`/api/students/${studentId}/application/photo?size=thumb`, `/api/applications/${before.id}/photo?size=thumb`]) {
+      const thumb = await binary(api().get(url).set(auth(admin.token)));
+      assert.equal(thumb.status, 200, url);
+      const meta = await sharp(thumb.body).metadata();
+      assert.deepEqual([meta.format, meta.width, meta.height], ['jpeg', 96, 96], url);
+    }
+    assert.equal((await api().get(`/api/students/${studentId}/application/photo?size=huge`).set(auth(admin.token))).status, 422);
+    const after = await row(application.userId);
+    assert.equal(after.photo_sha256, before.photo_sha256);
+    assert.equal(sha(await storage.get(after.photo_key)), before.photo_sha256);
+  });
+
+  test('only staff who can view student records get these; staff-admitted students have no application', async () => {
+    const { applicant, application } = await admitApplicant(155);
+    const [{ id: studentId }] = await query('SELECT id FROM students WHERE user_id = :userId', { userId: application.userId });
+    const lecturer = await loginAs('lecturer');
+    const seeded = await loginAs('student');
+    for (const path of [`/api/students/${studentId}/application`, `/api/students/${studentId}/application/photo`]) {
+      assert.equal((await api().get(path)).status, 401, path);
+      assert.equal((await api().get(path).set(auth(lecturer.token))).status, 403, path);
+      assert.equal((await api().get(path).set(auth(seeded.token))).status, 403, path);
+    }
+    assert.equal(applicant.token.length > 0, true);
+    // The list thumbnail on the applications route stays admin-only (application:review).
+    const registrar = await loginAs('registrar');
+    assert.equal((await api().get(`/api/applications/${(await row(application.userId)).id}/photo?size=thumb`).set(auth(registrar.token))).status, 403);
+
+    const [{ id: staffAdmitted }] = await query("SELECT id FROM students WHERE student_number = 'STU2025001'");
+    const none = await api().get(`/api/students/${staffAdmitted}/application`).set(auth(admin.token));
+    assert.equal(none.status, 404);
+    assert.equal(none.body.error.code, 'NO_APPLICATION');
+    assert.equal((await api().get(`/api/students/${staffAdmitted}/application/photo`).set(auth(admin.token))).status, 404);
+    assert.equal((await api().get('/api/students/999999/application').set(auth(admin.token))).status, 404);
+  });
+
+  test('a storage failure is reported as "could not load" (503), never as "no photo"', async () => {
+    const { application } = await admitApplicant(156);
+    const [{ id: studentId }] = await query('SELECT id FROM students WHERE user_id = :userId', { userId: application.userId });
+    storage.useDriverForTests({ name: 'broken', get: async () => { throw new Error('connect ETIMEDOUT'); }, put: async () => {}, remove: async () => {} });
+    try {
+      const res = await api().get(`/api/students/${studentId}/application/photo`).set(auth(admin.token));
+      assert.equal(res.status, 503);
+      assert.equal(res.body.error.code, 'PHOTO_UNAVAILABLE');
+      // The details still load, and still say a photo exists.
+      const details = await api().get(`/api/students/${studentId}/application`).set(auth(admin.token));
+      assert.equal(details.body.data.photo.present, true);
+    } finally {
+      storage.useDriverForTests();
+    }
+  });
 });
+

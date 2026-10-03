@@ -5,13 +5,16 @@ import { z } from 'zod'
 import { Controller } from 'react-hook-form'
 import { http, useApi, useApiMutation } from '../../api/admin'
 import { useAuth } from '../../auth/AuthProvider'
-import { Avatar, Badge, Button, Card, CardHeader, ErrorState, Loading, Select } from '../../components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, ErrorState, Loading, Select, StatusBadge } from '../../components/ui'
+import OfficialPhoto from '../../components/admission/OfficialPhoto'
+import { PhotoFrame } from '../../components/admission/ApplicationPhoto'
+import { useStudentApplication } from '../../api/applications'
 import DataTable from '../../components/admin/DataTable'
 import FormModal, { Textarea } from '../../components/admin/FormModal'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import CredentialsDialog from '../../components/admin/CredentialsDialog'
 import { CoursePicker } from '../../components/admin/Pickers'
-import { formatDate, fullName } from '../../lib/format'
+import { APPLICATION_STATUS, formatDate, formatDateTime, fullName } from '../../lib/format'
 import { optionalNumber, requiredNumber } from '../../lib/forms'
 import { can, PERMS } from '../../lib/roles'
 import { STUDENT_TONE } from './Students'
@@ -75,10 +78,94 @@ function StudentResults({ studentId, canAmend }) {
   )
 }
 
+/** The small profile picture, captioned so it is never mistaken for the official application photo. */
+function ProfilePicture({ user, size = 'sm' }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Avatar user={user} size={size} />
+      <span className="text-xs text-slate-500">Profile picture</span>
+    </div>
+  )
+}
+
+/**
+ * The student's identity photos: the OFFICIAL photo they applied with (kept with their application, unchanged by
+ * anything they do to their profile picture), and their current profile picture, labelled as such.
+ */
+function StudentPhotos({ studentId, student, application }) {
+  if (application.isPending) {
+    return <figure className="shrink-0"><PhotoFrame loading alt="" className="w-32 sm:w-40" /></figure>
+  }
+  if (application.data) return <OfficialPhoto source={`student:${studentId}`} photo={application.data.photo} />
+  // Admitted by staff (no online application), or the application could not be loaded: show the profile picture.
+  return (
+    <figure className="flex shrink-0 flex-col items-center gap-2">
+      <Avatar user={student.user} size="xl" />
+      <figcaption className="text-xs text-slate-500">Profile picture</figcaption>
+    </figure>
+  )
+}
+
+function Item({ label, children }) {
+  return (
+    <div>
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="font-medium text-slate-900">{children || '—'}</dd>
+    </div>
+  )
+}
+
+/** Everything the student submitted in their online application, read-only (admins and registrars). */
+function AdmissionApplicationCard({ application, canReview }) {
+  if (application.isPending) return null
+  if (application.none) {
+    return (
+      <Card>
+        <CardHeader title="Admission application" />
+        <p className="px-5 py-4 text-sm text-slate-600">This student was admitted by staff, so there is no online application or application photo on file.</p>
+      </Card>
+    )
+  }
+  if (application.isError) {
+    return (
+      <Card>
+        <CardHeader title="Admission application" />
+        <ErrorState error={application.error} onRetry={() => application.refetch()} />
+      </Card>
+    )
+  }
+  const a = application.data
+  const [tone, label] = APPLICATION_STATUS[a.status] ?? ['slate', a.status]
+  return (
+    <Card>
+      <CardHeader
+        title="Admission application"
+        subtitle="What the student submitted when applying online. Read-only."
+        action={canReview && <Link to={`/staff/applications/${a.id}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">View full application</Link>}
+      />
+      <dl className="grid gap-4 px-5 py-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <Item label="Application number"><span className="tabular-nums">{a.applicationNumber}</span></Item>
+        <Item label="Status"><StatusBadge status={a.status} tone={tone} label={label} /></Item>
+        <Item label="Full name">{[a.firstName, a.otherNames, a.lastName].filter(Boolean).join(' ')}</Item>
+        <Item label="Date of birth">{a.dateOfBirth && formatDate(a.dateOfBirth)}</Item>
+        <Item label="Phone">{a.phone}</Item>
+        <Item label="Personal email"><span className="break-all">{a.personalEmail}</span></Item>
+        <Item label="Department">{a.department?.name}</Item>
+        <Item label="Programme">{a.program?.name}</Item>
+        <Item label="Entry level">{a.entryLevel && `Level ${a.entryLevel}`}</Item>
+        <Item label="Admission session">{a.admissionSession}</Item>
+        <Item label="Submitted">{a.submittedAt && formatDateTime(a.submittedAt)}</Item>
+        <Item label="Decided">{a.reviewedAt && `${formatDateTime(a.reviewedAt)}${a.reviewer ? ` by ${fullName(a.reviewer)}` : ''}`}</Item>
+      </dl>
+    </Card>
+  )
+}
+
 export default function StudentDetail() {
   const { id } = useParams()
   const { user } = useAuth()
   const student = useApi(`/students/${id}`)
+  const application = useStudentApplication(id)
   const waivers = useApi(`/students/${id}/prerequisite-overrides`)
   const current = useApi('/semesters/current')
   const [adding, setAdding] = useState(false)
@@ -103,11 +190,13 @@ export default function StudentDetail() {
       </Link>
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar user={s.user} size="xl" />
-            <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-start gap-5">
+            <StudentPhotos studentId={id} student={s} application={application} />
+            <div className="min-w-0 space-y-1">
               <h1 className="text-2xl font-semibold tracking-tight">{fullName(s.user)}</h1>
-              <p className="mt-1 text-sm break-all text-slate-500">{s.user?.email}</p>
+              {application.data && <p className="text-sm font-medium tabular-nums text-slate-600">Application {application.data.applicationNumber}</p>}
+              <p className="text-sm break-all text-slate-500">{s.user?.email}</p>
+              {application.data && <div className="pt-2"><ProfilePicture user={s.user} /></div>}
             </div>
           </div>
           {canResetPin && (
@@ -134,6 +223,8 @@ export default function StudentDetail() {
           {can(user, 'user:manage') && <Link to={`/staff/users/${s.userId}`} className="text-brand-600 hover:text-brand-700">Account, level & status</Link>}
         </div>
       </Card>
+
+      <AdmissionApplicationCard application={application} canReview={can(user, PERMS.APPLICATION_REVIEW)} />
 
       <StudentResults studentId={id} canAmend={can(user, 'grade:manage')} />
 
