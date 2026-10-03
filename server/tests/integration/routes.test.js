@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import apiRouter from '../../src/routes/index.js';
+import env from '../../src/config/env.js';
 import * as pinService from '../../src/services/pin.service.js';
 import {
   resetDatabase, api, loginAs, login, auth, query, courseIdFor, sectionIdFor, createStudent, approvedResetToken, sequelize,
@@ -69,6 +70,21 @@ describe('health & auth', () => {
     const res = await api().get('/api/health');
     assert.equal(res.status, 200);
     assert.equal(res.body.data.database, 'up');
+
+    // Email counts as configured with Resend (not only SMTP), and only then. Set both cases explicitly so the
+    // result doesn't depend on the developer's own .env.
+    const saved = { RESEND_API_KEY: env.RESEND_API_KEY, SMTP_HOST: env.SMTP_HOST, EMAIL_FROM: env.EMAIL_FROM };
+    try {
+      Object.assign(env, { RESEND_API_KEY: undefined, SMTP_HOST: undefined, EMAIL_FROM: undefined });
+      assert.equal((await api().get('/api/health')).body.data.integrations.email, false, 'no provider: off');
+
+      Object.assign(env, { RESEND_API_KEY: 're_test_only', EMAIL_FROM: 'UniReg <no-reply@school.edu>' });
+      const configured = await api().get('/api/health');
+      assert.equal(configured.body.data.integrations.email, true, 'Resend: on');
+      assert.equal(JSON.stringify(configured.body).includes('re_test_only'), false, 'never leaks the key');
+    } finally {
+      Object.assign(env, saved);
+    }
   });
 
   test('admission → first sign-in → change PIN → me → refresh → sessions → requests → forgot/reset PIN → logout', async () => {
@@ -743,6 +759,10 @@ describe('online admission and timetable issues', () => {
     assert.equal((await api().get(`/api/applications/${application.id}`).set(as(admin))).status, 200);
     const admitted = await api().post(`/api/applications/${application.id}/admit`).set(as(admin)).send({});
     assert.equal(admitted.status, 200, JSON.stringify(admitted.body));
+    // Staff viewing the new student's record see the application and photo it came from.
+    const studentId = admitted.body.data.application.student.id;
+    assert.equal((await api().get(`/api/students/${studentId}/application`).set(as(registrar))).status, 200);
+    assert.equal((await api().get(`/api/students/${studentId}/application/photo?size=thumb`).set(as(registrar))).status, 200);
     assert.equal((await api().post(`/api/applications/${application.id}/resend-activation`).set(as(admin))).status, 200);
 
     const token = await plantActivationToken(application.userId);

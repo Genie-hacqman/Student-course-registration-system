@@ -1,4 +1,5 @@
 import * as storage from '../services/storage.service.js';
+import { isEmailConfigured } from '../services/email.service.js';
 import { Router } from 'express';
 import { sequelize } from '../models/index.js';
 import env from '../config/env.js';
@@ -41,7 +42,7 @@ router.get('/health', async (req, res) => {
       uptime: process.uptime(),
       // Booleans only, never the actual host/DSN — useful for confirming a deployment's config
       // without exposing anything a public, unauthenticated endpoint shouldn't reveal.
-      integrations: { email: Boolean(env.SMTP_HOST), errorTracking: Boolean(env.SENTRY_DSN), storage: storage.isConfigured() },
+      integrations: { email: isEmailConfigured(), errorTracking: Boolean(env.SENTRY_DSN), storage: storage.isConfigured() },
     },
   });
 });

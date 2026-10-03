@@ -1,17 +1,31 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Camera, ImageOff, Lock, Trash2 } from 'lucide-react'
+import { AlertTriangle, Camera, ImageOff, Lock, RotateCw, Trash2 } from 'lucide-react'
 import { useOfficialPhotoUrl, useRemoveOfficialPhoto, useSetOfficialPhoto } from '../../api/applications'
 import { Badge, Button, Spinner, cx } from '../ui'
 import { AVATAR_TYPES, avatarFileError, fileToOfficialPhoto } from '../../lib/image'
 
-/** The portrait frame: the photo, a loading spinner, or an empty placeholder. */
-export function PhotoFrame({ url, loading, alt, className }) {
+/**
+ * The portrait frame: the photo, a loading spinner, a "could not load" state with Retry, or an empty placeholder.
+ * "Could not load" is deliberately different from "no photo", so a storage problem never looks like a deletion.
+ */
+export function PhotoFrame({ url, loading, error, onRetry, alt, className }) {
   return (
     <div className={cx('relative flex aspect-3/4 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-300 sm:w-36', className)}>
       {url ? <img src={url} alt={alt} className="size-full object-cover" />
         : loading ? <Spinner />
-          : <ImageOff className="size-8 text-slate-400" aria-hidden />}
+          : error ? (
+            <div role="alert" className="flex flex-col items-center gap-1.5 px-2 text-center">
+              <AlertTriangle className="size-6 text-amber-500" aria-hidden />
+              <span className="text-xs text-slate-600">Photo couldn't be loaded</span>
+              {onRetry && (
+                <button type="button" onClick={onRetry} className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+                  <RotateCw className="size-3" aria-hidden /> Retry
+                </button>
+              )}
+            </div>
+          )
+            : <ImageOff className="size-8 text-slate-400" aria-hidden />}
     </div>
   )
 }
@@ -86,7 +100,7 @@ export default function ApplicationPhoto({ photo, onChange }) {
   if (locked) {
     return (
       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-        <PhotoFrame url={stored.url} loading={stored.isLoading} alt="Official application photo" />
+        <PhotoFrame url={stored.url} loading={stored.isLoading} error={stored.isError} onRetry={stored.retry} alt="Official application photo" />
         <div className="space-y-2">
           <p className="text-sm font-semibold text-slate-900">Official Application Photo</p>
           <Badge tone="slate"><Lock className="mr-1 size-3" aria-hidden /> Locked after submission</Badge>
@@ -106,6 +120,8 @@ export default function ApplicationPhoto({ photo, onChange }) {
       <PhotoFrame
         url={shownUrl}
         loading={reading || (!preview && stored.isLoading)}
+        error={!preview && stored.isError}
+        onRetry={stored.retry}
         alt={preview ? 'Preview of your photo' : 'Your application photo'}
         className={!present && !preview ? 'ring-2 ring-amber-400' : undefined}
       />

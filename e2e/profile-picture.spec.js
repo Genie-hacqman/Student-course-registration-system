@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { test, expect } from '@playwright/test'
 import {
@@ -156,5 +157,55 @@ test.describe.serial('admission: the official application photo is mandatory, th
     await expect(page.getByAltText('Official application photo')).toBeVisible()
     await page.goto('/staff/students')
     await expect(page.getByRole('row', { name: /Ada Applicant/ }).getByRole('img', { name: /photo/i })).toBeVisible()
+  })
+
+  test('the reported case: the student removes their profile picture; admin and registrar still see the photo they applied with', async ({ page, browser }) => {
+    // Activate the new student (the emailed link is out of reach, so plant a known token the way the server stores it).
+    const [{ id: userId }] = await sql('SELECT id FROM users WHERE first_name = ? AND last_name = ?', ['Ada', 'Applicant'])
+    const raw = 'e2e-activation-token-'.padEnd(48, 'x')
+    await sql('UPDATE users SET activation_hash = ? WHERE id = ?', [crypto.createHash('sha256').update(raw).digest('hex'), userId])
+    const activated = await page.request.post('/api/applications/activate', { data: { token: raw, pin: '482915', confirmPin: '482915' } })
+    expect(activated.status()).toBe(200)
+    const { studentNumber } = (await activated.json()).data
+
+    // The student signs in, sees the copy of their application photo as their profile picture, and removes it.
+    await page.goto('/login')
+    await page.getByRole('tab', { name: 'Student' }).click()
+    await page.getByLabel('Student ID').fill(studentNumber)
+    await page.getByLabel('PIN').fill('482915')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page).not.toHaveURL(/\/login/)
+    await page.goto('/student/profile')
+    await expect(headerPhoto(page)).toBeVisible()
+    await page.getByRole('button', { name: 'Remove' }).click()
+    await expect(page.getByText('Profile picture removed')).toBeVisible()
+    await expect(headerPhoto(page)).toHaveCount(0)
+
+    // The registrar opens the student's record: the official photo and the application are both there.
+    const registrarContext = await browser.newContext()
+    const registrarPage = await registrarContext.newPage()
+    await signIn(registrarPage, ...ACCOUNTS.registrar)
+    await registrarPage.goto('/staff/students')
+    await registrarPage.getByRole('row', { name: /Ada Applicant/ }).click()
+    await expect(registrarPage.getByAltText('Official application photo')).toBeVisible()
+    await expect(registrarPage.getByText('Official Application Photo')).toBeVisible()
+    await expect(registrarPage.getByText(/Application APP\d{6}/)).toBeVisible()
+    await expect(registrarPage.getByRole('heading', { name: 'Admission application' })).toBeVisible()
+    await expect(registrarPage.getByText('ada.e2e@personal.test')).toBeVisible()
+    await expect(registrarPage.getByRole('link', { name: 'View full application' })).toHaveCount(0)
+    await registrarContext.close()
+
+    // The admin sees it on the record too, and as a thumbnail in the applications list.
+    const adminContext = await browser.newContext()
+    const adminPage = await adminContext.newPage()
+    await signIn(adminPage, ...ACCOUNTS.admin)
+    await adminPage.goto('/staff/students')
+    await adminPage.getByRole('row', { name: /Ada Applicant/ }).click()
+    await expect(adminPage.getByAltText('Official application photo')).toBeVisible()
+    await expect(adminPage.getByRole('link', { name: 'View full application' })).toBeVisible()
+    await adminPage.goto('/staff/applications')
+    await adminPage.getByRole('tab', { name: 'Admitted', exact: true }).click()
+    await expect(adminPage.getByAltText("Ada Applicant's application photo")).toBeVisible()
+    await adminContext.close()
   })
 })

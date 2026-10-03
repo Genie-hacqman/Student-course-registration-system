@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import request from 'supertest';
 import {
-  resendProvider, safeError, maskEmail, redactTokens, sendMail, ONBOARDING_SENDER,
+  resendProvider, safeError, maskEmail, redactTokens, sendMail, ONBOARDING_SENDER, isEmailConfigured,
 } from '../../src/services/email.service.js';
+import env from '../../src/config/env.js';
 import { createLimiter } from '../../src/middleware/rate-limit.middleware.js';
 
 /** A stand-in for `new Resend(key)`: records calls and answers like the SDK ({ data } or { error }). */
@@ -74,5 +75,38 @@ describe('rate limiting', () => {
     const limited = await request(app).post('/forgot');
     assert.equal(limited.status, 429);
     assert.equal(limited.body.error.code, 'TOO_MANY_REQUESTS');
+  });
+});
+
+describe('isEmailConfigured (what the health check reports)', () => {
+  const KEYS = ['RESEND_API_KEY', 'SMTP_HOST', 'EMAIL_FROM', 'SMTP_FROM', 'isProduction'];
+  /** Runs `fn` with exactly these email settings, then restores the real ones. */
+  const withEnv = (values, fn) => {
+    const saved = Object.fromEntries(KEYS.map((k) => [k, env[k]]));
+    for (const k of KEYS) env[k] = k === 'isProduction' ? false : undefined;
+    Object.assign(env, values);
+    try { return fn(); } finally { Object.assign(env, saved); }
+  };
+
+  test('nothing configured: false', () => {
+    assert.equal(withEnv({}, isEmailConfigured), false);
+  });
+
+  test('Resend with a sender: true (the case that used to report false)', () => {
+    assert.equal(withEnv({ RESEND_API_KEY: 're_test', EMAIL_FROM: 'UniReg <no-reply@school.edu>' }, isEmailConfigured), true);
+  });
+
+  test('Resend without a sender: true outside production (onboarding sender), false in production (nothing would send)', () => {
+    assert.equal(withEnv({ RESEND_API_KEY: 're_test' }, isEmailConfigured), true);
+    assert.equal(withEnv({ RESEND_API_KEY: 're_test', isProduction: true }, isEmailConfigured), false);
+  });
+
+  test('SMTP needs a sender too', () => {
+    assert.equal(withEnv({ SMTP_HOST: 'smtp.school.edu', SMTP_FROM: 'no-reply@school.edu' }, isEmailConfigured), true);
+    assert.equal(withEnv({ SMTP_HOST: 'smtp.school.edu' }, isEmailConfigured), false);
+  });
+
+  test('a sender alone, with no provider, is not configured', () => {
+    assert.equal(withEnv({ EMAIL_FROM: 'no-reply@school.edu' }, isEmailConfigured), false);
   });
 });

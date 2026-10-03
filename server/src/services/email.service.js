@@ -24,6 +24,13 @@ export const senderAddress = () => env.EMAIL_FROM
   || env.SMTP_FROM
   || (env.RESEND_API_KEY && !env.isProduction ? ONBOARDING_SENDER : undefined);
 
+/**
+ * Whether email will really be sent: a provider is configured (Resend, else SMTP) AND there is a sender address.
+ * The same condition `sendMail` uses, so the health check reports what actually happens. Reads configuration only;
+ * never creates a provider client.
+ */
+export const isEmailConfigured = () => Boolean((env.RESEND_API_KEY || env.SMTP_HOST) && senderAddress());
+
 /** Hides token values in links (activation, reset, verification) so raw tokens never reach the logs. */
 export const redactTokens = (text) => String(text ?? '').replace(/([?&]token=)[^\s&"'<>]+/g, '$1[redacted]');
 

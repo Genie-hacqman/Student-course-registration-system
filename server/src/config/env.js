@@ -73,7 +73,8 @@ const schema = z
     S3_ACCESS_KEY_ID: z.preprocess(blankAsUnset, z.string().optional()),
     S3_SECRET_ACCESS_KEY: z.preprocess(blankAsUnset, z.string().optional()),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).optional(),
-    SENTRY_DSN: z.string().url().optional(),
+    // A blank line (`SENTRY_DSN=`, as in .env.example) means "not set", not an invalid URL.
+    SENTRY_DSN: z.preprocess(blankAsUnset, z.string().url().optional()),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV !== 'production') return;
