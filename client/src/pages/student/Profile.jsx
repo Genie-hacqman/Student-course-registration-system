@@ -33,8 +33,8 @@ export default function Profile() {
         </div>
       </Card>
       <Card>
-        <CardHeader title="Profile picture" subtitle="Required for students. You can replace it any time." />
-        <div className="px-5 py-4"><AvatarUploader required /></div>
+        <CardHeader title="Profile picture" subtitle="Your portal picture. Changing or removing it does not affect the official photo on your admission application." />
+        <div className="px-5 py-4"><AvatarUploader /></div>
       </Card>
       <Card>
         <CardHeader title="Student record" />

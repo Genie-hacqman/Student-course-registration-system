@@ -41,3 +41,49 @@ export async function fileToAvatarImages(file) {
     bitmap.close?.()
   }
 }
+
+// The official application photo is a portrait (passport-style, 3:4), cropped in the browser so the preview is
+// exactly what gets stored. The server decodes and re-encodes whatever it receives, so this is a convenience, not a
+// trust boundary.
+export const PHOTO_WIDTH = 600
+export const PHOTO_HEIGHT = 800
+export const PHOTO_MIN_SIDE = 300
+export const PHOTO_ASPECT = 3 / 4
+
+/** The largest centred 3:4 portrait rectangle inside a width x height image. */
+export const portraitCrop = (width, height) => {
+  let cropWidth = width
+  let cropHeight = Math.round(width / PHOTO_ASPECT)
+  if (cropHeight > height) {
+    cropHeight = height
+    cropWidth = Math.round(height * PHOTO_ASPECT)
+  }
+  return { sx: Math.round((width - cropWidth) / 2), sy: Math.round((height - cropHeight) / 2), width: cropWidth, height: cropHeight }
+}
+
+/** A message when the picked file can't be used as an official photo, else null (the picture checks plus a minimum size). */
+export const photoDimensionsError = (width, height) =>
+  Math.min(width, height) < PHOTO_MIN_SIDE ? `That photo is too small. It must be at least ${PHOTO_MIN_SIDE} pixels on each side.` : null
+
+/** Centre-crops the file to 3:4 and returns a 600x800 JPEG Blob. Rejects with a readable message. */
+export async function fileToOfficialPhoto(file) {
+  const bitmap = await createImageBitmap(file).catch(() => null)
+  if (!bitmap) throw new Error('That file could not be read as a picture')
+  try {
+    const tooSmall = photoDimensionsError(bitmap.width, bitmap.height)
+    if (tooSmall) throw new Error(tooSmall)
+    const { sx, sy, width, height } = portraitCrop(bitmap.width, bitmap.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = PHOTO_WIDTH
+    canvas.height = PHOTO_HEIGHT
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, PHOTO_WIDTH, PHOTO_HEIGHT)
+    ctx.drawImage(bitmap, sx, sy, width, height, 0, 0, PHOTO_WIDTH, PHOTO_HEIGHT)
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+    if (!blob) throw new Error('That picture could not be prepared. Try a different one.')
+    return blob
+  } finally {
+    bitmap.close?.()
+  }
+}

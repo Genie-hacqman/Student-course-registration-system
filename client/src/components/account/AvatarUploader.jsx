@@ -6,19 +6,18 @@ import { useAuth } from '../../auth/AuthProvider'
 import { authApi } from '../../api/auth'
 import { Avatar, Button } from '../ui'
 import { AVATAR_TYPES, avatarFileError, fileToAvatarImages } from '../../lib/image'
-import { ROLES } from '../../lib/roles'
 
 /**
- * Pick, preview and save the signed-in user's profile picture. The file is cropped to a square and
- * shrunk in the browser first. Students (applicants included) can replace their picture but not remove it.
+ * Pick, preview and save the signed-in user's profile picture (their portal picture, which is NOT the official
+ * application photo). The file is cropped to a square and shrunk in the browser first. Optional for every role,
+ * and anyone can change or remove it.
  */
-export default function AvatarUploader({ required = false, onSaved }) {
+export default function AvatarUploader({ onSaved }) {
   const { user, setProfile } = useAuth()
   const input = useRef(null)
   const [preview, setPreview] = useState(null)
   const [error, setError] = useState('')
   const [reading, setReading] = useState(false)
-  const canRemove = user?.role?.name !== ROLES.STUDENT
 
   const save = useMutation({
     mutationFn: authApi.setAvatar,
@@ -59,7 +58,7 @@ export default function AvatarUploader({ required = false, onSaved }) {
   return (
     <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
       <div className="relative">
-        <Avatar user={shown} size="xl" className={required && !hasPicture && !preview ? 'ring-2 ring-amber-400 ring-offset-2' : undefined} />
+        <Avatar user={shown} size="xl" />
         <button
           type="button"
           onClick={() => input.current?.click()}
@@ -86,18 +85,13 @@ export default function AvatarUploader({ required = false, onSaved }) {
               <Button size="sm" variant={hasPicture ? 'secondary' : 'primary'} loading={reading} onClick={() => input.current?.click()}>
                 <Camera className="size-4" aria-hidden /> {hasPicture ? 'Change picture' : 'Upload picture'}
               </Button>
-              {hasPicture && canRemove && (
+              {hasPicture && (
                 <Button size="sm" variant="ghost" loading={remove.isPending} onClick={() => { setError(''); remove.mutate() }}>
                   <Trash2 className="size-4" aria-hidden /> Remove
                 </Button>
               )}
             </div>
-            <p className="text-xs text-slate-500">
-              {required
-                ? 'Required. Use a clear, front-facing photo of yourself with a plain background and good lighting. '
-                : ''}
-              JPG, PNG or WebP, up to 5 MB.
-            </p>
+            <p className="text-xs text-slate-500">Optional. JPG, PNG or WebP, up to 5 MB.</p>
           </>
         )}
         {error && <p role="alert" className="text-xs text-red-600">{error}</p>}

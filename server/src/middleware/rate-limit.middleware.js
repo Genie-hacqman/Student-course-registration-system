@@ -23,4 +23,6 @@ export const verifyLimiter = createLimiter(15 * 60 * 1000, 60, 'Too many verific
 export const registrationLimiter = createLimiter(60 * 1000, 60, 'Too many registration requests, slow down');
 // Online admission: activation links and admin resends of the admission email.
 export const activationLimiter = createLimiter(15 * 60 * 1000, 10, 'Too many activation attempts, please try again later');
+// Official photo uploads re-encode an image each time, so cap how often one account can ask.
+export const photoLimiter = createLimiter(15 * 60 * 1000, 30, 'Too many photo uploads, please try again later');
 export const resendLimiter = createLimiter(15 * 60 * 1000, 10, 'Too many activation emails sent, please try again later');

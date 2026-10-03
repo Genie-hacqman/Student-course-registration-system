@@ -15,3 +15,12 @@ test('avatarFileError accepts JPG/PNG/WebP up to 5 MB and explains anything else
   assert.match(avatarFileError({ type: 'application/pdf', size: 1000 }), /JPG, PNG or WebP/)
   assert.match(avatarFileError({ type: 'image/jpeg', size: 6 * 1024 * 1024 }), /5 MB/)
 })
+
+test('portraitCrop takes the centred 3:4 portrait of landscape, portrait and already-3:4 images', async () => {
+  const { portraitCrop, photoDimensionsError } = await import('./image.js')
+  assert.deepEqual(portraitCrop(1200, 600), { sx: 375, sy: 0, width: 450, height: 600 })
+  assert.deepEqual(portraitCrop(600, 1200), { sx: 0, sy: 200, width: 600, height: 800 })
+  assert.deepEqual(portraitCrop(300, 400), { sx: 0, sy: 0, width: 300, height: 400 })
+  assert.equal(photoDimensionsError(299, 800) !== null, true)
+  assert.equal(photoDimensionsError(300, 400), null)
+})

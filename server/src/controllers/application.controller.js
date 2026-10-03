@@ -18,6 +18,17 @@ export const mine = async (req, res) => ok(res, await applicationService.getMine
 export const saveMine = async (req, res) => ok(res, await applicationService.saveDraft(req.user.id, req.validated.body, req));
 export const submitMine = async (req, res) => ok(res, await applicationService.submit(req.user.id, req));
 
+// Official application photo. The upload is the raw image bytes (see the express.raw parser in app.js).
+const sendPhoto = (res, bytes) => {
+  res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, no-store', 'Content-Length': bytes.length });
+  return res.status(200).end(bytes);
+};
+export const setPhoto = async (req, res) =>
+  ok(res, await applicationService.setPhoto(req.user.id, { body: req.body, contentType: req.headers['content-type'] }, req));
+export const removePhoto = async (req, res) => ok(res, await applicationService.removePhoto(req.user.id, req));
+export const myPhoto = async (req, res) => sendPhoto(res, await applicationService.getMyPhoto(req.user.id));
+export const reviewPhoto = async (req, res) => sendPhoto(res, await applicationService.getPhotoForReview(req.validated.params.id));
+
 // Reviewers. Activation tokens returned by the service are never sent to the client.
 export const list = async (req, res) => {
   const { result, page, limit } = await applicationService.list(req.validated.query);

@@ -15,6 +15,7 @@ const TABS = [
 /** Account settings for everyone: staff and lecturers' Profile/Settings, and the student Settings page. */
 export default function Account() {
   const { user } = useAuth()
+  const isStudent = user?.role?.name === 'STUDENT' // applicants and students share this page
   // The tab lives in the URL so "Settings" links can open Security directly.
   const [params, setParams] = useSearchParams()
   const tab = TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'profile'
@@ -26,8 +27,13 @@ export default function Account() {
 
       {tab === 'profile' && (
         <Card>
-          <CardHeader title="Profile picture" subtitle="Shown in the header and on your profile." />
-          <div className="px-5 py-4"><AvatarUploader required={user?.role?.name === 'STUDENT'} /></div>
+          <CardHeader
+            title="Profile picture"
+            subtitle={isStudent
+              ? 'Your portal picture, shown in the header. It is separate from the official photo on your admission application, which cannot be changed once you have submitted. Changing or removing this one never affects it.'
+              : 'Shown in the header and on your profile. You can change or remove it any time.'}
+          />
+          <div className="px-5 py-4"><AvatarUploader /></div>
         </Card>
       )}
 

@@ -95,15 +95,19 @@ describe('profile picture', () => {
     assert.equal((await uploadAvatar(user, big)).status, 400, 'too large');
   });
 
-  test('staff can remove their picture; students and applicants can only replace theirs', async () => {
+  test('every role, applicants and students included, can remove their profile picture (it is not the official photo)', async () => {
     const lecturer = await loginAs('lecturer');
     assert.equal((await api().delete('/api/auth/me/avatar').set(auth(lecturer.token))).status, 200);
     assert.equal((await api().get('/api/auth/me').set(auth(lecturer.token))).body.data.avatar, null);
 
     const applicant = await createApplicant(30);
     await uploadAvatar(applicant);
-    assert.equal((await api().delete('/api/auth/me/avatar').set(auth(applicant.token))).status, 400);
-    assert.equal((await api().get('/api/auth/me').set(auth(applicant.token))).body.data.avatar, TEST_AVATAR);
+    assert.equal((await api().delete('/api/auth/me/avatar').set(auth(applicant.token))).status, 200);
+    assert.equal((await api().get('/api/auth/me').set(auth(applicant.token))).body.data.avatar, null);
+
+    const student = await loginAs('student');
+    await uploadAvatar(student);
+    assert.equal((await api().delete('/api/auth/me/avatar').set(auth(student.token))).status, 200);
   });
 
   test('a small thumbnail is stored beside the picture, is optional, and is checked like the picture', async () => {

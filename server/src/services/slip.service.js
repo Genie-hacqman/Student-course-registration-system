@@ -1,8 +1,10 @@
 import crypto from 'node:crypto';
 import {
-  Registration, Student, User, Program, Semester, AcademicYear,
+  Registration, Student, User, Program, Semester, AcademicYear, AdmissionApplication,
 } from '../models/index.js';
 import env from '../config/env.js';
+import logger from '../config/logger.js';
+import * as storage from './storage.service.js';
 import { NotFoundError, ConflictError } from '../utils/errors.js';
 import { REGISTRATION_STATUS, DAYS } from '../utils/constants.js';
 import { getRegistrationDetail } from './registration.service.js';
@@ -29,8 +31,25 @@ const formatSlot = (s) => `${s.day} ${s.startTime.slice(0, 5)}–${s.endTime.sli
 const PRINTABLE = [REGISTRATION_STATUS.SUBMITTED, REGISTRATION_STATUS.APPROVED];
 
 /**
- * Everything printed on the slip, straight from the database. The student's picture (`student.photo`)
- * is only loaded for the PDF (`withPhoto`): it is ~25 KB, and neither the JSON slip nor the public
+ * The photo submitted with the student's admission application, as a JPEG data URL for the PDF; null when there is
+ * none. Deliberately NOT the profile picture: this is a registry document, and a student admitted by staff (no
+ * application) simply has no official photo. Best effort: a slip must never fail because of a picture.
+ */
+const officialPhotoOf = async (userId) => {
+  try {
+    const application = await AdmissionApplication.findOne({ where: { userId }, attributes: ['photoKey'] });
+    if (!application?.photoKey) return null;
+    const bytes = await storage.get(application.photoKey);
+    return bytes ? `data:image/jpeg;base64,${bytes.toString('base64')}` : null;
+  } catch (err) {
+    logger.warn(`Slip printed without the official photo for user ${userId}: ${err.message}`);
+    return null;
+  }
+};
+
+/**
+ * Everything printed on the slip, straight from the database. The student's OFFICIAL application photo
+ * (`student.photo`) is only loaded for the PDF (`withPhoto`): it is tens of KB, and neither the JSON slip nor the public
  * verify endpoint should carry it.
  */
 export const buildSlip = async (registrationId, { withPhoto = false } = {}) => {
@@ -40,7 +59,7 @@ export const buildSlip = async (registrationId, { withPhoto = false } = {}) => {
         model: Student,
         as: 'student',
         include: [
-          { model: User, as: 'user', attributes: ['firstName', 'lastName', 'email', ...(withPhoto ? ['avatar'] : [])] },
+          { model: User, as: 'user', attributes: ['firstName', 'lastName', 'email'] },
           { model: Program, as: 'program', attributes: ['name', 'code'] },
         ],
       },
@@ -86,7 +105,7 @@ export const buildSlip = async (registrationId, { withPhoto = false } = {}) => {
       email: student.user.email,
       program: student.program ? `${student.program.name} (${student.program.code})` : null,
       level: student.level,
-      ...(withPhoto ? { photo: student.user.avatar ?? null } : {}),
+      ...(withPhoto ? { photo: await officialPhotoOf(student.userId) } : {}),
     },
     semester: {
       id: semester.id,

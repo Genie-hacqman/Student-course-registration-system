@@ -7,3 +7,7 @@ import '@testing-library/jest-dom/vitest'
 // the rest of the codebase), so cleanup is wired up by hand instead — without it, one test's rendered
 // DOM leaks into the next test in the same file.
 afterEach(cleanup)
+
+// jsdom has no object URLs; photos are shown from blob: URLs, so give them a harmless stand-in.
+URL.createObjectURL ??= () => 'blob:test'
+URL.revokeObjectURL ??= () => {}
