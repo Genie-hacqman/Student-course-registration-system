@@ -10,7 +10,7 @@ import apiRouter from '../../src/routes/index.js';
 import * as pinService from '../../src/services/pin.service.js';
 import {
   resetDatabase, api, loginAs, login, auth, query, courseIdFor, sectionIdFor, createStudent, approvedResetToken, sequelize,
-  createApplicant, submitApplication, plantActivationToken, uploadAvatar,
+  createApplicant, submitApplication, plantActivationToken, uploadAvatar, uploadApplicationPhoto,
 } from './helpers.js';
 
 // ── route coverage bookkeeping ────────────────────────────────────────────────
@@ -93,7 +93,7 @@ describe('health & auth', () => {
     const asDevice = (r) => r.set(auth(changed.body.data.accessToken)).set('Cookie', pinCookie);
     assert.equal((await asDevice(api().patch('/api/auth/me')).send({ lastName: 'Tested' })).status, 403, 'students need approval');
     assert.equal((await uploadAvatar({ token: changed.body.data.accessToken })).status, 200, 'any role can set a picture');
-    assert.equal((await asDevice(api().delete('/api/auth/me/avatar'))).status, 400, 'a student cannot remove it');
+    assert.equal((await asDevice(api().delete('/api/auth/me/avatar'))).status, 200, 'a profile picture can be removed by anyone');
     assert.equal((await asDevice(api().post('/api/auth/verify-email/resend'))).status, 409, 'school email is verified at admission');
     assert.equal((await api().post('/api/auth/verify-email').send({ token: 'x'.repeat(40) })).status, 400);
     const devices = (await asDevice(api().get('/api/auth/sessions'))).body.data;
@@ -731,7 +731,13 @@ describe('online admission and timetable issues', () => {
     const applicant = await createApplicant('rt');
     assert.equal((await api().get('/api/applications/options').set(as(applicant))).status, 200);
     assert.equal((await api().get('/api/applications/me').set(as(applicant))).body.data.application, null);
+    // Official photo: nothing yet, then submitApplication uploads one; reviewers can read it, applicants cannot edit it after submit.
+    assert.equal((await api().get('/api/applications/me/photo').set(as(applicant))).status, 404);
+    assert.equal((await api().delete('/api/applications/me/photo').set(as(applicant))).status, 404);
     const application = await submitApplication(applicant);
+    assert.equal((await api().get('/api/applications/me/photo').set(as(applicant))).status, 200);
+    assert.equal((await api().get(`/api/applications/${application.id}/photo`).set(as(admin))).status, 200);
+    assert.equal((await uploadApplicationPhoto(applicant)).status, 409, 'locked once submitted');
 
     assert.equal((await api().get('/api/applications?status=submitted').set(as(admin))).status, 200);
     assert.equal((await api().get(`/api/applications/${application.id}`).set(as(admin))).status, 200);

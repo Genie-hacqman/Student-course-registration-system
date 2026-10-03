@@ -1,8 +1,13 @@
+import crypto from 'node:crypto';
 import { Op, UniqueConstraintError } from 'sequelize';
 import {
   sequelize, User, Role, Student, Program, Department, AdmissionApplication, AcademicYear, Semester,
 } from '../models/index.js';
 import env from '../config/env.js';
+import logger from '../config/logger.js';
+import { photoEditable } from '../models/AdmissionApplication.js';
+import { normalizeOfficialPhoto, squareDataUrl } from '../utils/image.js';
+import * as storage from './storage.service.js';
 import { BadRequestError, ConflictError, NotFoundError, TooManyAttemptsError } from '../utils/errors.js';
 import { APPLICATION_STATUS, ROLES, USER_STATUS } from '../utils/constants.js';
 import { hashPassword, UNUSABLE_PASSWORD_HASH } from '../utils/password.js';
@@ -174,6 +179,97 @@ export const saveDraft = async (userId, data, req) => {
   return getMine(userId);
 };
 
+// ── official application photo ───────────────────────────────────────────────
+// Stored in private object storage (key + sha256 + lock time on the application row), never in `users.avatar`.
+// Editable only while the application is an unlocked draft; the lock is checked here, on the server, under the
+// same row lock `submit` takes, so an upload racing a submit can never land after it.
+
+const PHOTO_LOCKED_MESSAGE = 'The official application photo is locked once your application is submitted and can no longer be changed';
+
+const assertPhotoEditable = (application) => {
+  if (!photoEditable(application)) throw new ConflictError(PHOTO_LOCKED_MESSAGE, { code: 'PHOTO_LOCKED' });
+};
+
+const photoKeyFor = (application) =>
+  `applications/${new Date().getUTCFullYear()}/${application.id}/official-photo/${crypto.randomUUID()}.jpg`;
+
+/** The caller's application row, locked for update; a draft is created if they haven't saved anything yet. */
+const lockOwnApplication = async (userId, transaction) => {
+  const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
+  if (await Student.findOne({ where: { userId }, attributes: ['id'], transaction })) {
+    throw new ConflictError('You are already admitted; there is no application to fill in');
+  }
+  const found = await AdmissionApplication.findOne({ where: { userId }, transaction, lock: transaction.LOCK.UPDATE });
+  return found ?? AdmissionApplication.create({
+    firstName: user.firstName, lastName: user.lastName, userId, personalEmail: user.email,
+  }, { transaction });
+};
+
+const discard = (key) => storage.remove(key).catch((err) => logger.warn(`Could not delete stored photo ${key}: ${err.message}`));
+
+/** Upload or replace the official photo (draft only). `body` is the raw upload, `contentType` what the client declared. */
+export const setPhoto = async (userId, { body, contentType }, req) => {
+  storage.assertConfigured();
+  // Decoding is the slow part, so it happens before the row lock is taken.
+  const photo = await normalizeOfficialPhoto(body, contentType);
+
+  let newKey = null;
+  let oldKey = null;
+  try {
+    await sequelize.transaction(async (transaction) => {
+      const application = await lockOwnApplication(userId, transaction);
+      assertPhotoEditable(application);
+      oldKey = application.photoKey;
+      newKey = photoKeyFor(application);
+      await storage.put(newKey, photo.buffer, 'image/jpeg');
+      await application.update({ photoKey: newKey, photoSha256: photo.sha256, photoUploadedAt: new Date() }, { transaction });
+      await audit.log({
+        userId, action: oldKey ? 'application.photo_replace' : 'application.photo_upload', entityType: 'AdmissionApplication',
+        entityId: application.id, metadata: { sha256: photo.sha256 }, req, transaction,
+      });
+    });
+  } catch (err) {
+    if (newKey) await discard(newKey); // the row never pointed at it
+    throw err;
+  }
+  if (oldKey) await discard(oldKey);
+  return getMine(userId);
+};
+
+/** Remove the official photo (draft only). */
+export const removePhoto = async (userId, req) => {
+  storage.assertConfigured();
+  let oldKey = null;
+  await sequelize.transaction(async (transaction) => {
+    const application = await lockOwnApplication(userId, transaction);
+    assertPhotoEditable(application);
+    if (!application.photoKey) throw new NotFoundError('Photo');
+    oldKey = application.photoKey;
+    await application.update({ photoKey: null, photoSha256: null, photoUploadedAt: null }, { transaction });
+    await audit.log({ userId, action: 'application.photo_remove', entityType: 'AdmissionApplication', entityId: application.id, req, transaction });
+  });
+  await discard(oldKey);
+  return getMine(userId);
+};
+
+const readPhoto = async (application) => {
+  if (!application?.photoKey) throw new NotFoundError('Photo');
+  const bytes = await storage.get(application.photoKey);
+  if (!bytes) throw new NotFoundError('Photo');
+  return bytes;
+};
+
+/** The applicant's own official photo, in any status. */
+export const getMyPhoto = async (userId) =>
+  readPhoto(await AdmissionApplication.findOne({ where: { userId }, attributes: ['id', 'photoKey'] }));
+
+/** A reviewer's view of a submitted application's official photo (drafts are the applicant's own business). */
+export const getPhotoForReview = async (id) => {
+  const application = await AdmissionApplication.findByPk(id, { attributes: ['id', 'status', 'photoKey'] });
+  if (!application || application.status === DRAFT) throw new NotFoundError('Application');
+  return readPhoto(application);
+};
+
 const REQUIRED_TO_SUBMIT = {
   firstName: 'first name', lastName: 'last name', dateOfBirth: 'date of birth', phone: 'phone number',
   departmentId: 'department', programId: 'programme', entryLevel: 'entry level',
@@ -185,17 +281,23 @@ export const submit = async (userId, req) => {
     if (!application) throw new BadRequestError('Fill in your application first');
     if (application.status !== DRAFT) throw new ConflictError(`Your application has already been ${application.status}`);
 
-    const user = await User.findByPk(userId, { attributes: ['emailVerifiedAt', 'avatar'], transaction });
+    const user = await User.findByPk(userId, { attributes: ['emailVerifiedAt'], transaction });
     if (!user.emailVerifiedAt) {
       throw new BadRequestError('Confirm your email address first — we send your admission decision there');
     }
     const missing = Object.entries(REQUIRED_TO_SUBMIT).filter(([key]) => !application[key]).map(([, label]) => label);
-    if (!user.avatar) missing.push('profile picture');
+    // The official application photo (not the profile picture) is part of the application, and mandatory.
+    if (!application.photoKey) missing.push('official application photo');
     if (missing.length) throw new BadRequestError(`Still missing: ${missing.join(', ')}`, { missing });
     await checkChoice(application, transaction);
 
-    await application.update({ status: SUBMITTED, submittedAt: new Date() }, { transaction });
-    await audit.log({ userId, action: 'application.submit', entityType: 'AdmissionApplication', entityId: application.id, req, transaction });
+    // Submitting locks the official photo in the same transaction (the photo routes take this same row lock first).
+    const now = new Date();
+    await application.update({ status: SUBMITTED, submittedAt: now, photoLockedAt: now }, { transaction });
+    await audit.log({
+      userId, action: 'application.submit', entityType: 'AdmissionApplication', entityId: application.id,
+      metadata: { photoLocked: true, photoSha256: application.photoSha256 }, req, transaction,
+    });
 
     // Tell the reviewers (in-app and by email) that an application is waiting.
     const program = await Program.findByPk(application.programId, { attributes: ['name'], transaction });
@@ -234,21 +336,14 @@ export const list = async (query) => {
   }
   const result = await AdmissionApplication.findAndCountAll({
     where,
-    include: [
-      programInclude,
-      { model: Student, as: 'student', attributes: ['id', 'studentNumber'] },
-      { model: User, as: 'user', attributes: ['id', 'avatarThumb'] },
-    ],
+    include: [programInclude, { model: Student, as: 'student', attributes: ['id', 'studentNumber'] }],
     limit, offset, order, distinct: true,
   });
   return { result, page, limit };
 };
 
-// The reviewer sees the applicant's photo; lists and the applicant's own view don't need it re-sent.
-const withUserAvatar = (include) => include.map((i) => (i.as === 'user' ? { ...i, attributes: [...i.attributes, 'avatar'] } : i));
-
 export const getById = async (id) => {
-  const application = await AdmissionApplication.findByPk(id, { include: withUserAvatar(detailInclude) });
+  const application = await AdmissionApplication.findByPk(id, { include: detailInclude });
   if (!application || application.status === DRAFT) throw new NotFoundError('Application');
   return application;
 };
@@ -325,6 +420,28 @@ const newActivation = () => {
  * level), converts the applicant's account into a pending student account and emails the activation
  * link. `programId`/`level`/`admissionSession` let the reviewer adjust the offer.
  */
+/**
+ * A new student starts with their official application photo as their profile picture, but only if they have not
+ * set one themselves. It is a separate copy (resized bytes in `users.avatar`), so later profile changes never
+ * alter the original application photo. Never blocks admission: if storage is unavailable they simply start without one.
+ */
+const startingProfilePicture = async (app, userId, transaction) => {
+  if (!app.photoKey) return {};
+  if (await User.count({ where: { id: userId, avatar: { [Op.ne]: null } }, transaction })) return {};
+  try {
+    const bytes = await storage.get(app.photoKey);
+    if (!bytes) return {};
+    return {
+      avatar: await squareDataUrl(bytes, 256),
+      avatarThumb: await squareDataUrl(bytes, 48, 80),
+      avatarUpdatedAt: new Date(),
+    };
+  } catch (err) {
+    logger.warn(`Could not copy the application photo into application ${app.id}'s profile picture: ${err.message}`);
+    return {};
+  }
+};
+
 export const admit = async (id, { programId, level, admissionSession } = {}, actor, req) => {
   const { application, identity, token } = await sequelize.transaction(async (transaction) => {
     const app = await lockSubmitted(id, transaction);
@@ -350,7 +467,9 @@ export const admit = async (id, { programId, level, admissionSession } = {}, act
     }, program, ctx, transaction);
 
     const activation = newActivation();
+    const profilePicture = await startingProfilePicture(app, user.id, transaction);
     await user.update({
+      ...profilePicture,
       firstName: app.firstName,
       lastName: app.lastName,
       email,

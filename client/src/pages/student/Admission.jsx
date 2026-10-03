@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,7 +8,7 @@ import { CheckCircle2, Clock, ImageOff, MailWarning, Send, XCircle } from 'lucid
 import { useAuth } from '../../auth/AuthProvider'
 import { useApplicationOptions, useMyApplication, useSaveApplication, useSubmitApplication } from '../../api/applications'
 import { Button, Card, CardHeader, Input, PageHeader, QueryState, Select, StatusBadge } from '../../components/ui'
-import AvatarUploader from '../../components/account/AvatarUploader'
+import ApplicationPhoto from '../../components/admission/ApplicationPhoto'
 import { applyServerErrors, requiredNumber } from '../../lib/forms'
 import { APPLICATION_STATUS, formatDate, formatDateTime } from '../../lib/format'
 import { isAdmitted } from '../../lib/roles'
@@ -102,7 +102,10 @@ function ApplicationForm({ application, emailVerified }) {
   })
   useEffect(() => reset(defaults), [defaults, reset])
 
-  const hasPhoto = Boolean(user?.avatar)
+  // The official application photo, not the profile picture. Kept here (not in the application cache) so saving it
+  // never swaps the application object, which would reset what the applicant has typed.
+  const [photo, setPhoto] = useState(application?.photo ?? null)
+  const hasPhoto = Boolean(photo?.present)
   const departments = options.data ?? []
   const departmentId = Number(watch('departmentId')) || null
   const programId = Number(watch('programId')) || null
@@ -124,8 +127,8 @@ function ApplicationForm({ application, emailVerified }) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
       <Card>
-        <CardHeader title="Passport photo" subtitle="Required. Your photo goes on your student record and is seen by the admissions office." />
-        <div className="px-5 py-4"><AvatarUploader required /></div>
+        <CardHeader title="Applicant Photo" subtitle="Required. This becomes the official photo on your application. It is locked once you submit." />
+        <div className="px-5 py-4"><ApplicationPhoto photo={photo} onChange={setPhoto} /></div>
       </Card>
 
       <Card>
@@ -173,7 +176,7 @@ function ApplicationForm({ application, emailVerified }) {
       {!hasPhoto && (
         <p role="status" className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
           <ImageOff className="mt-0.5 size-4 shrink-0" />
-          Add your passport photo above before submitting. You can still save a draft without it.
+          Add your applicant photo above before submitting. You can still save a draft without it.
         </p>
       )}
 
@@ -209,6 +212,10 @@ function ApplicationStatus({ application: a }) {
             )}
           </div>
         </div>
+      </Card>
+      <Card>
+        <CardHeader title="Application photo" subtitle="Kept with your application as part of your admission record." />
+        <div className="px-5 py-4"><ApplicationPhoto photo={a.photo} /></div>
       </Card>
       <Card>
         <CardHeader title="What you applied for" />

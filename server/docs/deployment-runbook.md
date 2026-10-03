@@ -148,6 +148,36 @@ instance goes live, not after someone notices rate limits or live updates behavi
 - [ ] Turn on error tracking (see "Turning on error tracking" below) and confirm `/api/health` reports
       `"errorTracking": true`.
 
+## Official application photos (Cloudflare R2)
+
+The applicant's official admission photo lives in a **private** S3-compatible bucket, never in MySQL and
+never at a public URL: the API reads it from the bucket and serves it only to its owner and to reviewers.
+Render's disk is wiped on every deploy, so there is deliberately no local-disk fallback in production.
+
+1. In Cloudflare: **R2 → Create bucket** (leave public access off). Note your **account id**.
+2. **R2 → Manage API tokens → Create API token**, permission **Object Read & Write**, limited to that one
+   bucket. Copy the **Access Key ID** and **Secret Access Key** (the secret is shown once).
+3. In Render, on the API service, add:
+
+   | Variable | Value |
+   |---|---|
+   | `STORAGE_DRIVER` | `s3` |
+   | `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+   | `S3_REGION` | `auto` |
+   | `S3_BUCKET` | the bucket name |
+   | `S3_ACCESS_KEY_ID` | the token's access key id |
+   | `S3_SECRET_ACCESS_KEY` | the token's secret |
+
+   A half-filled set is refused at boot with the missing names, rather than silently turning photos off.
+4. After the deploy, `GET /api/health` must show `"storage": true`. Until then the photo routes answer
+   `503` (applicants see "photo storage is not configured") but the rest of the API runs normally, so it is
+   safe to deploy the code first and add the bucket straight after.
+5. Optional hardening: give the token only this bucket, and turn on R2's object versioning or lifecycle rules
+   if you want deleted or replaced draft photos to be recoverable for a while.
+
+The frontend shows these photos from `blob:` URLs, so its Content-Security-Policy `img-src` must include
+`blob:` (already set in `client/vercel.json` and `client/public/_headers`); redeploy the frontend too.
+
 ## Updating an existing deployment (migrations first)
 
 The Render start command is just `node server.js`: **nothing migrates the database for you**, and a
@@ -165,7 +195,12 @@ Why this order: migrations here are written to be additive (new nullable columns
 the new build first makes every sign-in fail with an "Unknown column" 500 until the migration runs. The
 profile-picture release (`20261011000001-user-avatar.cjs`, `20261011000002-user-avatar-thumb.cjs`) is
 an example: it adds `users.avatar`, `users.avatar_thumb` and `users.avatar_updated_at`, and the login
-path reads them.
+path reads them. The official-photo release adds `20261012000001-application-photo.cjs`
+(four nullable `photo_*` columns on `admission_applications`), which the application queries read, so it
+follows the same rule.
+
+Run the migration from the `server/` folder (that is where `ca.pem` lives), with the explicit `DB_*` and
+`DB_SSL*` variables as in step 2.7.
 
 Do **not** run migrations from inside the web service on boot: with more than one instance they would
 race, and a schema change should be a deliberate step you watch. A migration that removes or renames a

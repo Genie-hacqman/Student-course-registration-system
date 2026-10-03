@@ -6,7 +6,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   resetDatabase, api, loginAs, login, auth, query, sectionIdFor, sequelize,
-  createApplicant, completeApplication, submitApplication, plantActivationToken, SIGN_UP_PASSWORD, TEST_AVATAR,
+  createApplicant, completeApplication, submitApplication, plantActivationToken, SIGN_UP_PASSWORD,
 } from './helpers.js';
 import { admissionEmail, useTransporterForTests } from '../../src/services/application.service.js';
 
@@ -85,19 +85,6 @@ describe('application form', () => {
     const missing = await api().post('/api/applications/me/submit').set(auth(partial.token));
     assert.equal(missing.status, 400);
     assert.ok(missing.body.error.details.missing.includes('programme'));
-  });
-
-  test('a profile picture is required to submit, and the reviewer sees it', async () => {
-    const applicant = await createApplicant(90);
-    await api().put('/api/applications/me').set(auth(applicant.token)).send(await completeApplication());
-    const noPhoto = await api().post('/api/applications/me/submit').set(auth(applicant.token));
-    assert.equal(noPhoto.status, 400);
-    assert.deepEqual(noPhoto.body.error.details.missing, ['profile picture']);
-
-    const application = await submitApplication(applicant);
-    const admin = await loginAs('admin');
-    const detail = await api().get(`/api/applications/${application.id}`).set(auth(admin.token));
-    assert.equal(detail.body.data.user.avatar, TEST_AVATAR);
   });
 
   test('a submitted application is locked, and shows as pending to the applicant', async () => {

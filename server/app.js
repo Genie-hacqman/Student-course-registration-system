@@ -25,6 +25,9 @@ app.use(cors({ origin: env.corsOrigins, credentials: true }));
 // parsed before express.json and mounted outside /api's JSON routes.
 app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '256kb' }), webhookRoutes);
 app.use(['/api/admin/import', '/api/results/import', '/api/admissions/bulk'], express.json({ limit: '5mb' }));
+// The official application photo is the raw image as the request body. Parsed here (and checked again in
+// utils/image.js), so the JSON parser below never sees it; any other content type falls through and is refused.
+app.use('/api/applications/me/photo', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '2mb' }));
 // Profile pictures arrive as a small (client-compressed) data URL.
 app.use('/api/auth/me/avatar', express.json({ limit: '400kb' }));
 app.use(express.json({ limit: '100kb' }));

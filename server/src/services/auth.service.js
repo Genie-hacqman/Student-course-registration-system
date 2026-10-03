@@ -382,11 +382,8 @@ export const setAvatar = async (userId, { image, thumb }, req) => {
   return me(userId);
 };
 
-/** Students (applicants included) must keep a picture, so they can replace it but not remove it. */
+/** Any role can remove their own profile picture. It is not the official application photo, which this never touches. */
 export const removeAvatar = async (userId, req) => {
-  const user = await loadWithRole(userId);
-  if (!user) throw new NotFoundError('User');
-  if (user.role?.name === ROLES.STUDENT) throw new BadRequestError('A profile picture is required for students — upload a new one instead');
   await User.update({ avatar: null, avatarThumb: null, avatarUpdatedAt: null }, { where: { id: userId } });
   await audit.log({ userId, action: 'auth.remove_avatar', entityType: 'User', entityId: userId, req });
   return me(userId);

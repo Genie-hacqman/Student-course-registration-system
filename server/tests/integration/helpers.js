@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import http from 'node:http';
 import request from 'supertest';
+import sharp from 'sharp';
 import app from '../../app.js';
 import { sequelize } from '../../src/models/index.js';
 import { REFRESH_COOKIE } from '../../src/utils/constants.js';
@@ -157,10 +158,19 @@ export const TEST_AVATAR = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4
 export const uploadAvatar = (user, image = TEST_AVATAR, thumb) =>
   api().put('/api/auth/me/avatar').set(auth(user.token)).send({ image, ...(thumb ? { thumb } : {}) });
 
-/** Saves and submits the applicant's application (a profile picture is required to submit); returns the application row. */
+/** A decodable official-application-photo upload: portrait, comfortably inside the 300-4000 px limits. */
+export const makePhoto = (colour = { r: 200, g: 150, b: 120 }, width = 400, height = 520) =>
+  sharp({ create: { width, height, channels: 3, background: colour } }).jpeg().toBuffer();
+export const TEST_PHOTO = await makePhoto();
+
+/** Uploads (or replaces) the applicant's OFFICIAL application photo, the raw image as the body. */
+export const uploadApplicationPhoto = (user, body = TEST_PHOTO, type = 'image/jpeg') =>
+  api().put('/api/applications/me/photo').set(auth(user.token)).set('Content-Type', type).send(body);
+
+/** Saves and submits the applicant's application (the official photo is required to submit); returns the application row. */
 export const submitApplication = async (applicant, overrides = {}) => {
-  const photo = await uploadAvatar(applicant);
-  if (photo.status !== 200) throw new Error(`Avatar upload failed: ${JSON.stringify(photo.body)}`);
+  const photo = await uploadApplicationPhoto(applicant);
+  if (photo.status !== 200) throw new Error(`Photo upload failed: ${JSON.stringify(photo.body)}`);
   const saved = await api().put('/api/applications/me').set(auth(applicant.token)).send(await completeApplication(overrides));
   if (saved.status !== 200) throw new Error(`Save failed: ${JSON.stringify(saved.body)}`);
   const submitted = await api().post('/api/applications/me/submit').set(auth(applicant.token));

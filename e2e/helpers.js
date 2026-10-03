@@ -46,7 +46,15 @@ export async function signIn(page, email, password, tab = 'Staff') {
   await expect(page).not.toHaveURL(/\/login/)
 }
 
-/** Picks a photo in the AvatarUploader on the current page, previews it, and saves it. */
+/** Adds the OFFICIAL application photo in the application form: pick, preview, save. */
+export async function uploadOfficialPhoto(page, file = PHOTO) {
+  await page.locator('input[type=file]').setInputFiles(file)
+  await expect(page.getByAltText('Preview of your photo')).toBeVisible()
+  await page.getByRole('button', { name: /^Save (photo|replacement)$/ }).click()
+  await expect(page.getByText(/Photo (saved|replaced)/).last()).toBeVisible()
+}
+
+/** Picks a photo in the profile-picture uploader (AvatarUploader) on the current page, previews it, and saves it. */
 export async function uploadPicture(page, file = PHOTO) {
   await page.locator('input[type=file]').setInputFiles(file)
   await page.getByRole('button', { name: 'Save picture' }).click()

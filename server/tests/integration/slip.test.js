@@ -1,8 +1,9 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, auth, sectionIdFor, createStudent, sequelize, uploadAvatar, TEST_AVATAR,
+  resetDatabase, api, loginAs, auth, query, sectionIdFor, createStudent, sequelize, uploadAvatar, makePhoto,
 } from './helpers.js';
+import * as storage from '../../src/services/storage.service.js';
 
 let student;
 let registrar;
@@ -79,19 +80,56 @@ describe('registration slip', () => {
     assert.ok(data.approvedAt);
   });
 
-  test("the PDF carries the student's picture; the JSON slip and the public verify never do", async () => {
+  test('the PDF carries the OFFICIAL application photo, not the profile picture; JSON and verify never carry any photo', async () => {
     const plain = await slip(student, registrationId);
+    assert.equal(plain.status, 200);
+
+    // A profile picture alone changes nothing on the slip: it is not the official photo.
     assert.equal((await uploadAvatar(student)).status, 200);
-    const withPhoto = await slip(student, registrationId);
-    assert.equal(withPhoto.status, 200);
-    assert.equal(withPhoto.body.subarray(0, 5).toString(), '%PDF-');
-    assert.ok(withPhoto.body.length > plain.body.length, 'the picture is embedded in the PDF');
+    const withProfilePicture = await slip(student, registrationId);
+    assert.equal(withProfilePicture.body.length, plain.body.length, 'a profile picture is not printed');
+
+    // The photo submitted with the student's admission application is.
+    const [{ id: userId }] = await query("SELECT id FROM users WHERE email = 'student@scrs.local'");
+    const photo = await makePhoto({ r: 40, g: 120, b: 200 });
+    const key = 'applications/2026/9999/official-photo/slip-test.jpg';
+    await storage.put(key, photo, 'image/jpeg');
+    await query(
+      `INSERT INTO admission_applications (user_id, personal_email, first_name, last_name, status, photo_key, photo_uploaded_at, photo_locked_at, created_at, updated_at)
+       VALUES (:userId, 'slip.photo@personal.test', 'Ama', 'Mensah', 'admitted', :key, NOW(), NOW(), NOW(), NOW())`,
+      { userId, key },
+    );
+    const withOfficial = await slip(student, registrationId);
+    assert.equal(withOfficial.status, 200);
+    assert.equal(withOfficial.body.subarray(0, 5).toString(), '%PDF-');
+    assert.ok(withOfficial.body.length > plain.body.length, 'the official photo is embedded in the PDF');
 
     const json = (await slip(student, registrationId, 'json')).body.data;
     assert.equal('photo' in json.student, false);
-    assert.equal(JSON.stringify(json).includes(TEST_AVATAR), false);
+    assert.equal(JSON.stringify(json).includes('/9j/'), false, 'no image data in the JSON slip');
     const verified = await api().get(`/api/registrations/verify/${json.referenceNumber}?code=${json.verificationCode}`);
-    assert.equal(JSON.stringify(verified.body).includes(TEST_AVATAR), false);
+    assert.equal(JSON.stringify(verified.body).includes('/9j/'), false, 'no image data on the public verify');
+
+    // A slip never fails because of its picture: if the stored photo cannot be read, it prints without one.
+    await storage.remove(key);
+    const missing = await slip(student, registrationId);
+    assert.equal(missing.status, 200);
+    assert.equal(missing.body.subarray(0, 5).toString(), '%PDF-');
+    assert.equal(missing.body.length, plain.body.length);
+
+    // ...and the same when the storage service itself errors.
+    await storage.put(key, photo, 'image/jpeg');
+    storage.useDriverForTests({ name: 'broken', get: async () => { throw new Error('storage is down'); }, put: async () => {}, remove: async () => {} });
+    try {
+      const broken = await slip(student, registrationId);
+      assert.equal(broken.status, 200);
+      assert.equal(broken.body.subarray(0, 5).toString(), '%PDF-');
+      assert.equal(broken.body.length, plain.body.length);
+    } finally {
+      storage.useDriverForTests();
+      await storage.remove(key);
+    }
+    await query('DELETE FROM admission_applications WHERE user_id = :userId', { userId });
   });
 
   test('anyone can verify a printed slip with its code; details are hidden without it', async () => {

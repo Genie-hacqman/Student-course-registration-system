@@ -63,6 +63,15 @@ const schema = z
     // Both optional everywhere, including production: unlike SMTP/CORS, the app is fully
     // functional without them — you just have less visibility if something breaks. Worth
     // configuring for a real deployment, but not something to hard-fail boot over.
+    // Object storage for official application photos (private bucket; Cloudflare R2 or any S3-compatible
+    // service). Unset in development, files go to a local folder; in production there is no local fallback
+    // (Render's disk is wiped on every deploy), so the photo routes answer 503 until the bucket is configured.
+    STORAGE_DRIVER: z.preprocess(blankAsUnset, z.enum(['s3', 'local']).optional()),
+    S3_ENDPOINT: z.preprocess(blankAsUnset, z.string().url().optional()),
+    S3_REGION: z.preprocess(blankAsUnset, z.string().default('auto')),
+    S3_BUCKET: z.preprocess(blankAsUnset, z.string().optional()),
+    S3_ACCESS_KEY_ID: z.preprocess(blankAsUnset, z.string().optional()),
+    S3_SECRET_ACCESS_KEY: z.preprocess(blankAsUnset, z.string().optional()),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).optional(),
     SENTRY_DSN: z.string().url().optional(),
   })
@@ -103,6 +112,17 @@ const schema = z
     if (!data.FRONTEND_URL.startsWith('https://')) {
       ctx.addIssue({ code: 'custom', path: ['FRONTEND_URL'], message: 'FRONTEND_URL must use https:// in production.' });
     }
+    if (data.STORAGE_DRIVER === 'local') {
+      ctx.addIssue({ code: 'custom', path: ['STORAGE_DRIVER'], message: 'STORAGE_DRIVER=local is for development only; production needs an S3-compatible bucket (the disk is wiped on every deploy).' });
+    }
+  })
+  .superRefine((data, ctx) => {
+    // A half-filled bucket config is a typo, not "unconfigured": fail fast instead of silently disabling photos.
+    const s3 = ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
+    const set = s3.filter((k) => data[k]);
+    if ((data.STORAGE_DRIVER === 's3' || set.length > 0) && set.length < s3.length) {
+      ctx.addIssue({ code: 'custom', path: ['STORAGE_DRIVER'], message: `S3 storage needs all of ${s3.join(', ')} (missing: ${s3.filter((k) => !data[k]).join(', ')}).` });
+    }
   });
 
 const parsed = schema.safeParse(process.env);
@@ -122,6 +142,10 @@ export default {
   isProduction: env.NODE_ENV === 'production',
   isTest: env.NODE_ENV === 'test',
   corsOrigins: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+  // 's3' when the bucket is configured, 'local' only outside production, else null (photo routes answer 503).
+  storageDriver: env.STORAGE_DRIVER === 'local' ? 'local'
+    : (env.S3_ENDPOINT && env.S3_BUCKET && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY) ? 's3'
+      : (env.NODE_ENV === 'production' ? null : 'local'),
   dbName: env.NODE_ENV === 'test' ? `${env.DB_NAME}_test` : env.DB_NAME,
   logLevel: env.LOG_LEVEL ?? (env.NODE_ENV === 'test' ? 'error' : env.NODE_ENV === 'production' ? 'info' : 'debug'),
 };

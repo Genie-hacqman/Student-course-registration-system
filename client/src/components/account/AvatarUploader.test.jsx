@@ -58,15 +58,15 @@ describe('AvatarUploader', () => {
     expect(screen.getByRole('button', { name: /upload picture/i })).toBeInTheDocument()
   })
 
-  it('offers Remove to staff but never to students, whose picture is required', () => {
-    auth.user = { ...person, avatar: 'data:image/jpeg;base64,FULL', role: { name: 'REGISTRAR' } }
-    const { unmount } = renderWithProviders(<AvatarUploader />)
-    expect(screen.getByRole('button', { name: /remove/i })).toBeInTheDocument()
-    unmount()
-
-    auth.user = { ...person, avatar: 'data:image/jpeg;base64,FULL', role: { name: 'STUDENT' } }
-    renderWithProviders(<AvatarUploader required />)
-    expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /change picture/i })).toBeInTheDocument()
+  it('lets every role, students included, change or remove their profile picture (it is optional)', async () => {
+    vi.spyOn(authApi, 'removeAvatar').mockResolvedValue({ ...person })
+    for (const role of ['REGISTRAR', 'STUDENT']) {
+      auth.user = { ...person, avatar: 'data:image/jpeg;base64,FULL', role: { name: role } }
+      const { unmount } = renderWithProviders(<AvatarUploader />)
+      expect(screen.getByRole('button', { name: /remove/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /change picture/i })).toBeInTheDocument()
+      expect(screen.getByText(/optional/i)).toBeInTheDocument()
+      unmount()
+    }
   })
 })

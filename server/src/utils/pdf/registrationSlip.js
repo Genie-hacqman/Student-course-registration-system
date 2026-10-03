@@ -50,15 +50,17 @@ const labelValue = (doc, label, value, x, y, width) => {
   doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(value ?? '—', x, y + 10, { width });
 };
 
-const PHOTO = 64
+// The official application photo is a 3:4 portrait; the student block above the course table is 96 pt tall.
+const PHOTO_W = 60
+const PHOTO_H = 80
 
 /** The student's picture, top right of the student block. Skipped quietly when absent or not a format PDFKit reads. */
 const drawPhoto = (doc, dataUrl, x, y) => {
   const match = /^data:image\/(jpeg|png);base64,(.+)$/.exec(dataUrl ?? '');
   if (!match) return false;
   try {
-    doc.image(Buffer.from(match[2], 'base64'), x, y, { fit: [PHOTO, PHOTO], align: 'center', valign: 'center' });
-    doc.rect(x, y, PHOTO, PHOTO).lineWidth(0.5).strokeColor(RULE).stroke();
+    doc.image(Buffer.from(match[2], 'base64'), x, y, { fit: [PHOTO_W, PHOTO_H], align: 'center', valign: 'center' });
+    doc.rect(x, y, PHOTO_W, PHOTO_H).lineWidth(0.5).strokeColor(RULE).stroke();
     return true;
   } catch {
     return false;
@@ -93,8 +95,8 @@ export const renderSlipPdf = (slip, stream) => {
   doc.moveTo(MARGIN, y).lineTo(MARGIN + TABLE_WIDTH, y).strokeColor(RULE).stroke();
   y += 10;
   const half = TABLE_WIDTH / 2;
-  const hasPhoto = drawPhoto(doc, slip.student.photo, MARGIN + TABLE_WIDTH - PHOTO, y);
-  const rightWidth = hasPhoto ? half - PHOTO - 10 : half; // keep the right-hand text clear of the picture
+  const hasPhoto = drawPhoto(doc, slip.student.photo, MARGIN + TABLE_WIDTH - PHOTO_W, y);
+  const rightWidth = hasPhoto ? half - PHOTO_W - 10 : half; // keep the right-hand text clear of the picture
   labelValue(doc, 'Student', slip.student.name, MARGIN, y, half - 10);
   labelValue(doc, 'Student number', slip.student.studentNumber, MARGIN + half, y, rightWidth);
   y += 32;
