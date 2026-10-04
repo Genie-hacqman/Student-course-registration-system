@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { MotionProvider } from '../lib/motionPresets'
 
 /**
  * Renders a component the way the real app does for anything using TanStack Query and
@@ -12,8 +13,10 @@ export function renderWithProviders(ui, { route = '/', retry = false } = {}) {
     defaultOptions: { queries: { retry }, mutations: { retry } },
   })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
-    </QueryClientProvider>,
+    <MotionProvider>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+      </QueryClientProvider>
+    </MotionProvider>,
   )
 }
