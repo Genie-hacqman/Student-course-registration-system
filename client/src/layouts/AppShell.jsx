@@ -58,7 +58,7 @@ function NavLinkItem({ item, rail, onNavigate, nested }) {
       )}
     >
       {(!nested || rail) && <Icon className={cx('size-4.5 shrink-0', active ? 'text-brand-600' : 'text-slate-400 group-hover:text-slate-600')} aria-hidden />}
-      {rail ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
+      {rail ? <span className="sr-only">{item.label}</span> : <span className="line-clamp-2 leading-snug">{item.label}</span>}
     </Link>
   )
 }
@@ -83,7 +83,7 @@ function NavGroup({ group, onNavigate }) {
         )}
       >
         <Icon className={cx('size-4.5 shrink-0', containsActive ? 'text-brand-600' : 'text-slate-400')} aria-hidden />
-        <span className="flex-1 truncate text-left">{group.label}</span>
+        <span className="line-clamp-2 flex-1 text-left leading-snug">{group.label}</span>
         <ChevronDown className={cx('size-4 text-slate-400 transition-transform duration-200', expanded ? 'rotate-0' : '-rotate-90')} aria-hidden />
       </button>
       <div id={id} className={cx('grid transition-[grid-template-rows] duration-200', expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>

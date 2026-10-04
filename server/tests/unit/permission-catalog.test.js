@@ -28,5 +28,8 @@ test('there are exactly four roles, each with its own permission set, and nothin
     assert.ok(registrar.includes(p), `REGISTRAR has ${p}`);
     assert.ok(!admin.includes(p), `ADMIN lacks ${p}`);
   }
+  // Both staff roles browse the department / programme / lecturer directories; lecturers and students don't.
+  assert.ok(admin.includes('directory:view') && registrar.includes('directory:view'));
+  assert.ok(!permissionsFor('LECTURER').includes('directory:view'));
   assert.deepEqual(permissionsFor('STUDENT').sort(), ['application:self', 'registration:self']);
 });

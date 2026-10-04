@@ -38,6 +38,8 @@ const Registrations = lazy(() => import('./pages/staff/Registrations'))
 const RegistrationDetail = lazy(() => import('./pages/staff/RegistrationDetail'))
 const Reports = lazy(() => import('./pages/staff/Reports'))
 const Departments = lazy(() => import('./pages/admin/Departments'))
+const DepartmentDetail = lazy(() => import('./pages/admin/DepartmentDetail'))
+const Administrators = lazy(() => import('./pages/admin/Administrators'))
 const Programs = lazy(() => import('./pages/admin/Programs'))
 const ProgramDetail = lazy(() => import('./pages/admin/ProgramDetail'))
 const Courses = lazy(() => import('./pages/admin/Courses'))
@@ -168,8 +170,10 @@ export default function App() {
               <Route element={<RequirePermission permission={PERMS.REPORT_VIEW} />}>
                 <Route path="reports" element={<Reports />} />
               </Route>
-              <Route element={<RequirePermission permission={PERMS.COURSE_MANAGE} />}>
+              {/* The directory: admins and registrars browse (directory:view); changes need course:manage, checked on each action. */}
+              <Route element={<RequirePermission permission={[PERMS.DIRECTORY_VIEW, PERMS.COURSE_MANAGE]} />}>
                 <Route path="departments" element={<Departments />} />
+                <Route path="departments/:id" element={<DepartmentDetail />} />
                 <Route path="programs" element={<Programs />} />
                 <Route path="programs/:id" element={<ProgramDetail />} />
               </Route>
@@ -181,7 +185,7 @@ export default function App() {
               <Route element={<RequirePermission permission={PERMS.COURSE_CATALOG} />}>
                 <Route path="courses/import" element={<CourseImport />} />
               </Route>
-              <Route element={<RequirePermission permission={PERMS.USER_MANAGE} />}>
+              <Route element={<RequirePermission permission={[PERMS.DIRECTORY_VIEW, PERMS.USER_MANAGE]} />}>
                 <Route path="lecturers" element={<Lecturers />} />
                 <Route path="lecturers/:id" element={<LecturerDetail />} />
               </Route>
@@ -192,7 +196,8 @@ export default function App() {
                 <Route path="semesters" element={<Semesters />} />
                 <Route path="semesters/:id" element={<SemesterDetail />} />
               </Route>
-              <Route element={<RequirePermission permission={PERMS.SECTION_MANAGE} />}>
+              {/* Offerings: the registry manages them (section:manage); admins can look (directory:view). */}
+              <Route element={<RequirePermission permission={[PERMS.SECTION_MANAGE, PERMS.DIRECTORY_VIEW]} />}>
                 <Route path="sections" element={<Sections />} />
                 <Route path="sections/:id" element={<SectionDetail />} />
               </Route>
@@ -206,6 +211,7 @@ export default function App() {
               <Route element={<RequirePermission permission={PERMS.USER_MANAGE} />}>
                 <Route path="users" element={<Users />} />
                 <Route path="users/:id" element={<UserDetail />} />
+                <Route path="administrators" element={<Administrators />} />
               </Route>
               <Route element={<RequirePermission permission={PERMS.AUDIT_VIEW} />}>
                 <Route path="audit-log" element={<AuditLog />} />

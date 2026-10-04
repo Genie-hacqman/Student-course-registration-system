@@ -35,6 +35,7 @@ import AdmissionApplication from './AdmissionApplication.js';
 import TimetableIssue from './TimetableIssue.js';
 import SectionLecturerAssignment from './SectionLecturerAssignment.js';
 import EmailDelivery from './EmailDelivery.js';
+import LecturerDepartment from './LecturerDepartment.js';
 
 // Role → Users
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
@@ -59,6 +60,9 @@ Course.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
 
 Department.hasMany(Lecturer, { foreignKey: 'departmentId', as: 'lecturers' });
 Lecturer.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
+// A lecturer's additional departments (the home one is Lecturer.department above).
+Lecturer.belongsToMany(Department, { through: LecturerDepartment, as: 'additionalDepartments', foreignKey: 'lecturerId', otherKey: 'departmentId' });
+Department.belongsToMany(Lecturer, { through: LecturerDepartment, as: 'additionalLecturers', foreignKey: 'departmentId', otherKey: 'lecturerId' });
 
 // Program ↔ Courses (curriculum)
 Program.belongsToMany(Course, { through: ProgramCourse, as: 'courses', foreignKey: 'programId', otherKey: 'courseId' });
@@ -234,4 +238,5 @@ export {
   TimetableIssue,
   SectionLecturerAssignment,
   EmailDelivery,
+  LecturerDepartment,
 };

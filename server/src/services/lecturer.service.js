@@ -1,7 +1,7 @@
 import { Op } from 'sequelize';
 import {
   sequelize, Lecturer, User, Role, Department, CourseSection, Course, Semester, AcademicYear, Schedule, Registration, RegistrationItem, Student,
-  SectionLecturerAssignment,
+  SectionLecturerAssignment, LecturerDepartment,
 } from '../models/index.js';
 import { buildPagination } from '../utils/pagination.js';
 import {
@@ -14,12 +14,30 @@ import { UNUSABLE_PASSWORD_HASH } from '../utils/password.js';
 import { issueInvite } from './password-reset.service.js';
 import * as userService from './user.service.js';
 import * as settingService from './setting.service.js';
+import { assertDepartmentOpen } from './org-status.service.js';
 import * as audit from './audit.service.js';
 
 const includes = [
   { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'status', 'avatarThumb'] },
-  { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+  { model: Department, as: 'department', attributes: ['id', 'name', 'code', 'status'] },
 ];
+const DEPARTMENT_ATTRIBUTES = ['id', 'name', 'code', 'status'];
+
+/** The additional departments of the given lecturers, as a Map lecturerId → [department]. One query for a page. */
+const additionalDepartmentsFor = async (lecturerIds) => {
+  const map = new Map(lecturerIds.map((id) => [id, []]));
+  if (!lecturerIds.length) return map;
+  const links = await LecturerDepartment.findAll({ where: { lecturerId: lecturerIds }, attributes: ['lecturerId', 'departmentId'] });
+  const departments = await Department.findAll({ where: { id: [...new Set(links.map((l) => l.departmentId))] }, attributes: DEPARTMENT_ATTRIBUTES });
+  const byId = new Map(departments.map((d) => [d.id, d.toJSON()]));
+  for (const link of links) map.get(link.lecturerId)?.push(byId.get(link.departmentId));
+  for (const list of map.values()) list.sort((a, b) => a.code.localeCompare(b.code));
+  return map;
+};
+
+/** True when the lecturer belongs to the department, as their home department or an additional one. */
+export const belongsToDepartment = async (lecturer, departmentId, transaction) => lecturer.departmentId === departmentId
+  || Boolean(await LecturerDepartment.findOne({ where: { lecturerId: lecturer.id, departmentId }, attributes: ['id'], transaction }));
 
 // Computed per lecturer: live (non-cancelled) offerings they teach, and whether they still have to set a password.
 const summaryAttributes = {
@@ -29,10 +47,21 @@ const summaryAttributes = {
   ],
 };
 
+/**
+ * Lecturers, filtered and paginated on the server. `departmentId` matches their home department OR an additional
+ * one; each row lists its additional departments, and `membership` says how they belong to the filtered department.
+ */
 export const list = async (query) => {
   const { page, limit, offset, order } = buildPagination(query, ['staffNumber', 'createdAt']);
   const where = {};
-  if (query.departmentId) where.departmentId = query.departmentId;
+  if (query.departmentId) {
+    where[Op.and] = [{
+      [Op.or]: [
+        { departmentId: query.departmentId },
+        sequelize.literal(`EXISTS (SELECT 1 FROM lecturer_departments ld WHERE ld.lecturer_id = \`Lecturer\`.\`id\` AND ld.department_id = ${sequelize.escape(query.departmentId)})`),
+      ],
+    }];
+  }
   if (query.status) where['$user.status$'] = query.status;
   if (query.search) {
     const like = `%${query.search}%`;
@@ -43,10 +72,50 @@ export const list = async (query) => {
       { '$user.email$': { [Op.like]: like } },
     ];
   }
-  const result = await Lecturer.findAndCountAll({
+  const { count, rows } = await Lecturer.findAndCountAll({
     where, include: includes, attributes: summaryAttributes, limit, offset, order, distinct: true, subQuery: false,
   });
-  return { result, page, limit };
+  const extra = await additionalDepartmentsFor(rows.map((r) => r.id));
+  const shaped = rows.map((r) => ({
+    ...r.toJSON(),
+    additionalDepartments: extra.get(r.id) ?? [],
+    ...(query.departmentId ? { membership: r.departmentId === query.departmentId ? 'home' : 'additional' } : {}),
+  }));
+  return { result: { count, rows: shaped }, page, limit };
+};
+
+/** A department's lecturers: home and additional members, each marked with how they belong. */
+export const listForDepartment = async (departmentId, query) => {
+  if (!(await Department.findByPk(departmentId, { attributes: ['id'] }))) throw new NotFoundError('Department');
+  return list({ ...query, departmentId });
+};
+
+/**
+ * Replaces a lecturer's ADDITIONAL departments. The home department is set on the profile and can't be repeated
+ * here; duplicates are collapsed; a department being newly added must be open (archived ones are closed to intake).
+ */
+export const setDepartments = async (id, departmentIds, actor, req) => {
+  const lecturer = await Lecturer.findByPk(id, { include: [{ model: Department, as: 'department', attributes: ['id', 'name'] }] });
+  if (!lecturer) throw new NotFoundError('Lecturer');
+  const wanted = [...new Set(departmentIds)];
+  if (wanted.includes(lecturer.departmentId)) {
+    throw new BadRequestError(`${lecturer.department?.name ?? 'That department'} is already their home department`);
+  }
+  const { added, removed } = await sequelize.transaction(async (transaction) => {
+    const current = (await LecturerDepartment.findAll({ where: { lecturerId: id }, attributes: ['departmentId'], transaction, lock: transaction.LOCK.UPDATE }))
+      .map((l) => l.departmentId);
+    const toAdd = wanted.filter((d) => !current.includes(d));
+    const toRemove = current.filter((d) => !wanted.includes(d));
+    for (const departmentId of toAdd) await assertDepartmentOpen(departmentId, { transaction, what: 'new lecturers' });
+    if (toRemove.length) await LecturerDepartment.destroy({ where: { lecturerId: id, departmentId: toRemove }, transaction });
+    for (const departmentId of toAdd) await LecturerDepartment.create({ lecturerId: id, departmentId }, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'lecturer.departments_update', entityType: 'Lecturer', entityId: id,
+      metadata: { added: toAdd, removed: toRemove }, req, transaction,
+    });
+    return { added: toAdd, removed: toRemove };
+  });
+  return { ...(await getById(id)).toJSON(), changes: { added, removed } };
 };
 
 /** Profile plus every course offering they were ever assigned (current first). */
@@ -54,6 +123,7 @@ export const getById = async (id) => {
   const lecturer = await Lecturer.findByPk(id, {
     include: [
       ...includes.map((i) => (i.as === 'user' ? { ...i, attributes: [...i.attributes, 'avatar'] } : i)),
+      { model: Department, as: 'additionalDepartments', attributes: DEPARTMENT_ATTRIBUTES, through: { attributes: [] } },
       {
         model: SectionLecturerAssignment,
         as: 'assignments',
@@ -63,7 +133,9 @@ export const getById = async (id) => {
           as: 'section',
           attributes: ['id', 'sectionCode', 'status', 'seatsTaken', 'capacity'],
           include: [
-            { model: Course, as: 'course', attributes: ['id', 'code', 'title'] },
+            { model: Course, as: 'course', attributes: ['id', 'code', 'title', 'departmentId'] },
+            // Class times, so the profile can show the lecturer's teaching timetable.
+            { model: Schedule, as: 'schedules', attributes: ['id', 'day', 'startTime', 'endTime', 'room'] },
             {
               model: Semester, as: 'semester', attributes: ['id', 'name', 'isCurrent'],
               include: [{ model: AcademicYear, as: 'academicYear', attributes: ['id', 'name'] }],
@@ -76,6 +148,19 @@ export const getById = async (id) => {
     order: [[{ model: SectionLecturerAssignment, as: 'assignments' }, 'assignedAt', 'DESC']],
   });
   if (!lecturer) throw new NotFoundError('Lecturer');
+  // What they teach this term, from the offerings themselves (course_sections.lecturer_id is the current lecturer;
+  // assignment history may be missing for offerings created before it existed or set up by import).
+  const teaching = await CourseSection.findAll({
+    where: { lecturerId: lecturer.id, status: { [Op.ne]: SECTION_STATUS.CANCELLED } },
+    attributes: ['id', 'sectionCode', 'status', 'seatsTaken', 'capacity'],
+    include: [
+      { model: Course, as: 'course', attributes: ['id', 'code', 'title', 'departmentId'] },
+      { model: Semester, as: 'semester', attributes: ['id', 'name', 'isCurrent'], where: { isCurrent: true } },
+      { model: Schedule, as: 'schedules', attributes: ['id', 'day', 'startTime', 'endTime', 'room'] },
+    ],
+    order: [[{ model: Course, as: 'course' }, 'code', 'ASC']],
+  });
+  lecturer.setDataValue('currentTeaching', teaching);
   return lecturer;
 };
 
@@ -122,7 +207,7 @@ const createAccount = async (data, actor) => {
   const { user, lecturer } = await sequelize.transaction(async (transaction) => {
     await assertStaffNumberFree(data.staffNumber, null, transaction);
     await assertPersonalEmailFree(data.personalEmail, null, transaction);
-    if (!(await Department.findByPk(data.departmentId, { transaction }))) throw new BadRequestError('Department does not exist');
+    await assertDepartmentOpen(data.departmentId, { transaction, what: 'new lecturers' });
     const email = await resolveSchoolEmail(data, transaction);
     const role = await Role.findOne({ where: { name: ROLES.LECTURER }, transaction });
 
@@ -158,7 +243,7 @@ const createAccount = async (data, actor) => {
 export const create = async (data, actor) => {
   if (!data.userId) return createAccount(data, actor);
   if (!(await User.findByPk(data.userId))) throw new BadRequestError('User does not exist');
-  if (!(await Department.findByPk(data.departmentId))) throw new BadRequestError('Department does not exist');
+  await assertDepartmentOpen(data.departmentId, { what: 'new lecturers' });
   await assertStaffNumberFree(data.staffNumber);
   const lecturer = await Lecturer.create(data);
   await audit.log({ userId: actor.id, action: 'lecturer.create', entityType: 'Lecturer', entityId: lecturer.id });
@@ -170,8 +255,8 @@ export const update = async (id, data, actor) => {
   if (!lecturer) throw new NotFoundError('Lecturer');
   const { firstName, lastName, ...fields } = data;
   await sequelize.transaction(async (transaction) => {
-    if (fields.departmentId && !(await Department.findByPk(fields.departmentId, { transaction }))) {
-      throw new BadRequestError('Department does not exist');
+    if (fields.departmentId && fields.departmentId !== lecturer.departmentId) {
+      await assertDepartmentOpen(fields.departmentId, { transaction, what: 'new lecturers' });
     }
     if (fields.staffNumber) await assertStaffNumberFree(fields.staffNumber, lecturer.id, transaction);
     await assertPersonalEmailFree(fields.personalEmail, lecturer.id, transaction);

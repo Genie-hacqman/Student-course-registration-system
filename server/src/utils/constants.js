@@ -39,6 +39,7 @@ export const PERMISSIONS = Object.freeze({
   STUDENT_ADMIT: 'student:admit',
   APPLICATION_SELF: 'application:self',
   APPLICATION_REVIEW: 'application:review',
+  DIRECTORY_VIEW: 'directory:view',
 });
 
 const P = PERMISSIONS;
@@ -54,11 +55,11 @@ export const ROLE_PERMISSIONS = Object.freeze({
   [ROLES.REGISTRAR]: [
     P.COURSE_CATALOG, P.LECTURER_ASSIGN, P.SEMESTER_MANAGE, P.SECTION_MANAGE,
     P.REGISTRATION_APPROVE, P.REGISTRATION_MANAGE, P.REGISTRATION_VIEW_ALL, P.PREREQ_OVERRIDE,
-    P.ROSTER_VIEW, P.GRADE_MANAGE, P.ATTENDANCE_RECORD, P.REPORT_VIEW, P.ANNOUNCEMENT_CREATE,
+    P.ROSTER_VIEW, P.GRADE_MANAGE, P.ATTENDANCE_RECORD, P.REPORT_VIEW, P.ANNOUNCEMENT_CREATE, P.DIRECTORY_VIEW,
   ],
   [ROLES.ADMIN]: [
     P.USER_MANAGE, P.STUDENT_ADMIT, P.APPLICATION_REVIEW, P.COURSE_MANAGE, P.REGISTRATION_VIEW_ALL,
-    P.REPORT_VIEW, P.AUDIT_VIEW, P.SETTINGS_MANAGE, P.ACCOUNT_APPROVE, P.ROLE_MANAGE, P.ANNOUNCEMENT_CREATE,
+    P.REPORT_VIEW, P.AUDIT_VIEW, P.SETTINGS_MANAGE, P.ACCOUNT_APPROVE, P.ROLE_MANAGE, P.ANNOUNCEMENT_CREATE, P.DIRECTORY_VIEW,
   ],
 });
 
@@ -75,6 +76,7 @@ export const PERMISSION_CATALOG = Object.freeze([
   { name: P.STUDENT_ADMIT, group: 'Registration', description: 'Admit students (create their Student ID, school email and PIN) and reset student PINs' },
   { name: P.APPLICATION_SELF, group: 'Admission', description: 'Fill in and submit an online admission application' },
   { name: P.APPLICATION_REVIEW, group: 'Admission', description: 'Review online applications: admit (creating the student record) or reject' },
+  { name: P.DIRECTORY_VIEW, group: 'Academic structure', description: 'Browse departments, programmes and lecturers, with their counts (read-only)' },
   { name: P.COURSE_MANAGE, group: 'Academic structure', description: 'Manage departments and programmes; view courses' },
   { name: P.COURSE_CATALOG, group: 'Academic structure', description: 'Create, import, edit and archive courses, their prerequisites and programme curricula' },
   { name: P.LECTURER_ASSIGN, group: 'Academic structure', description: 'Assign, change and remove the lecturer of a course offering' },
@@ -115,6 +117,8 @@ export const ANNOUNCEMENT_AUDIENCE = Object.freeze({
   EVERYONE: 'everyone',
 });
 
+/** Departments and programmes: `archived` = closed to new intake; existing records stay visible. */
+export const ORG_STATUS = Object.freeze({ ACTIVE: 'active', ARCHIVED: 'archived' });
 export const USER_STATUS = Object.freeze({ ACTIVE: 'active', SUSPENDED: 'suspended', PENDING: 'pending' });
 export const STUDENT_STATUS = Object.freeze({ ACTIVE: 'active', PROBATION: 'probation', SUSPENDED: 'suspended', GRADUATED: 'graduated' });
 export const COURSE_STATUS = Object.freeze({ ACTIVE: 'active', INACTIVE: 'inactive' });

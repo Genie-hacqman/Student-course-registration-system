@@ -3,7 +3,9 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
-import { Avatar, Badge, Button, Card, Input, PageHeader, QueryState, SearchInput, Select, Tabs } from '../../components/ui'
+import { useAuth } from '../../auth/AuthProvider'
+import { Avatar, Badge, Button, Card, Input, PageHeader, QueryState, SearchInput, Select, Tabs, cx } from '../../components/ui'
+import { can, PERMS } from '../../lib/roles'
 import DataTable, { stop } from '../../components/admin/DataTable'
 import FormModal from '../../components/admin/FormModal'
 import { fullName } from '../../lib/format'
@@ -65,11 +67,23 @@ export function LecturerFields({ register, errors, departments, creating }) {
   )
 }
 
-/** Admin: lecturer accounts (create, search, filter, activate/deactivate). */
+const chip = (active) => cx(
+  'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ring-1 transition',
+  active ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-200 hover:ring-brand-300',
+)
+
+/**
+ * Lecturers organised by department (home or additional), with search and status filters. Admins manage accounts
+ * (user:manage); registrars browse and assign lecturers to offerings from the profile.
+ */
 export default function Lecturers() {
+  const { user } = useAuth()
+  const canManage = can(user, PERMS.USER_MANAGE)
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const departments = useApi('/departments')
+  const summary = useApi('/departments/summary', { limit: 100 })
+  const departmentId = params.get('department') ?? ''
   const status = params.get('status') ?? ''
   const lecturers = useApi('/lecturers', {
     search: params.get('search') || undefined,
@@ -98,11 +112,20 @@ export default function Lecturers() {
       <PageHeader
         title="Lecturers"
         subtitle="Lecturer accounts and profiles. New lecturers get an emailed link to set their own password. The registry assigns them to courses."
-        action={<Button onClick={() => setCreating(true)}><Plus className="size-4" /> Add lecturer</Button>}
+        action={canManage && <Button onClick={() => setCreating(true)}><Plus className="size-4" /> Add lecturer</Button>}
       />
+      {/* By department: counts include each lecturer's home and additional departments. */}
+      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Lecturers by department">
+        <button type="button" className={chip(!departmentId)} onClick={() => set('department', '')}>All departments</button>
+        {summary.data?.items.map((d) => (
+          <button key={d.id} type="button" className={chip(String(d.id) === departmentId)} onClick={() => set('department', String(d.id))} title={d.name}>
+            {d.code} <span className="tabular-nums opacity-80">{d.counts.lecturers}</span>
+          </button>
+        ))}
+      </div>
       <Card className="mb-4 flex flex-wrap items-center gap-3 p-4">
-        <SearchInput defaultValue={params.get('search') ?? ''} onSearch={(v) => set('search', v)} placeholder="Name, email or staff ID" className="w-full sm:w-72" />
-        <Select value={params.get('department') ?? ''} onChange={(e) => set('department', e.target.value)} aria-label="Department" className="w-full sm:w-56">
+        <SearchInput key={params.get('search') ?? ''} defaultValue={params.get('search') ?? ''} onSearch={(v) => set('search', v)} placeholder="Name, email or staff ID" className="w-full sm:w-72" />
+        <Select value={departmentId} onChange={(e) => set('department', e.target.value)} aria-label="Department" className="w-full sm:w-56">
           <option value="">All departments</option>
           {departments.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </Select>
@@ -130,12 +153,19 @@ export default function Lecturers() {
                   ),
                 },
                 { key: 'staffNumber', header: 'Staff ID' },
-                { key: 'department', header: 'Department', render: (l) => l.department?.code },
+                {
+                  key: 'department', header: 'Departments', render: (l) => (
+                    <div className="flex flex-wrap gap-1">
+                      <span title={`Home department: ${l.department?.name ?? ''}`} className="font-medium">{l.department?.code}</span>
+                      {l.additionalDepartments?.map((d) => <Badge key={d.id} tone="slate">{d.code}</Badge>)}
+                    </div>
+                  ),
+                },
                 { key: 'specialization', header: 'Specialization', render: (l) => l.specialization || '—' },
                 { key: 'courses', header: 'Current offerings', render: (l) => Number(l.currentSections ?? 0) },
                 { key: 'status', header: 'Status', render: (l) => { const st = lecturerStatus(l); return <Badge tone={st.tone}>{st.label}</Badge> } },
                 {
-                  key: 'actions', header: '', className: 'text-right', render: (l) => (
+                  key: 'actions', header: '', className: 'text-right', render: (l) => canManage && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -165,7 +195,7 @@ export default function Lecturers() {
         }}
         submitLabel="Create and send activation link"
       >
-        {({ register, formState: { errors } }) => <LecturerFields register={register} errors={errors} departments={departments.data} creating />}
+        {({ register, formState: { errors } }) => <LecturerFields register={register} errors={errors} departments={departments.data?.filter((d) => d.status !== 'archived')} creating />}
       </FormModal>
     </div>
   )

@@ -1,13 +1,22 @@
 import { z } from 'zod';
 import { id, paginationQuery } from './common.validator.js';
 import { password } from './auth.validator.js';
-import { ROLES, USER_STATUS, STUDENT_STATUS } from '../utils/constants.js';
+import { ROLES, USER_STATUS, STUDENT_STATUS, ORG_STATUS, REGISTRATION_STATUS } from '../utils/constants.js';
+
+/** "true"/"false" in a query string, as a boolean (anything else is rejected). */
+const queryBoolean = z.enum(['true', 'false']).transform((v) => v === 'true');
 
 export const listUsersQuery = z.object({
   ...paginationQuery,
   search: z.string().trim().max(100).optional(),
-  role: z.enum(Object.values(ROLES)).optional(),
+  // One role, or several separated by commas (e.g. ADMIN,REGISTRAR); each must be a real role.
+  role: z.string().trim().max(100)
+    .transform((v) => v.split(',').map((r) => r.trim().toUpperCase()).filter(Boolean))
+    .pipe(z.array(z.enum(Object.values(ROLES))).min(1))
+    .optional(),
   status: z.enum(Object.values(USER_STATUS)).optional(),
+  departmentId: id.optional(),
+  programId: id.optional(),
 });
 
 // Exactly the four roles; anything else (including removed legacy names) is rejected.
@@ -55,10 +64,19 @@ export const updateStudentSchema = z
 export const listStudentsQuery = z.object({
   ...paginationQuery,
   search: z.string().trim().max(100).optional(),
+  departmentId: id.optional(),
   programId: id.optional(),
-  level: z.coerce.number().int().optional(),
+  level: z.coerce.number().int().min(100).max(900).optional(),
   status: z.enum(Object.values(STUDENT_STATUS)).optional(),
+  academicHold: queryBoolean.optional(),
+  // Registration status in one term (default: the current semester). `none` = not registered at all.
+  semesterId: id.optional(),
+  registrationStatus: z.enum(['none', ...Object.values(REGISTRATION_STATUS)]).optional(),
 });
+// The same list, scoped by the route to one department or programme.
+export const departmentStudentsQuery = listStudentsQuery.omit({ departmentId: true });
+export const programStudentsQuery = listStudentsQuery.omit({ departmentId: true, programId: true });
+export const studentSummaryQuery = z.object({ status: z.enum(Object.values(STUDENT_STATUS)).optional() });
 
 const staffNumber = z.string().trim().min(2).max(30);
 const optionalEmail = z.email().max(191).transform((v) => v.toLowerCase());
@@ -154,7 +172,24 @@ export const programCourseSchema = z.object({
 });
 export const programCourseParams = z.object({ id, courseId: id });
 
-export const listProgramsQuery = z.object({ departmentId: id.optional() });
+export const listProgramsQuery = z.object({
+  departmentId: id.optional(),
+  status: z.enum(Object.values(ORG_STATUS)).optional(),
+  search: z.string().trim().max(100).optional(),
+});
+export const listDepartmentsQuery = z.object({ status: z.enum(Object.values(ORG_STATUS)).optional() });
+export const departmentSummaryQuery = z.object({
+  ...paginationQuery,
+  search: z.string().trim().max(100).optional(),
+  status: z.enum(Object.values(ORG_STATUS)).optional(),
+});
+export const departmentLecturersQuery = z.object({
+  ...paginationQuery,
+  search: z.string().trim().max(100).optional(),
+  status: z.enum(Object.values(USER_STATUS)).optional(),
+});
+// A lecturer's additional departments (the home department is set on the profile itself).
+export const lecturerDepartmentsSchema = z.object({ departmentIds: z.array(id).max(20) });
 export const semesterFilterQuery = z.object({ semesterId: id.optional() });
 
 export const prerequisiteOverrideSchema = z.object({

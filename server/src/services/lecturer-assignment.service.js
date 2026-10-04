@@ -9,6 +9,7 @@ import { findConflicts } from './schedule.service.js';
 import * as notificationService from './notification.service.js';
 import * as settingService from './setting.service.js';
 import * as audit from './audit.service.js';
+import { belongsToDepartment } from './lecturer.service.js';
 
 /*
  * Lecturer assignment to course offerings (course_sections). The one way a section's lecturer is set,
@@ -54,8 +55,9 @@ const validateAssignment = async (section, lecturerId, transaction) => {
   const course = await Course.findByPk(section.courseId, { attributes: ['id', 'code', 'title', 'status', 'departmentId'], transaction });
   if (course.status !== COURSE_STATUS.ACTIVE) throw new BadRequestError(`${course.code} is archived; restore it before assigning a lecturer`);
 
+  // The restriction accepts the lecturer's home department or any of their additional departments.
   if (await settingService.get('teaching.restrictLecturerDepartment', { transaction })
-    && lecturer.departmentId !== course.departmentId) {
+    && !(await belongsToDepartment(lecturer, course.departmentId, transaction))) {
     const [have, need] = await Promise.all([
       Department.findByPk(lecturer.departmentId, { attributes: ['name'], transaction }),
       Department.findByPk(course.departmentId, { attributes: ['name'], transaction }),

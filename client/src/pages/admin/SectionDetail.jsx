@@ -34,6 +34,7 @@ export default function SectionDetail() {
   const { user } = useAuth()
   // Choosing the lecturer is the registry's (lecturer:assign); section managers without it leave it alone.
   const canAssign = can(user, PERMS.LECTURER_ASSIGN)
+  const canManage = can(user, PERMS.SECTION_MANAGE) // read-only for admins, who can look but not change offerings
   const { id } = useParams()
   const navigate = useNavigate()
   const section = useApi(`/sections/${id}`)
@@ -79,9 +80,9 @@ export default function SectionDetail() {
             <p className="mt-1 text-sm text-slate-500">{s.semester?.name}</p>
           </div>
           <div className="flex gap-2">
-            <Link to={`/staff/sections/${s.id}/class`}><Button variant="secondary"><Users className="size-4" /> Class list & grades</Button></Link>
-            <Button variant="secondary" className="text-red-600" onClick={() => setDeleting(true)}><Trash2 className="size-4" /> Delete</Button>
-            <Button variant="secondary" onClick={() => { setClash(null); setEditing(true) }}><Pencil className="size-4" /> Edit</Button>
+            {can(user, PERMS.ROSTER_VIEW) && <Link to={`/staff/sections/${s.id}/class`}><Button variant="secondary"><Users className="size-4" /> Class list & grades</Button></Link>}
+            {canManage && <Button variant="secondary" className="text-red-600" onClick={() => setDeleting(true)}><Trash2 className="size-4" /> Delete</Button>}
+            {canManage && <Button variant="secondary" onClick={() => { setClash(null); setEditing(true) }}><Pencil className="size-4" /> Edit</Button>}
           </div>
         </div>
         <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-5">
@@ -97,7 +98,7 @@ export default function SectionDetail() {
         <CardHeader
           title="Timetable"
           subtitle="Room and lecturer clashes with other sections this semester are checked when you save."
-          action={<Button size="sm" onClick={() => { setClash(null); setSlot({}) }}><Plus className="size-4" /> Add class time</Button>}
+          action={canManage && <Button size="sm" onClick={() => { setClash(null); setSlot({}) }}><Plus className="size-4" /> Add class time</Button>}
         />
         <DataTable
           rows={slots}
@@ -108,7 +109,7 @@ export default function SectionDetail() {
             { key: 'time', header: 'Time', render: (x) => `${formatTime(x.startTime)} – ${formatTime(x.endTime)}` },
             { key: 'room', header: 'Room', render: (x) => x.room || '—' },
             {
-              key: 'actions', header: '', className: 'text-right', render: (x) => (
+              key: 'actions', header: '', className: 'text-right', render: (x) => canManage && (
                 <div className="flex justify-end gap-1">
                   <Button size="sm" variant="ghost" aria-label="Edit class time" onClick={() => { setClash(null); setSlot(x) }}><Pencil className="size-4" /></Button>
                   <Button size="sm" variant="ghost" className="text-red-600" aria-label="Remove class time" onClick={() => setRemovingSlot(x)}><Trash2 className="size-4" /></Button>

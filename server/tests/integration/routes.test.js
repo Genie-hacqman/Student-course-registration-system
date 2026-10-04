@@ -211,6 +211,7 @@ describe('users', () => {
     assert.equal(self.status, 400);
 
     assert.equal((await api().get('/api/users').set(as(student))).status, 403);
+    assert.equal((await api().get('/api/users/role-responsibilities').set(as(admin))).status, 200);
     assert.equal((await api().get('/api/users')).status, 401);
   });
 });
@@ -228,6 +229,18 @@ describe('departments & programs', () => {
     assert.equal((await api().get(`/api/departments/${ids.phy}`).set(as(student))).body.data.name, 'Physics');
     const renamed = await api().patch(`/api/departments/${ids.phy}`).set(as(admin)).send({ name: 'Applied Physics' });
     assert.equal(renamed.body.data.name, 'Applied Physics');
+
+    // The directory: counts, drill-down, a lecturer's additional departments, archive and re-activate.
+    assert.equal((await api().get('/api/departments/summary').set(as(registrar))).status, 200);
+    assert.equal((await api().get(`/api/departments/${ids.cs}/overview`).set(as(registrar))).status, 200);
+    assert.equal((await api().get(`/api/departments/${ids.cs}/students`).set(as(registrar))).status, 200);
+    assert.equal((await api().get(`/api/departments/${ids.cs}/lecturers`).set(as(registrar))).status, 200);
+    assert.equal((await api().get('/api/students/summary').set(as(registrar))).status, 200);
+    const [{ id: lecturerId }] = await query("SELECT id FROM lecturers WHERE staff_number = 'STF1001'");
+    assert.equal((await api().put(`/api/lecturers/${lecturerId}/departments`).set(as(admin)).send({ departmentIds: [ids.phy] })).status, 200);
+    assert.equal((await api().put(`/api/lecturers/${lecturerId}/departments`).set(as(admin)).send({ departmentIds: [] })).status, 200);
+    assert.equal((await api().post(`/api/departments/${ids.phy}/archive`).set(as(admin))).status, 200);
+    assert.equal((await api().post(`/api/departments/${ids.phy}/activate`).set(as(admin))).status, 200);
 
     const inUse = await api().delete(`/api/departments/${ids.cs}`).set(as(admin));
     assert.equal(inUse.status, 409, 'departments with programs/courses cannot be deleted');
@@ -248,6 +261,9 @@ describe('departments & programs', () => {
     const patched = await api().patch(`/api/programs/${ids.phyProgram}`).set(as(admin)).send({ maxCredits: 20 });
     assert.equal(patched.body.data.maxCredits, 20);
     assert.equal(patched.body.data.durationYears, 4, 'partial update keeps other fields');
+    assert.equal((await api().get(`/api/programs/${ids.phyProgram}/students`).set(as(registrar))).status, 200);
+    assert.equal((await api().post(`/api/programs/${ids.phyProgram}/archive`).set(as(admin))).status, 200);
+    assert.equal((await api().post(`/api/programs/${ids.phyProgram}/activate`).set(as(admin))).status, 200);
 
     const math101 = await courseIdFor('MATH101');
     const added = await api().post(`/api/programs/${ids.phyProgram}/courses`).set(as(registrar)).send({ courseId: math101, type: 'core' });
