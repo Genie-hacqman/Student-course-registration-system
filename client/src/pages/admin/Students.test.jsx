@@ -51,6 +51,38 @@ describe('Students page', () => {
     await waitFor(() => expect(lastStudentsParams()).toMatchObject({ programId: '1', level: '200' }))
   })
 
+  it('puts the filters above the department panel', async () => {
+    renderWithProviders(<Students />)
+    const panel = (await screen.findByText('Students by department')).closest('div[class*="rounded"]')
+    const search = screen.getByPlaceholderText(/name, student id or email/i)
+    expect(search.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(panel.compareDocumentPosition(await screen.findByRole('table')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows a row for each programme of the chosen department, with its name and student count', async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<Students />)
+    await user.click(await screen.findByRole('button', { name: /CS.*Computer Science/ }))
+    const programmes = await screen.findByRole('list', { name: 'Programmes' })
+    expect(within(programmes).getByText('BSc Computer Science')).toBeInTheDocument()
+    expect(within(programmes).getByText('3 students')).toBeInTheDocument()
+    expect(within(programmes).getByText('L100: 1 · L200: 2')).toBeInTheDocument()
+    expect(screen.getByText('3 students · 1 programme assigned')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /open department page/i })).toHaveAttribute('href', '/staff/departments/1')
+
+    await user.click(screen.getByRole('button', { name: /clear selection/i }))
+    await waitFor(() => expect(screen.queryByRole('list', { name: 'Programmes' })).not.toBeInTheDocument())
+  })
+
+  it('hides the department page link from someone without directory:view', async () => {
+    const user = userEvent.setup()
+    auth.user = { ...REGISTRAR, permissions: REGISTRAR.permissions.filter((p) => p !== 'directory:view') }
+    renderWithProviders(<Students />)
+    await user.click(await screen.findByRole('button', { name: /CS.*Computer Science/ }))
+    await screen.findByRole('list', { name: 'Programmes' })
+    expect(screen.queryByRole('link', { name: /open department page/i })).not.toBeInTheDocument()
+  })
+
   it('filters by registration status for the selected term', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Students />)

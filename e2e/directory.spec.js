@@ -26,6 +26,7 @@ test('admin: Students page drills down by department, programme and level', asyn
   await signIn(page, ...ACCOUNTS.admin)
   await page.goto('/staff/students')
   await page.getByRole('button', { name: /CS.*Computer Science/ }).click()
+  await expect(page.getByRole('list', { name: 'Programmes' }).getByText('BSc Computer Science')).toBeVisible()
   await page.getByRole('button', { name: /BSC-CS/ }).click()
   await page.getByRole('button', { name: /Level 200/ }).click()
   await expect(page).toHaveURL(/department=\d+.*program=\d+.*level=200/)
