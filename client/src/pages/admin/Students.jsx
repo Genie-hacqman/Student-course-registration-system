@@ -159,8 +159,6 @@ export default function Students() {
         action={admitted && <Link to={`/staff/students/${admitted.student.id}`}><Button variant="secondary">View student</Button></Link>}
       />
 
-      <DepartmentOverview departmentId={f.departmentId} programId={f.programId} level={f.level} onSelect={drillDown} />
-
       <Card className="mb-4 space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <SearchInput key={f.search} defaultValue={f.search} onSearch={(v) => update({ search: v })} placeholder="Name, Student ID or email" className="w-full sm:w-72" />
@@ -196,6 +194,8 @@ export default function Students() {
         </div>
         <p className="text-xs text-slate-500">Registration status is for the selected term.</p>
       </Card>
+
+      <DepartmentOverview departmentId={f.departmentId} programId={f.programId} level={f.level} onSelect={drillDown} />
 
       <Card>
         <StudentTable
