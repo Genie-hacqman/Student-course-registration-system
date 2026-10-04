@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
+import { m } from 'motion/react'
 import { ArrowUpRight } from 'lucide-react'
 import { Card, Skeleton, cx } from '../ui'
 import { useCountUp } from '../../lib/motion'
+import { SOFT_SPRING } from '../../lib/motionPresets'
 
 const ICON_TONE = {
   brand: 'bg-brand-50 text-brand-700',
@@ -24,10 +26,7 @@ function Value({ value, decimals, suffix }) {
  */
 export function StatCard({ label, value, hint, icon: Icon, tone = 'brand', to, decimals, suffix, className, index = 0 }) {
   const body = (
-    <Card
-      className={cx('stagger flex h-full animate-fade-up items-start gap-4 p-5', to && 'transition hover:shadow-md hover:ring-brand-300', className)}
-      style={{ '--i': index }}
-    >
+    <Card className={cx('flex h-full items-start gap-4 p-5', to && 'transition-shadow hover:shadow-md hover:ring-brand-300', className)}>
       {Icon && (
         <span className={cx('flex size-10 shrink-0 items-center justify-center rounded-lg', ICON_TONE[tone])}>
           <Icon className="size-5" aria-hidden />
@@ -43,7 +42,18 @@ export function StatCard({ label, value, hint, icon: Icon, tone = 'brand', to, d
       {to && <ArrowUpRight className="size-4 shrink-0 text-slate-400" aria-hidden />}
     </Card>
   )
-  return to ? <Link to={to} className="block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">{body}</Link> : body
+  // Cards cascade in on a spring (each a beat after the last), and linked ones lift a little on hover.
+  return (
+    <m.div
+      className="h-full"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...SOFT_SPRING, delay: index * 0.07 }}
+      whileHover={to ? { y: -3 } : undefined}
+    >
+      {to ? <Link to={to} className="block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">{body}</Link> : body}
+    </m.div>
+  )
 }
 
 export function StatGrid({ children, className }) {

@@ -9,7 +9,7 @@ import { photoEditable } from '../models/AdmissionApplication.js';
 import { normalizeOfficialPhoto, squareDataUrl, squareJpeg } from '../utils/image.js';
 import * as storage from './storage.service.js';
 import { AppError, BadRequestError, ConflictError, NotFoundError, TooManyAttemptsError } from '../utils/errors.js';
-import { APPLICATION_STATUS, ROLES, USER_STATUS } from '../utils/constants.js';
+import { APPLICATION_STATUS, ORG_STATUS, ROLES, USER_STATUS } from '../utils/constants.js';
 import { hashPassword, UNUSABLE_PASSWORD_HASH } from '../utils/password.js';
 import { generateOpaqueToken, hashToken } from '../utils/jwt.js';
 import { pinProblem } from '../utils/pin.js';
@@ -22,6 +22,7 @@ import * as emailService from './email.service.js';
 import * as templates from './email/templates.js';
 import { sendTemplate, tokenKey } from './mail.service.js';
 import * as settingService from './setting.service.js';
+import { isOpen } from './org-status.service.js';
 import * as audit from './audit.service.js';
 
 /*
@@ -66,8 +67,13 @@ const maxLevelFor = (program) => program.durationYears * 100;
  */
 const checkChoice = async ({ departmentId, programId, entryLevel }, transaction) => {
   if (!programId) return null;
-  const program = await Program.findByPk(programId, { transaction });
+  const program = await Program.findByPk(programId, {
+    include: [{ model: Department, as: 'department', attributes: ['id', 'name', 'status'] }],
+    transaction,
+  });
   if (!program) throw new BadRequestError('Choose one of the listed programmes');
+  // Archived programmes (or departments) are closed to new applications and admissions.
+  if (!isOpen(program)) throw new ConflictError(`${program.name} is no longer accepting applications. Choose another programme.`);
   if (departmentId && departmentId !== program.departmentId) {
     throw new BadRequestError(`${program.name} is not offered by the chosen department`);
   }
@@ -131,9 +137,14 @@ export const signUp = async ({ firstName, lastName, email, password }, req) => {
 
 /** Departments with their programmes, for the application form. */
 export const options = async () => {
+  // Only open departments and programmes are offered to applicants.
   const departments = await Department.findAll({
+    where: { status: ORG_STATUS.ACTIVE },
     attributes: ['id', 'name', 'code'],
-    include: [{ model: Program, as: 'programs', attributes: ['id', 'name', 'code', 'durationYears', 'qualificationCode'] }],
+    include: [{
+      model: Program, as: 'programs', required: false, where: { status: ORG_STATUS.ACTIVE },
+      attributes: ['id', 'name', 'code', 'durationYears', 'qualificationCode'],
+    }],
     order: [['name', 'ASC'], [{ model: Program, as: 'programs' }, 'name', 'ASC']],
   });
   return departments.map((d) => ({
@@ -154,11 +165,11 @@ export const getMine = async (userId) => {
 /** Creates or updates the applicant's draft. Only a draft can change; submitted ones are with the admissions office. */
 export const saveDraft = async (userId, data, req) => {
   await sequelize.transaction(async (transaction) => {
-    const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
+    // Application row first, user row never locked: the same order as submit (see lockOwnApplication).
+    let application = await AdmissionApplication.findOne({ where: { userId }, transaction, lock: transaction.LOCK.UPDATE });
     if (await Student.findOne({ where: { userId }, attributes: ['id'], transaction })) {
       throw new ConflictError('You are already admitted; there is no application to fill in');
     }
-    let application = await AdmissionApplication.findOne({ where: { userId }, transaction, lock: transaction.LOCK.UPDATE });
     if (application && application.status !== DRAFT) {
       throw new ConflictError(`Your application has been ${application.status} and can no longer be changed`);
     }
@@ -170,9 +181,15 @@ export const saveDraft = async (userId, data, req) => {
     if (application) {
       await application.update(fields, { transaction });
     } else {
-      application = await AdmissionApplication.create({
-        firstName: user.firstName, lastName: user.lastName, ...fields, userId, personalEmail: user.email,
-      }, { transaction });
+      const user = await User.findByPk(userId, { attributes: ['firstName', 'lastName', 'email'], transaction });
+      try {
+        application = await AdmissionApplication.create({
+          firstName: user.firstName, lastName: user.lastName, ...fields, userId, personalEmail: user.email,
+        }, { transaction });
+      } catch (err) {
+        if (err instanceof UniqueConstraintError) throw new ConflictError('Your application is being saved elsewhere. Please try again.');
+        throw err;
+      }
     }
     await audit.log({ userId, action: 'application.save', entityType: 'AdmissionApplication', entityId: application.id, req, transaction });
   });
@@ -197,15 +214,27 @@ const photoKeyFor = (application) =>
   `applications/${new Date().getUTCFullYear()}/${application.id}/official-photo/${crypto.randomUUID()}.jpg`;
 
 /** The caller's application row, locked for update; a draft is created if they haven't saved anything yet. */
+/*
+ * Lock order matters: take the APPLICATION row first (the same row `submit` locks) and never hold the user row.
+ * `submit` writes an audit entry that references the user, which needs a shared lock on the user row; an upload
+ * holding that row while waiting for the application deadlocked against a concurrent submit (ER_LOCK_DEADLOCK).
+ */
 const lockOwnApplication = async (userId, transaction) => {
-  const user = await User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
+  const found = await AdmissionApplication.findOne({ where: { userId }, transaction, lock: transaction.LOCK.UPDATE });
+  if (found) return found;
   if (await Student.findOne({ where: { userId }, attributes: ['id'], transaction })) {
     throw new ConflictError('You are already admitted; there is no application to fill in');
   }
-  const found = await AdmissionApplication.findOne({ where: { userId }, transaction, lock: transaction.LOCK.UPDATE });
-  return found ?? AdmissionApplication.create({
-    firstName: user.firstName, lastName: user.lastName, userId, personalEmail: user.email,
-  }, { transaction });
+  const user = await User.findByPk(userId, { attributes: ['firstName', 'lastName', 'email'], transaction });
+  try {
+    return await AdmissionApplication.create({
+      firstName: user.firstName, lastName: user.lastName, userId, personalEmail: user.email,
+    }, { transaction });
+  } catch (err) {
+    // Two first-ever saves at once (e.g. two tabs): the unique user_id lets one win; the other can simply retry.
+    if (err instanceof UniqueConstraintError) throw new ConflictError('Your application is being saved elsewhere. Please try again.');
+    throw err;
+  }
 };
 
 const discard = (key) => storage.remove(key).catch((err) => logger.warn(`Could not delete stored photo ${key}: ${err.message}`));

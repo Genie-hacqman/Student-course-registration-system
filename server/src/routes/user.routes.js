@@ -15,6 +15,8 @@ const router = Router();
 router.use(authenticate, requirePermission(PERMISSIONS.USER_MANAGE));
 
 router.get('/', validate({ query: listUsersQuery }), ctrl.list);
+// What administrators and registrars are allowed to do, in plain language (Administrators & Registrars page).
+router.get('/role-responsibilities', ctrl.roleResponsibilities);
 router.post('/', validate({ body: createUserSchema }), ctrl.create);
 router.get('/:id', validate({ params: idParam }), ctrl.getById);
 router.patch('/:id', validate({ params: idParam, body: updateUserSchema }), ctrl.update);

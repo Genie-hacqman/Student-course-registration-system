@@ -151,20 +151,22 @@ describe('submit locks the photo', () => {
     await query("UPDATE admission_applications SET status = 'submitted' WHERE id = :id", { id: application.id });
   });
 
-  test('an upload racing the submit can never land after the lock', async () => {
-    const applicant = await createApplicant(113);
-    await uploadApplicationPhoto(applicant);
-    await fillIn(applicant);
-    const [replace, submitted] = await Promise.all([
-      uploadApplicationPhoto(applicant, await makePhoto({ r: 9, g: 99, b: 199 })),
-      submit(applicant),
-    ]);
-    assert.equal(submitted.status, 200);
-    assert.ok([200, 409].includes(replace.status));
-    const stored = await row(await userIdOf(applicant));
-    assert.ok(stored.photo_locked_at);
-    assert.ok(new Date(stored.photo_uploaded_at) <= new Date(stored.photo_locked_at), 'the photo was stored at or before the lock');
-    assert.equal(sha(await storage.get(stored.photo_key)), stored.photo_sha256);
+  test('an upload racing the submit can never land after the lock, and never deadlocks', async () => {
+    // Repeated, because the bad interleavings are timing-dependent: a lock-order mistake here once deadlocked
+    // (upload held the user row while submit's audit insert needed it), failing one request with a 500.
+    const replacement = await makePhoto({ r: 9, g: 99, b: 199 });
+    for (let round = 0; round < 8; round += 1) {
+      const applicant = await createApplicant(160 + round);
+      await uploadApplicationPhoto(applicant);
+      await fillIn(applicant);
+      const [replace, submitted] = await Promise.all([uploadApplicationPhoto(applicant, replacement), submit(applicant)]);
+      assert.equal(submitted.status, 200, `round ${round}: submit ${JSON.stringify(submitted.body)}`);
+      assert.ok([200, 409].includes(replace.status), `round ${round}: replace answered ${replace.status} ${JSON.stringify(replace.body)}`);
+      const stored = await row(await userIdOf(applicant));
+      assert.ok(stored.photo_locked_at);
+      assert.ok(new Date(stored.photo_uploaded_at) <= new Date(stored.photo_locked_at), 'the photo was stored at or before the lock');
+      assert.equal(sha(await storage.get(stored.photo_key)), stored.photo_sha256);
+    }
   });
 });
 

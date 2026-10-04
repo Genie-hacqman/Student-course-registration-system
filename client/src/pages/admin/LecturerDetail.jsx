@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, MailPlus, Pencil, Power } from 'lucide-react'
+import { ArrowLeft, Building2, CalendarDays, MailPlus, Pencil, Plus, Power, UserPlus } from 'lucide-react'
+import { z } from 'zod'
 import { http, useApi, useApiMutation } from '../../api/admin'
-import { Avatar, Badge, Button, Card, CardHeader, ErrorState, Loading } from '../../components/ui'
+import { useAuth } from '../../auth/AuthProvider'
+import { Avatar, Badge, Button, Card, CardHeader, EmptyState, ErrorState, Loading, Modal } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
-import FormModal from '../../components/admin/FormModal'
+import FormModal, { Checkbox } from '../../components/admin/FormModal'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
-import { formatDate, fullName } from '../../lib/format'
+import { DAY_NAMES, DAY_ORDER, formatDate, formatTime, fullName } from '../../lib/format'
+import { can, PERMS } from '../../lib/roles'
 import { LecturerFields, lecturerSchema, lecturerStatus } from './Lecturers'
 
 // Editing uses the same fields minus the school email (the account's sign-in address).
@@ -21,13 +24,110 @@ function Field({ label, children }) {
   )
 }
 
-/** Admin: one lecturer's profile, account status and the course offerings they teach or taught. */
+/** Their timetable this term: every class time of the offerings they currently teach. */
+function TeachingSchedule({ sections }) {
+  const slots = sections
+    .flatMap((section) => (section.schedules ?? []).map((s) => ({ ...s, course: section.course, sectionCode: section.sectionCode })))
+    .sort((x, y) => DAY_ORDER.indexOf(x.day) - DAY_ORDER.indexOf(y.day) || x.startTime.localeCompare(y.startTime))
+  return (
+    <Card>
+      <CardHeader
+        title="Teaching schedule"
+        subtitle={sections.length ? `${sections.length} ${sections.length === 1 ? 'offering' : 'offerings'} this term: ${sections.map((s) => s.course?.code).join(', ')}` : 'Class times this term.'}
+        icon={CalendarDays}
+      />
+      <DataTable
+        rows={slots}
+        empty={sections.length ? 'No class times set yet' : 'Not teaching anything this term'}
+        emptyHint={sections.length ? 'Class times appear here once their offerings have a timetable.' : undefined}
+        columns={[
+          { key: 'day', header: 'Day', render: (s) => <span className="font-medium">{DAY_NAMES[s.day]}</span> },
+          { key: 'time', header: 'Time', render: (s) => `${formatTime(s.startTime)} – ${formatTime(s.endTime)}` },
+          { key: 'course', header: 'Course', render: (s) => `${s.course?.code} · Section ${s.sectionCode}` },
+          { key: 'room', header: 'Room', render: (s) => s.room || '—' },
+        ]}
+      />
+    </Card>
+  )
+}
+
+const departmentsSchema = z.object({ departmentIds: z.array(z.coerce.number().int().positive()) })
+
+/** Additional departments (joint appointments). The home department is changed through Edit. */
+function ManageDepartments({ open, onClose, lecturer, departments }) {
+  const save = useApiMutation((departmentIds) => http.put(`/lecturers/${lecturer.id}/departments`, { departmentIds }), { success: 'Departments updated' })
+  const current = lecturer.additionalDepartments?.map((d) => d.id) ?? []
+  // Open departments, plus any archived one they already belong to (archived ones take no new members).
+  const choices = (departments ?? []).filter((d) => d.id !== lecturer.departmentId && (d.status !== 'archived' || current.includes(d.id)))
+  return (
+    <FormModal
+      open={open}
+      onClose={onClose}
+      title="Additional departments"
+      schema={departmentsSchema}
+      defaultValues={{ departmentIds: current.map(String) }}
+      onSubmit={(v) => save.mutateAsync(v.departmentIds.map(Number))}
+      submitLabel="Save departments"
+    >
+      {({ register }) => (
+        <>
+          <p className="text-sm text-slate-600">Home department: <span className="font-medium">{lecturer.department?.name}</span>. Choose any other departments they also teach for.</p>
+          {choices.length === 0 ? <p className="text-sm text-slate-500">There are no other open departments.</p> : (
+            <div className="space-y-2">
+              {choices.map((d) => <Checkbox key={d.id} value={String(d.id)} label={`${d.name} (${d.code})${d.status === 'archived' ? ' · archived' : ''}`} {...register('departmentIds')} />)}
+            </div>
+          )}
+        </>
+      )}
+    </FormModal>
+  )
+}
+
+/** Assign this lecturer to an open offering this term, in one of their departments, that has no lecturer yet. */
+function AssignToOffering({ open, onClose, lecturer }) {
+  const current = useApi(open ? '/semesters/current' : null)
+  const sections = useApi(open && current.data ? '/sections' : null, { semesterId: current.data?.id, unassigned: true, limit: 100 })
+  const assign = useApiMutation((sectionId) => http.put(`/sections/${sectionId}/lecturer`, { lecturerId: lecturer.id }), {
+    success: (r) => `Assigned to ${r?.section?.course?.code ?? 'the offering'}`,
+  })
+  const mine = new Set([lecturer.departmentId, ...(lecturer.additionalDepartments ?? []).map((d) => d.id)])
+  const rows = (sections.data?.items ?? []).filter((s) => s.status !== 'cancelled' && mine.has(s.course?.departmentId))
+  return (
+    <Modal open={open} onClose={onClose} wide title="Assign to a course offering" description={current.data ? `${current.data.name}: open offerings in their departments without a lecturer` : undefined}>
+      {current.isPending || sections.isPending ? <Loading /> : !current.data ? <EmptyState title="There is no current semester" /> : (
+        <DataTable
+          rows={rows}
+          empty="Nothing to assign"
+          emptyHint="Every offering in their departments this term already has a lecturer."
+          columns={[
+            { key: 'course', header: 'Course', render: (s) => <div className="leading-tight"><p className="font-medium">{s.course?.code} · Section {s.sectionCode}</p><p className="text-xs text-slate-500">{s.course?.title}</p></div> },
+            { key: 'seats', header: 'Enrolled', render: (s) => `${s.seatsTaken} / ${s.capacity}` },
+            {
+              key: 'action', header: '', className: 'text-right', render: (s) => (
+                <Button size="sm" loading={assign.isPending && assign.variables === s.id} onClick={() => assign.mutate(s.id, { onSuccess: onClose })}>
+                  <Plus className="size-4" /> Assign
+                </Button>
+              ),
+            },
+          ]}
+        />
+      )}
+    </Modal>
+  )
+}
+
+/** One lecturer's profile: departments, account status, this term's timetable and their course assignments. */
 export default function LecturerDetail() {
   const { id } = useParams()
+  const { user } = useAuth()
+  const canManage = can(user, PERMS.USER_MANAGE)
+  const canAssign = can(user, PERMS.LECTURER_ASSIGN)
   const lecturer = useApi(`/lecturers/${id}`)
   const departments = useApi('/departments')
   const [editing, setEditing] = useState(false)
   const [toggling, setToggling] = useState(false)
+  const [managingDepartments, setManagingDepartments] = useState(false)
+  const [assigning, setAssigning] = useState(false)
   const save = useApiMutation((body) => http.patch(`/lecturers/${id}`, body), { success: 'Lecturer updated' })
   const setActive = useApiMutation((active) => http.post(`/lecturers/${id}/${active ? 'activate' : 'deactivate'}`), {
     success: (_d, active) => (active ? 'Lecturer activated' : 'Lecturer deactivated — their sessions have ended'),
@@ -58,28 +158,47 @@ export default function LecturerDetail() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {active && Number(l.invitePending) === 1 && (
+            {canAssign && active && <Button onClick={() => setAssigning(true)}><UserPlus className="size-4" /> Assign to offering</Button>}
+            {canManage && active && Number(l.invitePending) === 1 && (
               <Button variant="secondary" loading={invite.isPending} onClick={() => invite.mutate()}><MailPlus className="size-4" /> Resend activation</Button>
             )}
-            <Button variant="secondary" onClick={() => setToggling(true)}><Power className="size-4" /> {active ? 'Deactivate' : 'Activate'}</Button>
-            <Button variant="secondary" onClick={() => setEditing(true)}><Pencil className="size-4" /> Edit</Button>
+            {canManage && <Button variant="secondary" onClick={() => setToggling(true)}><Power className="size-4" /> {active ? 'Deactivate' : 'Activate'}</Button>}
+            {canManage && <Button variant="secondary" onClick={() => setEditing(true)}><Pencil className="size-4" /> Edit</Button>}
           </div>
         </div>
         <dl className="mt-6 grid gap-5 sm:grid-cols-3">
           <Field label="School email">{l.user?.email}</Field>
           <Field label="Personal email">{l.personalEmail}</Field>
           <Field label="Phone">{l.phone}</Field>
-          <Field label="Department">{l.department?.name}</Field>
+          <Field label="Home department"><Link to={`/staff/departments/${l.department?.id}`} className="hover:text-brand-700">{l.department?.name}</Link></Field>
           <Field label="Specialization">{l.specialization}</Field>
           <Field label="Current offerings">{String(Number(l.currentSections ?? 0))}</Field>
         </dl>
       </Card>
 
       <Card>
-        <CardHeader title="Course assignments" subtitle="Assigned by the registry. Current assignments first." />
+        <CardHeader
+          title="Departments"
+          subtitle="Their home department, and any others they also teach for."
+          icon={Building2}
+          action={canManage && <Button size="sm" variant="secondary" onClick={() => setManagingDepartments(true)}><Pencil className="size-4" /> Manage</Button>}
+        />
+        <div className="flex flex-wrap gap-2 px-5 py-4">
+          <Link to={`/staff/departments/${l.department?.id}`}><Badge tone="blue">{l.department?.name} · home</Badge></Link>
+          {l.additionalDepartments?.map((d) => <Link key={d.id} to={`/staff/departments/${d.id}`}><Badge tone="slate">{d.name}{d.status === 'archived' ? ' (archived)' : ''}</Badge></Link>)}
+          {!l.additionalDepartments?.length && <span className="text-sm text-slate-500">No additional departments.</span>}
+        </div>
+      </Card>
+
+      <TeachingSchedule sections={l.currentTeaching ?? []} />
+
+      <Card>
+        <CardHeader title="Assignment history" subtitle="Assignments made by the registry, current first." />
         <DataTable
           rows={assignments}
-          empty="Not assigned to any course yet"
+          empty={l.currentTeaching?.length
+            ? 'No assignments recorded by the registry. Their current offerings were set up directly, for example by an import.'
+            : 'Not assigned to any course yet'}
           columns={[
             {
               key: 'course', header: 'Course', render: (a) => (
@@ -109,8 +228,12 @@ export default function LecturerDetail() {
         }}
         onSubmit={(v) => save.mutateAsync({ ...v, personalEmail: v.personalEmail ?? null, phone: v.phone ?? null })}
       >
-        {({ register, formState: { errors } }) => <LecturerFields register={register} errors={errors} departments={departments.data} />}
+        {({ register, formState: { errors } }) => (
+          <LecturerFields register={register} errors={errors} departments={departments.data?.filter((d) => d.status !== 'archived' || d.id === l.departmentId)} />
+        )}
       </FormModal>
+      {canManage && <ManageDepartments open={managingDepartments} onClose={() => setManagingDepartments(false)} lecturer={l} departments={departments.data} />}
+      {canAssign && <AssignToOffering open={assigning} onClose={() => setAssigning(false)} lecturer={l} />}
 
       <ConfirmDialog
         open={toggling}

@@ -39,11 +39,13 @@ export const studentRoleId = async (ctx, transaction) => {
   return ctx.roleId;
 };
 
+import { assertProgramOpen } from './org-status.service.js';
 export const findProgram = async ({ programId, programCode }, transaction) => {
   const program = programId
     ? await Program.findByPk(programId, { transaction })
     : await Program.findOne({ where: { code: programCode }, transaction });
   if (!program) throw new BadRequestError(`Unknown programme ${programCode ?? programId}`);
+  await assertProgramOpen(program.id, { transaction, what: 'new admissions' });
   return program;
 };
 

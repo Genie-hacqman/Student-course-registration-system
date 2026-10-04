@@ -1,7 +1,9 @@
 import { forwardRef, useEffect, useId, useRef, useState } from 'react'
 import {
-  AlertCircle, AlertTriangle, CheckCircle2, CircleDashed, Clock, Inbox, Info, Loader2, MinusCircle, Search, X, XCircle,
+  AlertCircle, AlertTriangle, CheckCircle2, CircleDashed, Clock, GraduationCap, Inbox, Info, Loader2, MinusCircle, Search, X, XCircle,
 } from 'lucide-react'
+import { AnimatePresence, m } from 'motion/react'
+import { EASE_OUT, SPRING } from '../lib/motionPresets'
 
 const cx = (...c) => c.filter(Boolean).join(' ')
 
@@ -170,11 +172,50 @@ export function Spinner({ className }) {
   return <Loader2 className={cx('size-5 animate-spin text-brand-600', className)} />
 }
 
+/**
+ * The branded loader shown while the app starts or restores a session (every reload). It fades in after a short
+ * delay, so a fast load never flashes it; then the logo springs in inside a pulsing ring and the wordmark rises.
+ */
 export function FullPageSpinner() {
   return (
-    <div className="flex h-full items-center justify-center">
-      <Spinner className="size-8" />
-    </div>
+    <m.div
+      role="status"
+      aria-label="Loading UniReg"
+      className="flex h-full min-h-screen flex-col items-center justify-center gap-5 bg-linear-to-b from-slate-50 to-brand-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 0.12, duration: 0.3 }}
+    >
+      <div className="relative flex size-20 items-center justify-center">
+        {[0, 0.6].map((delay) => (
+          <m.span
+            key={delay}
+            aria-hidden="true"
+            className="absolute inset-0 rounded-3xl bg-brand-500/25"
+            initial={{ scale: 0.8, opacity: 0.7 }}
+            animate={{ scale: 1.7, opacity: 0 }}
+            transition={{ duration: 1.6, delay, repeat: Infinity, ease: 'easeOut' }}
+          />
+        ))}
+        <m.span
+          className="relative flex size-16 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30"
+          initial={{ scale: 0.5, rotate: -12, opacity: 0 }}
+          animate={{ scale: 1, rotate: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.15 }}
+        >
+          <GraduationCap className="size-8" aria-hidden="true" />
+        </m.span>
+      </div>
+      <m.div
+        className="text-center"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.4, ease: EASE_OUT }}
+      >
+        <p className="text-lg font-semibold tracking-tight text-slate-900">UniReg</p>
+        <p className="text-sm text-slate-500">Getting things ready…</p>
+      </m.div>
+    </m.div>
   )
 }
 
@@ -262,35 +303,53 @@ export function useFocusTrap(ref, active, onEscape) {
   }, [active, ref])
 }
 
+/** A dialog that animates in on a spring and back out on close (bottom sheet on phones, centred on larger screens). */
 export function Modal({ open, onClose, title, children, footer, wide, description }) {
   const ref = useRef(null)
   const titleId = useId()
   useFocusTrap(ref, open, onClose)
-  if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 animate-fade-in bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className={cx('relative flex max-h-[92vh] w-full animate-modal-in flex-col rounded-t-2xl bg-white shadow-xl outline-none sm:max-h-[90vh] sm:rounded-2xl', wide ? 'sm:max-w-2xl' : 'sm:max-w-md')}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
-          <div>
-            <h3 id={titleId} className="font-semibold tracking-tight">{title}</h3>
-            {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
-          </div>
-          <button onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600" aria-label="Close">
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-3">{footer}</div>}
-      </div>
-    </div>
+    <AnimatePresence>
+      {open && (
+        <m.div
+          key="modal"
+          className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 1, transition: { duration: 0.2 } }}
+        >
+          <m.div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { duration: 0.18 } }}
+            exit={{ opacity: 0, transition: { duration: 0.18 } }}
+          />
+          <m.div
+            ref={ref}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            className={cx('relative flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white shadow-xl outline-none sm:max-h-[90vh] sm:rounded-2xl', wide ? 'sm:max-w-2xl' : 'sm:max-w-md')}
+            initial={{ opacity: 0, y: 32, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1, transition: SPRING }}
+            exit={{ opacity: 0, y: 20, scale: 0.98, transition: { duration: 0.16, ease: 'easeIn' } }}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+              <div>
+                <h3 id={titleId} className="font-semibold tracking-tight">{title}</h3>
+                {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
+              </div>
+              <button onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600" aria-label="Close">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4">{children}</div>
+            {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-3">{footer}</div>}
+          </m.div>
+        </m.div>
+      )}
+    </AnimatePresence>
   )
 }
 

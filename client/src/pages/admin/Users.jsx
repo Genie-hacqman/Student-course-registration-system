@@ -38,8 +38,9 @@ const createSchema = z.object({
 /** Creates the account, then the student or lecturer profile that the role needs. */
 function CreateUser({ open, onClose }) {
   const navigate = useNavigate()
-  const programs = useApi(open ? '/programs' : null)
-  const departments = useApi(open ? '/departments' : null)
+  // New records go into open departments and programmes only (archived ones are closed to intake).
+  const programs = useApi(open ? '/programs' : null, { status: 'active' })
+  const departments = useApi(open ? '/departments' : null, { status: 'active' })
   const create = useApiMutation(async (v) => {
     const user = await http.post('/users', {
       firstName: v.firstName, lastName: v.lastName, email: v.email, role: v.role, ...(v.password ? { password: v.password } : {}),
@@ -120,10 +121,15 @@ export default function Users() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [creating, setCreating] = useState(false)
+  const departmentId = params.get('department') ?? ''
+  const departments = useApi('/departments')
+  const programs = useApi('/programs', departmentId ? { departmentId } : undefined)
   const users = useApi('/users', {
     search: params.get('search') || undefined,
     role: params.get('role') || undefined,
     status: params.get('status') || undefined,
+    departmentId: departmentId || undefined,
+    programId: params.get('program') || undefined,
     page: Number(params.get('page') ?? 1),
     limit: 20,
     sort: 'lastName',
@@ -136,13 +142,13 @@ export default function Users() {
     if (key !== 'page') next.delete('page')
     setParams(next, { replace: true })
   }
-  const hasFilters = params.get('search') || params.get('role') || params.get('status')
+  const hasFilters = params.get('search') || params.get('role') || params.get('status') || departmentId || params.get('program')
 
   return (
     <div>
       <PageHeader
-        title="Users"
-        subtitle="Accounts for students, lecturers and staff. Accounts are suspended, never deleted, so records stay intact."
+        title="All Users"
+        subtitle="Every account in one place. Students, Lecturers and Administrators & Registrars each have their own page too. Accounts are suspended, never deleted."
         action={<Button onClick={() => setCreating(true)}><Plus className="size-4" /> New user</Button>}
       />
       <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
@@ -164,6 +170,14 @@ export default function Users() {
           <option value="suspended">Suspended</option>
           <option value="pending">Pending</option>
         </Select>
+        <Select value={departmentId} onChange={(e) => { const next = new URLSearchParams(params); if (e.target.value) next.set('department', e.target.value); else next.delete('department'); next.delete('program'); next.delete('page'); setParams(next, { replace: true }) }} aria-label="Department" className="w-full sm:w-52">
+          <option value="">All departments</option>
+          {departments.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </Select>
+        <Select value={params.get('program') ?? ''} onChange={(e) => set('program', e.target.value)} aria-label="Programme" className="w-full sm:w-52">
+          <option value="">All programmes</option>
+          {programs.data?.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
+        </Select>
         {hasFilters && <Button variant="ghost" size="sm" onClick={() => setParams({}, { replace: true })}>Clear filters</Button>}
       </Card>
       <Card>
@@ -179,6 +193,13 @@ export default function Users() {
                 { key: 'name', header: 'Name', render: (u) => <span className="flex items-center gap-3"><Avatar user={u} thumb size="md" /><span className="font-medium">{fullName(u)}</span></span> },
                 { key: 'email', header: 'Email', render: (u) => <span className="text-slate-600">{u.email}</span> },
                 { key: 'role', header: 'Role', render: (u) => ROLE_LABELS[u.role?.name] },
+                {
+                  key: 'department', header: 'Department / programme', render: (u) => {
+                    if (u.student) return <span className="leading-tight"><span className="block">{u.student.program?.department?.code ?? '—'}</span><span className="block text-xs text-slate-500">{u.student.program?.code}</span></span>
+                    if (u.lecturer) return u.lecturer.department?.code ?? '—'
+                    return <span className="text-slate-400">—</span>
+                  },
+                },
                 { key: 'lastLoginAt', header: 'Last sign-in', render: (u) => <span className="text-slate-600">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : 'Never'}</span> },
                 { key: 'status', header: 'Status', render: (u) => <Badge tone={USER_TONE[u.status]}>{u.status}</Badge> },
               ]}

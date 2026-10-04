@@ -81,13 +81,17 @@ describe('registration slip', () => {
   });
 
   test('the PDF carries the OFFICIAL application photo, not the profile picture; JSON and verify never carry any photo', async () => {
+    // Whether a picture is printed is read from the PDF's image objects, not its size: the printed time is compressed
+    // into the page, so two otherwise identical slips can differ by a byte when the minute rolls over between them.
+    const hasPhoto = (pdf) => pdf.body.includes('/Subtype /Image');
     const plain = await slip(student, registrationId);
     assert.equal(plain.status, 200);
+    assert.equal(hasPhoto(plain), false);
 
     // A profile picture alone changes nothing on the slip: it is not the official photo.
     assert.equal((await uploadAvatar(student)).status, 200);
     const withProfilePicture = await slip(student, registrationId);
-    assert.equal(withProfilePicture.body.length, plain.body.length, 'a profile picture is not printed');
+    assert.equal(hasPhoto(withProfilePicture), false, 'a profile picture is not printed');
 
     // The photo submitted with the student's admission application is.
     const [{ id: userId }] = await query("SELECT id FROM users WHERE email = 'student@scrs.local'");
@@ -102,7 +106,7 @@ describe('registration slip', () => {
     const withOfficial = await slip(student, registrationId);
     assert.equal(withOfficial.status, 200);
     assert.equal(withOfficial.body.subarray(0, 5).toString(), '%PDF-');
-    assert.ok(withOfficial.body.length > plain.body.length, 'the official photo is embedded in the PDF');
+    assert.ok(hasPhoto(withOfficial), 'the official photo is embedded in the PDF');
 
     const json = (await slip(student, registrationId, 'json')).body.data;
     assert.equal('photo' in json.student, false);
@@ -115,7 +119,7 @@ describe('registration slip', () => {
     const missing = await slip(student, registrationId);
     assert.equal(missing.status, 200);
     assert.equal(missing.body.subarray(0, 5).toString(), '%PDF-');
-    assert.equal(missing.body.length, plain.body.length);
+    assert.equal(hasPhoto(missing), false);
 
     // ...and the same when the storage service itself errors.
     await storage.put(key, photo, 'image/jpeg');
@@ -124,7 +128,7 @@ describe('registration slip', () => {
       const broken = await slip(student, registrationId);
       assert.equal(broken.status, 200);
       assert.equal(broken.body.subarray(0, 5).toString(), '%PDF-');
-      assert.equal(broken.body.length, plain.body.length);
+      assert.equal(hasPhoto(broken), false);
     } finally {
       storage.useDriverForTests();
       await storage.remove(key);

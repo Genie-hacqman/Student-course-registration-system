@@ -12,6 +12,7 @@ export const list = async (req, res) => {
   return paginated(res, result, { page, limit });
 };
 export const getById = async (req, res) => ok(res, await studentService.getById(req.validated.params.id));
+export const summary = async (req, res) => ok(res, await studentService.summary(req.validated.query));
 export const results = async (req, res) => ok(res, await studentService.getResults(req.validated.params.id, { finalOnly: false }));
 export const create = async (req, res) => created(res, await studentService.create(req.validated.body, req.user));
 export const update = async (req, res) => ok(res, await studentService.update(req.validated.params.id, req.validated.body, req.user));

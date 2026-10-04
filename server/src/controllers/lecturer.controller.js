@@ -9,6 +9,8 @@ export const list = async (req, res) => {
 export const getById = async (req, res) => ok(res, await lecturerService.getById(req.validated.params.id));
 export const create = async (req, res) => created(res, await lecturerService.create(req.validated.body, req.user));
 export const update = async (req, res) => ok(res, await lecturerService.update(req.validated.params.id, req.validated.body, req.user));
+export const setDepartments = async (req, res) =>
+  ok(res, await lecturerService.setDepartments(req.validated.params.id, req.validated.body.departmentIds, req.user, req));
 export const activate = async (req, res) => ok(res, await lecturerService.setActive(req.validated.params.id, true, req.user));
 export const deactivate = async (req, res) => ok(res, await lecturerService.setActive(req.validated.params.id, false, req.user));
 export const invite = async (req, res) => {

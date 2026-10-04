@@ -1,5 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
+import { ORG_STATUS } from '../utils/constants.js';
 
 class Program extends Model {}
 
@@ -12,6 +13,7 @@ Program.init(
     durationYears: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 4 },
     maxCredits: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 24 },
     qualificationCode: { type: DataTypes.STRING(20) }, // e.g. "BSC"; shown on every student's profile
+    status: { type: DataTypes.ENUM(...Object.values(ORG_STATUS)), allowNull: false, defaultValue: ORG_STATUS.ACTIVE },
   },
   { sequelize, modelName: 'Program', tableName: 'programs' },
 );

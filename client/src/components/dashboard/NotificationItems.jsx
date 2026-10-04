@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, Bell, CheckCircle2, CheckCheck, Info, Megaphone, Star } from 'lucide-react'
 import { useMarkAllRead, useMarkRead, useNotifications } from '../../api/notifications'
+import { AnimatePresence, m } from 'motion/react'
 import { Badge, SkeletonList, cx, useFocusTrap } from '../ui'
+import { popover } from '../../lib/motionPresets'
 import { timeAgo } from '../../lib/format'
 
 /** Categories for the student dashboard and the notification center, derived from the notification type. */
@@ -81,38 +83,42 @@ export function NotificationCenter({ allPath }) {
           </span>
         )}
       </button>
-      {open && (
-        <div
-          ref={panel}
-          role="dialog"
-          aria-label="Notifications"
-          className="fixed inset-x-2 top-16 z-50 animate-pop-in overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-slate-200 sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-96"
-        >
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <p className="font-semibold">Notifications</p>
-            {unread > 0 && (
-              <button type="button" onClick={() => markAll.mutate()} className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
-                <CheckCheck className="size-3.5" aria-hidden /> Mark all read
-              </button>
-            )}
-          </div>
-          <div className="max-h-[60vh] overflow-y-auto">
-            {list.isPending ? <SkeletonList rows={3} /> : list.data?.items.length ? (
-              <ul className="divide-y divide-slate-100">
-                {list.data.items.map((n) => <li key={n.id}><NotificationItem n={n} compact onRead={(id) => markRead.mutate(id)} /></li>)}
-              </ul>
-            ) : (
-              <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
-                <Bell className="size-6 text-slate-300" aria-hidden />
-                <p className="text-sm text-slate-500">You're all caught up.</p>
-              </div>
-            )}
-          </div>
-          <Link to={allPath} onClick={() => setOpen(false)} className="block border-t border-slate-100 px-4 py-2.5 text-center text-sm font-medium text-brand-600 hover:bg-slate-50">
-            View all notifications
-          </Link>
-        </div>
-      )}
+      <AnimatePresence>
+        {open && (
+          <m.div
+            ref={panel}
+            role="dialog"
+            aria-label="Notifications"
+            {...popover}
+            style={{ transformOrigin: 'top right' }}
+            className="fixed inset-x-2 top-16 z-50 overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-slate-200 sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-96"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <p className="font-semibold">Notifications</p>
+              {unread > 0 && (
+                <button type="button" onClick={() => markAll.mutate()} className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+                  <CheckCheck className="size-3.5" aria-hidden /> Mark all read
+                </button>
+              )}
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {list.isPending ? <SkeletonList rows={3} /> : list.data?.items.length ? (
+                <ul className="divide-y divide-slate-100">
+                  {list.data.items.map((n) => <li key={n.id}><NotificationItem n={n} compact onRead={(id) => markRead.mutate(id)} /></li>)}
+                </ul>
+              ) : (
+                <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+                  <Bell className="size-6 text-slate-300" aria-hidden />
+                  <p className="text-sm text-slate-500">You're all caught up.</p>
+                </div>
+              )}
+            </div>
+            <Link to={allPath} onClick={() => setOpen(false)} className="block border-t border-slate-100 px-4 py-2.5 text-center text-sm font-medium text-brand-600 hover:bg-slate-50">
+              View all notifications
+            </Link>
+          </m.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

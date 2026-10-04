@@ -1,11 +1,13 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, CornerDownLeft, GraduationCap, KeyRound, LogOut, Menu, Search,
   UserRound, X,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthProvider'
-import { Avatar, cx, useFocusTrap } from '../components/ui'
+import { AnimatePresence, m } from 'motion/react'
+import { Avatar, Loading, cx, useFocusTrap } from '../components/ui'
+import { EASE_OUT, SOFT_SPRING, pageEnter, popover, slideIn, stagger } from '../lib/motionPresets'
 import { NotificationCenter } from '../components/dashboard/NotificationItems'
 import { fullName } from '../lib/format'
 import { ROLE_LABELS } from '../lib/roles'
@@ -56,7 +58,7 @@ function NavLinkItem({ item, rail, onNavigate, nested }) {
       )}
     >
       {(!nested || rail) && <Icon className={cx('size-4.5 shrink-0', active ? 'text-brand-600' : 'text-slate-400 group-hover:text-slate-600')} aria-hidden />}
-      {rail ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
+      {rail ? <span className="sr-only">{item.label}</span> : <span className="line-clamp-2 leading-snug">{item.label}</span>}
     </Link>
   )
 }
@@ -81,7 +83,7 @@ function NavGroup({ group, onNavigate }) {
         )}
       >
         <Icon className={cx('size-4.5 shrink-0', containsActive ? 'text-brand-600' : 'text-slate-400')} aria-hidden />
-        <span className="flex-1 truncate text-left">{group.label}</span>
+        <span className="line-clamp-2 flex-1 text-left leading-snug">{group.label}</span>
         <ChevronDown className={cx('size-4 text-slate-400 transition-transform duration-200', expanded ? 'rotate-0' : '-rotate-90')} aria-hidden />
       </button>
       <div id={id} className={cx('grid transition-[grid-template-rows] duration-200', expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
@@ -95,22 +97,27 @@ function NavGroup({ group, onNavigate }) {
   )
 }
 
+const navItem = slideIn(-12)
+
+/** The menu. On first load (and each time the phone drawer opens) its entries cascade in one after another. */
 function NavTree({ nav, rail, onNavigate }) {
   return (
-    <nav aria-label="Main" className="-mx-1 flex-1 space-y-0.5 overflow-y-auto px-1">
+    <m.nav aria-label="Main" className="-mx-1 flex-1 space-y-0.5 overflow-y-auto px-1" initial="hidden" animate="show" variants={stagger(0.035, 0.12)}>
       {nav.map((entry, i) => {
-        if (!entry.items) return <NavLinkItem key={entry.label} item={entry} rail={rail} onNavigate={onNavigate} />
+        if (!entry.items) return <m.div key={entry.label} variants={navItem}><NavLinkItem item={entry} rail={rail} onNavigate={onNavigate} /></m.div>
         if (rail) {
           return (
             <Fragment key={entry.label}>
               {i > 0 && <hr className="mx-2 my-1.5 border-slate-100" />}
-              {entry.items.map((item) => <NavLinkItem key={`${entry.label}-${item.label}`} item={item} rail onNavigate={onNavigate} />)}
+              {entry.items.map((item) => (
+                <m.div key={`${entry.label}-${item.label}`} variants={navItem}><NavLinkItem item={item} rail onNavigate={onNavigate} /></m.div>
+              ))}
             </Fragment>
           )
         }
-        return <NavGroup key={entry.label} group={entry} onNavigate={onNavigate} />
+        return <m.div key={entry.label} variants={navItem}><NavGroup group={entry} onNavigate={onNavigate} /></m.div>
       })}
-    </nav>
+    </m.nav>
   )
 }
 
@@ -255,24 +262,26 @@ function ProfileMenu({ user, profilePath, settingsPath, onSignOut }) {
         </span>
         <ChevronDown className="hidden size-4 text-slate-400 md:block" aria-hidden />
       </button>
-      {open && (
-        <div ref={menu} role="menu" className="absolute right-0 z-50 mt-2 w-64 animate-pop-in rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-slate-200">
-          <div className="flex items-center gap-3 border-b border-slate-100 px-3 pt-1.5 pb-2.5">
-            <Avatar user={user} size="md" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{fullName(user)}</p>
-              <p className="truncate text-xs text-slate-500">{user?.email}</p>
+      <AnimatePresence>
+        {open && (
+          <m.div ref={menu} role="menu" {...popover} style={{ transformOrigin: 'top right' }} className="absolute right-0 z-50 mt-2 w-64 rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-slate-200">
+            <div className="flex items-center gap-3 border-b border-slate-100 px-3 pt-1.5 pb-2.5">
+              <Avatar user={user} size="md" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{fullName(user)}</p>
+                <p className="truncate text-xs text-slate-500">{user?.email}</p>
+              </div>
             </div>
-          </div>
-          <div className="py-1">
-            <Link role="menuitem" to={profilePath} onClick={() => setOpen(false)} className={item}><UserRound className="size-4 text-slate-400" aria-hidden /> Profile</Link>
-            <Link role="menuitem" to={settingsPath} onClick={() => setOpen(false)} className={item}><KeyRound className="size-4 text-slate-400" aria-hidden /> Settings & security</Link>
-          </div>
-          <div className="border-t border-slate-100 pt-1">
-            <button role="menuitem" type="button" onClick={onSignOut} className={cx(item, 'text-red-700 hover:bg-red-50')}><LogOut className="size-4" aria-hidden /> Sign out</button>
-          </div>
-        </div>
-      )}
+            <div className="py-1">
+              <Link role="menuitem" to={profilePath} onClick={() => setOpen(false)} className={item}><UserRound className="size-4 text-slate-400" aria-hidden /> Profile</Link>
+              <Link role="menuitem" to={settingsPath} onClick={() => setOpen(false)} className={item}><KeyRound className="size-4 text-slate-400" aria-hidden /> Settings & security</Link>
+            </div>
+            <div className="border-t border-slate-100 pt-1">
+              <button role="menuitem" type="button" onClick={onSignOut} className={cx(item, 'text-red-700 hover:bg-red-50')}><LogOut className="size-4" aria-hidden /> Sign out</button>
+            </div>
+          </m.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -326,11 +335,14 @@ export default function AppShell({ nav, home, notificationsPath, profilePath, se
         Skip to main content
       </a>
 
-      <aside
+      <m.aside
         className={cx(
           'no-print fixed inset-y-0 left-0 z-30 hidden flex-col gap-4 border-r border-slate-200 bg-white py-4 transition-[width] duration-200 md:flex',
           rail ? 'w-19 px-3' : 'w-64 px-3',
         )}
+        initial={{ x: -24, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={SOFT_SPRING}
       >
         <div className="border-b border-slate-100 pb-4"><Brand home={home} role={role} rail={rail} /></div>
         <NavTree nav={nav} rail={rail} />
@@ -344,7 +356,7 @@ export default function AppShell({ nav, home, notificationsPath, profilePath, se
             {collapsed ? <ChevronsRight className="size-4" aria-hidden /> : <><ChevronsLeft className="size-4" aria-hidden /> Collapse</>}
           </button>
         )}
-      </aside>
+      </m.aside>
 
       {drawer && (
         <div className="fixed inset-0 z-40 md:hidden">
@@ -361,7 +373,12 @@ export default function AppShell({ nav, home, notificationsPath, profilePath, se
         </div>
       )}
 
-      <header className="no-print sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md sm:gap-3 sm:px-6">
+      <m.header
+        className="no-print sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md sm:gap-3 sm:px-6"
+        initial={{ y: -16, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.4, ease: EASE_OUT, delay: 0.05 }}
+      >
         <button type="button" onClick={() => setDrawer(true)} className="-ml-1 rounded-lg p-2 hover:bg-slate-100 md:hidden" aria-label="Open menu">
           <Menu className="size-5" aria-hidden />
         </button>
@@ -378,12 +395,16 @@ export default function AppShell({ nav, home, notificationsPath, profilePath, se
         </button>
         <NotificationCenter allPath={notificationsPath} />
         <ProfileMenu user={user} profilePath={profilePath} settingsPath={settingsPath} onSignOut={signOut} />
-      </header>
+      </m.header>
 
       <VerifyEmailBanner />
       <AddPhotoBanner path={profilePath} />
       <main id="main" tabIndex={-1} className="print-area mx-auto max-w-7xl px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
-        <Outlet />
+        <Suspense fallback={<Loading />}>
+          <m.div key={location.pathname} {...pageEnter}>
+            <Outlet />
+          </m.div>
+        </Suspense>
       </main>
 
       <QuickJump nav={nav} open={search} onClose={() => setSearch(false)} />

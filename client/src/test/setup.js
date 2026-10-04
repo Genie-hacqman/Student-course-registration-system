@@ -1,6 +1,10 @@
 import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
+import { MotionGlobalConfig } from 'motion/react'
+
+// Animations finish instantly in component tests, so they stay fast and deterministic.
+MotionGlobalConfig.skipAnimations = true
 
 // Testing Library's auto-cleanup only registers itself when it detects global test hooks. This repo
 // doesn't turn on vitest's `globals: true` (component tests import describe/it/expect explicitly, like

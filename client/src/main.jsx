@@ -8,6 +8,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import App from './App.jsx'
 import AppErrorBoundary from './components/AppErrorBoundary'
 import { initMonitoring } from './lib/monitoring'
+import { MotionProvider } from './lib/motionPresets'
 import './index.css'
 
 // Error tracking first, so a crash during start-up is reported too (a no-op without VITE_SENTRY_DSN).
@@ -26,15 +27,17 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <AppErrorBoundary>
-            <App />
-          </AppErrorBoundary>
-          <Toaster richColors position="top-right" closeButton />
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <MotionProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppErrorBoundary>
+              <App />
+            </AppErrorBoundary>
+            <Toaster richColors position="top-right" closeButton />
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </MotionProvider>
   </StrictMode>,
 )

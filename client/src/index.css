@@ -144,3 +144,20 @@ body {
     padding: 0;
   }
 }
+
+/*
+ * The frosted-glass sign-in card (AuthLayout). Translucent white over the dark campus photo comes out light grey,
+ * not white, so inside the card only: muted text and links are lifted one shade to keep WCAG AA contrast (4.5:1),
+ * fields get a near-opaque fill so they still read as fields, and the tab strip turns translucent to match.
+ * Unlayered on purpose: Tailwind's utilities live in a cascade layer, and these must override them.
+ */
+.auth-glass .text-slate-500 { color: var(--color-slate-600); }
+.auth-glass .text-slate-600 { color: var(--color-slate-700); }
+.auth-glass .text-brand-600 { color: var(--color-brand-700); }
+.auth-glass .text-brand-600:hover { color: var(--color-brand-800); }
+.auth-glass input:not([type='checkbox']):not([type='radio']),
+.auth-glass select,
+.auth-glass textarea { background-color: rgb(255 255 255 / 0.9); }
+.auth-glass ::placeholder { color: var(--color-slate-500); }
+.auth-glass [role='tablist'].bg-slate-100 { background-color: rgb(255 255 255 / 0.45); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.5); }
+

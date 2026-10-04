@@ -12,7 +12,7 @@ import { requirePermission } from '../middleware/permission.middleware.js';
 import { validate } from '../middleware/validation.middleware.js';
 import { idParam } from '../validators/common.validator.js';
 import {
-  listStudentsQuery, createStudentSchema, updateStudentSchema, prerequisiteOverrideSchema, overrideParams,
+  listStudentsQuery, studentSummaryQuery, createStudentSchema, updateStudentSchema, prerequisiteOverrideSchema, overrideParams,
 } from '../validators/user.validator.js';
 import { PERMISSIONS, ROLES } from '../utils/constants.js';
 
@@ -26,6 +26,8 @@ router.get('/me/attendance', authorize(ROLES.STUDENT), attendance.mine);
 router.get('/me/assessments', authorize(ROLES.STUDENT), assessments.mine);
 
 router.get('/', requirePermission(PERMISSIONS.REGISTRATION_VIEW_ALL), validate({ query: listStudentsQuery }), ctrl.list);
+// Counts by department → programme → level, for the directory's overview and drill-down.
+router.get('/summary', requirePermission(PERMISSIONS.REGISTRATION_VIEW_ALL), validate({ query: studentSummaryQuery }), ctrl.summary);
 router.get('/:id', requirePermission(PERMISSIONS.REGISTRATION_VIEW_ALL), validate({ params: idParam }), ctrl.getById);
 router.get('/:id/results', requirePermission(PERMISSIONS.REGISTRATION_VIEW_ALL), validate({ params: idParam }), ctrl.results);
 // The online application the student was admitted from, and its official photo: read-only, same gate as the record.

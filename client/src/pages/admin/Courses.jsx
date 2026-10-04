@@ -54,7 +54,7 @@ export function CourseForm({ editing, onClose, onSaved }) {
           <div className="grid gap-4 sm:grid-cols-3">
             <Select label="Department" error={errors.departmentId?.message} {...register('departmentId')}>
               <option value="">Select department</option>
-              {departments.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {departments.data?.filter((d) => d.status !== 'archived' || d.id === editing?.departmentId).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </Select>
             <Input label="Credits" type="number" error={errors.credits?.message} {...register('credits')} />
             <Input label="Level" type="number" step={100} error={errors.level?.message} {...register('level')} />

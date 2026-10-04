@@ -32,6 +32,7 @@ export const PERMS = {
   STUDENT_ADMIT: 'student:admit',
   APPLICATION_SELF: 'application:self',
   APPLICATION_REVIEW: 'application:review',
+  DIRECTORY_VIEW: 'directory:view',
 }
 
 /** The "Import data" screen: any one of these unlocks the import steps that permission covers. */
