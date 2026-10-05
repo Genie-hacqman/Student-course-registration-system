@@ -52,7 +52,7 @@ export default function Apply() {
         <p className="text-sm text-slate-500">
           If this email address can be used, your account is ready. If you already have an account, sign in or reset your password.
         </p>
-        <Link to="/login" state={{ mode: 'applicant' }} className="text-sm font-medium text-brand-600 hover:text-brand-700">Sign in</Link>
+        <Link to="/login" state={{ mode: 'applicant' }} className="text-sm font-semibold text-brand-600 underline underline-offset-4 hover:text-brand-700">Sign in</Link>
       </div>
     )
   }
@@ -77,8 +77,8 @@ export default function Apply() {
         <Input label="Confirm password" type="password" autoComplete="new-password" error={errors.confirmPassword?.message} {...register('confirmPassword')} />
         <Button type="submit" size="lg" loading={isSubmitting} className="w-full">Create account</Button>
       </form>
-      <p className="mt-6 text-center text-sm text-slate-500">
-        Already applied? <Link to="/login" state={{ mode: 'applicant' }} className="font-medium text-brand-600 hover:text-brand-700">Sign in</Link>
+      <p className="mt-6 border-t border-slate-900/10 pt-5 text-center text-sm font-medium text-slate-600">
+        Already applied? <Link to="/login" state={{ mode: 'applicant' }} className="font-semibold text-brand-600 underline underline-offset-4 hover:text-brand-700">Sign in</Link>
       </p>
     </>
   )

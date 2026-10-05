@@ -29,7 +29,9 @@ function AutoHeight({ children }) {
     return () => observer.disconnect()
   }, [])
   return (
-    <m.div animate={{ height }} initial={false} transition={{ duration: 0.35, ease: EASE_OUT }} style={{ overflow: 'hidden', margin: -4, padding: 4 }}>
+    // content-box: the measured height is the content's own, so the 4px halo (padding, cancelled by the negative margin,
+    // which keeps focus rings and shadows from being clipped) must sit outside it, not eat into it.
+    <m.div animate={{ height }} initial={false} transition={{ duration: 0.35, ease: EASE_OUT }} style={{ boxSizing: 'content-box', overflow: 'hidden', margin: -4, padding: 4 }}>
       <div ref={inner}>{children}</div>
     </m.div>
   )
@@ -41,8 +43,10 @@ export default function AuthLayout() {
     <div className="relative isolate flex min-h-full flex-col overflow-hidden bg-slate-900 lg:flex-row">
       {/* The campus photo behind every sign-in page, on every screen size. It is low resolution, so it is softened
           slightly (reads as depth of field), and it settles from a slight zoom to rest on load. It stays scaled up so
-          the film date stamp in its corner is cropped away. Layered overlays keep all text above WCAG AA contrast. */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+          the film date stamp in its corner is cropped away. Layered overlays keep all text above WCAG AA contrast.
+          This layer clips its own overflow: the scaled-up photo would otherwise make the page scrollable by a few
+          dozen pixels (even though it is hidden), and focusing or clicking a control would shift the whole layout. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <m.img
           src={campusPhoto}
           alt=""
@@ -76,7 +80,7 @@ export default function AuthLayout() {
           {/* The glass card rises in on a spring, then smoothly resizes (instead of jumping) when you move between
               Sign in, Apply and the other forms, while the form inside crossfades. */}
           <m.div
-            className="auth-glass bg-white/80 p-6 shadow-[0_25px_50px_-12px_rgb(2_6_23/0.55),inset_0_1px_0_rgb(255_255_255/0.7)] ring-1 ring-white/50 backdrop-blur-2xl backdrop-saturate-150 sm:p-8"
+            className="auth-glass bg-white/90 p-6 shadow-[0_25px_50px_-12px_rgb(2_6_23/0.55),inset_0_1px_0_rgb(255_255_255/0.7)] ring-1 ring-white/50 backdrop-blur-2xl backdrop-saturate-150 sm:p-8"
             style={{ borderRadius: 16 }}
             initial={{ opacity: 0, y: 28, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
