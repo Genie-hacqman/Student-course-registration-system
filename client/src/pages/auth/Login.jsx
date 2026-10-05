@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../auth/AuthProvider'
 import { Button, Input, Tabs } from '../../components/ui'
 import { applyServerErrors, emailSchema } from '../../lib/forms'
@@ -70,10 +70,15 @@ export default function Login() {
         </p>
       )}
       {mode !== 'staff' && (
-        <p className="mt-3 text-center text-sm text-slate-500">
-          Want to study with us?{' '}
-          <Link to="/apply" className="font-medium text-brand-600 hover:text-brand-700">Apply for admission</Link>
-        </p>
+        <div className="mt-6 border-t border-slate-900/10 pt-5 text-center">
+          <p className="text-sm font-medium text-slate-600">Want to study with us?</p>
+          <Link
+            to="/apply"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-brand-800/30 bg-white px-4 py-2.5 text-sm font-semibold text-brand-600 shadow-sm transition hover:border-brand-800 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          >
+            Apply for admission <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        </div>
       )}
     </>
   )
