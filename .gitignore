@@ -34,8 +34,4 @@ server/ca.pem
 # Personal API scratch requests
 server/request.http
 
-# Playwright end-to-end output
-test-results/
-playwright-report/
-blob-report/
 server/storage/
