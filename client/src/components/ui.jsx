@@ -131,6 +131,8 @@ export function StatusBadge({ status, label, tone, className }) {
 }
 
 export const Input = forwardRef(function Input({ label, error, hint, className, ...props }, ref) {
+  // Ties the message to the field, so a screen reader announces it with the input instead of leaving it as loose text.
+  const messageId = useId()
   return (
     <label className={cx('block', className)}>
       {label && <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>}
@@ -141,15 +143,17 @@ export const Input = forwardRef(function Input({ label, error, hint, className, 
           error ? 'ring-red-500 focus:ring-red-600' : 'ring-slate-300 hover:ring-slate-400 focus:ring-brand-500',
         )}
         aria-invalid={Boolean(error)}
+        aria-describedby={error || hint ? messageId : undefined}
         {...props}
       />
-      {error ? <span className="mt-1 block text-xs text-red-600">{error}</span>
-        : hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      {error ? <span id={messageId} role="alert" className="mt-1 block text-xs text-red-600">{error}</span>
+        : hint && <span id={messageId} className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
   )
 })
 
 export const Select = forwardRef(function Select({ label, error, children, className, ...props }, ref) {
+  const messageId = useId()
   return (
     <label className={cx('block', className)}>
       {label && <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>}
@@ -159,11 +163,13 @@ export const Select = forwardRef(function Select({ label, error, children, class
           'block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-inset transition-shadow focus:ring-2 focus:ring-inset focus:outline-none',
           error ? 'ring-red-500 focus:ring-red-600' : 'ring-slate-300 hover:ring-slate-400 focus:ring-brand-500',
         )}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? messageId : undefined}
         {...props}
       >
         {children}
       </select>
-      {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
+      {error && <span id={messageId} role="alert" className="mt-1 block text-xs text-red-600">{error}</span>}
     </label>
   )
 })

@@ -4,6 +4,7 @@ import { GuestOnly, HomeRedirect, RequireArea, RequirePermission, RequirePinChan
 import { DATA_IMPORT_PERMS, PERMS } from './lib/roles'
 import { SocketBridge } from './lib/socket'
 import { FullPageSpinner } from './components/ui'
+import RouteMeta from './components/RouteMeta'
 import AuthLayout from './layouts/AuthLayout'
 import StudentLayout from './layouts/StudentLayout'
 import StaffLayout from './layouts/StaffLayout'
@@ -17,6 +18,8 @@ import VerifyEmail from './pages/auth/VerifyEmail'
 import Apply from './pages/auth/Apply'
 import Activate from './pages/auth/Activate'
 import NotFound from './pages/NotFound'
+import Privacy from './pages/legal/Privacy'
+import Terms from './pages/legal/Terms'
 
 // Every role's own pages (and Recharts) load on demand — only the layout shells and the auth pages
 // needed before anyone's signed in (Login above all) are in the initial bundle.
@@ -88,9 +91,14 @@ export default function App() {
   return (
     <>
       <SocketBridge />
+      <RouteMeta />
       <Suspense fallback={<FullPageSpinner />}>
         <Routes>
           <Route path="/" element={<HomeRedirect />} />
+
+          {/* Public to everyone, signed in or not, and linked from the footer of every sign-in page. */}
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
 
           <Route element={<AuthLayout />}>
             <Route element={<GuestOnly />}>

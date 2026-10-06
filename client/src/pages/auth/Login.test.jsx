@@ -8,21 +8,26 @@ vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ login: vi.fn() }) 
 
 beforeEach(() => localStorage.clear())
 
+// The invitation appears twice: in the card (large screens) and pinned to the bottom of the screen (phones). The
+// test environment applies no CSS, so both are present; which one shows is down to the breakpoint.
+const applyLinks = () => screen.queryAllByRole('link', { name: /apply for admission/i })
+
 describe('Login footer', () => {
-  it('invites visitors to apply for admission, as a link to the application page', () => {
+  it('invites visitors to apply for admission, as links to the application page', () => {
     renderWithProviders(<Login />)
     expect(screen.getByText('Want to study with us?')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /apply for admission/i })).toHaveAttribute('href', '/apply')
+    expect(applyLinks()).toHaveLength(2)
+    for (const link of applyLinks()) expect(link).toHaveAttribute('href', '/apply')
   })
 
   it('shows it to applicants too, but not to staff', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Login />)
     await user.click(screen.getByRole('tab', { name: 'Applicant' }))
-    expect(screen.getByRole('link', { name: /apply for admission/i })).toBeInTheDocument()
+    expect(applyLinks()).toHaveLength(2)
 
     await user.click(screen.getByRole('tab', { name: 'Staff' }))
-    expect(screen.queryByRole('link', { name: /apply for admission/i })).not.toBeInTheDocument()
+    expect(applyLinks()).toHaveLength(0)
     expect(screen.queryByText('Want to study with us?')).not.toBeInTheDocument()
   })
 
