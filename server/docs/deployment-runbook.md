@@ -51,6 +51,7 @@ a fresh one for production rather than trying to clean it out afterward.
    | `DB_SSL` | `true` — see step 1.4 |
    | `DB_SSL_CA` | Aiven's CA certificate, optional (pins it instead of trusting Node's default CA list) |
    | `JWT_ACCESS_SECRET` | a long random string (`openssl rand -hex 48`) — **not** the local dev value |
+   | `AUDIT_HMAC_SECRET` | a second random string (`openssl rand -hex 32`), different from the JWT secret. The API refuses to start in production without it. **Back it up**: without the key, existing audit rows cannot be verified. See "The audit log" below. |
    | `RESEND_API_KEY` | from the Resend dashboard (see `server/README.md`'s Email section) |
    | `EMAIL_FROM` | an address on a Resend-verified domain — never the onboarding sender in production |
    | `RESEND_WEBHOOK_SECRET` | from the Resend webhook you add in step 5 |
@@ -233,6 +234,22 @@ Neither sends personal data. IP addresses, cookies and request bodies are off. S
    id, and the error should appear under Issues within a minute.
 5. In each Sentry project add an alert rule ("a new issue is created" → email). Without a rule you only see errors
    when you open Sentry.
+
+## The audit log
+
+Every important action writes a row to `audit_logs` (`audit.service.log`). IP, browser, request id and the signed-in actor (email and role, kept even if the account is later deleted) are filled in automatically from the current request.
+
+**Tamper detection.** Each row is signed with `AUDIT_HMAC_SECRET`. Every hour the API seals new rows (older than 5 minutes) into batches, and each seal's hash covers the previous seal, so the seals form a chain (`audit_seals`; sign-in rows have their own chain). The app cannot update or delete audit rows, and editing, deleting or inserting rows directly in the database is caught by:
+
+```
+cd server && npm run audit:verify     # exit 0 = intact, 1 = problems listed, 2 = could not run
+```
+
+Run it before relying on the log in a dispute, and after any restore. Limits to know: someone who holds both database access and `AUDIT_HMAC_SECRET` can forge rows; rows written before this feature have no signature and are reported as legacy, not as tampering; the newest rows are covered by their own signature until the next seal.
+
+**Retention.** On the same hourly pass, sealed batches older than 12 months (sign-in rows) or 24 months (everything else) are written to object storage as `audit-archive/<stream>/seal-<id>.ndjson.gz`, read back and compared, and only then deleted. Seals are never deleted, so the chain stays verifiable. Without a configured bucket the job logs a warning and deletes nothing. To look at old history, download and `gunzip` the archive named in `audit_seals.archive_key`.
+
+**Rotating the key.** Rows signed with the old key will fail verification. Keep the old key until the log has been exported or archived, or accept that history before the rotation is unverifiable.
 
 ## Deleting a test applicant
 

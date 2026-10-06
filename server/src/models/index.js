@@ -23,6 +23,7 @@ import RegistrationItem from './RegistrationItem.js';
 import Waitlist from './Waitlist.js';
 import Notification from './Notification.js';
 import AuditLog from './AuditLog.js';
+import AuditSeal from './AuditSeal.js';
 import Setting from './Setting.js';
 import AccountChangeRequest from './AccountChangeRequest.js';
 import RolePermissionOverride from './RolePermissionOverride.js';
@@ -226,6 +227,7 @@ export {
   Waitlist,
   Notification,
   AuditLog,
+  AuditSeal,
   Setting,
   AccountChangeRequest,
   RolePermissionOverride,

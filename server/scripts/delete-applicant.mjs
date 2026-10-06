@@ -12,6 +12,8 @@
  * then demand every other setting. See docs/deployment-runbook.md, "Deleting a test applicant".
  */
 
+import os from 'node:os';
+
 // Records whose existence means this is a real student, not a test: deleting the user would cascade into them.
 const ACADEMIC_TABLES = {
   registrations: 'registrations',
@@ -119,6 +121,8 @@ export const deleteApplicant = async ({ email, apply = false, includeAdmitted = 
     const checked = await inspect(transaction);
     await User.destroy({ where: { id: checked.user.id }, transaction });
     await audit.log({
+      // No signed-in user here: record the operator's OS account so the deletion is attributable.
+      actor: { email: `system:script:delete-applicant (${os.userInfo().username})`, role: 'SYSTEM' },
       action: 'applicant.delete',
       entityType: 'User',
       entityId: checked.user.id,

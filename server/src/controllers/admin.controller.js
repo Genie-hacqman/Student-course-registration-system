@@ -7,6 +7,8 @@ export const auditLogs = async (req, res) => {
   return paginated(res, result, { page, limit });
 };
 
+export const auditLogOptions = async (req, res) => ok(res, await auditService.filterOptions());
+
 export const settings = async (req, res) => ok(res, await settingService.list());
 export const updateSettings = async (req, res) => ok(res, await settingService.upsertMany(req.validated.body.settings, req.user));
 

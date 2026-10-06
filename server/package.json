@@ -13,6 +13,7 @@
     "db:seed:demo": "sequelize-cli db:seed:all",
     "admin:create": "node scripts/create-admin.mjs",
     "applicant:delete": "node scripts/delete-applicant.mjs",
+    "audit:verify": "node scripts/verify-audit.mjs",
     "sentry:test": "node scripts/sentry-test.mjs",
     "db:reset": "sequelize-cli db:migrate:undo:all && sequelize-cli db:migrate && sequelize-cli db:seed:all",
     "test": "NODE_ENV=test node --test --test-concurrency=1 \"tests/**/*.test.js\"",

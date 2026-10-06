@@ -545,6 +545,9 @@ describe('registration lifecycle, waitlist, notifications, timetable', () => {
     const deliveries = await api().get('/api/admin/email-deliveries?limit=5').set(as(admin));
     assert.equal(deliveries.status, 200);
     assert.equal((await api().get('/api/admin/email-deliveries').set(as(registrar))).status, 403);
+    const options = await api().get('/api/admin/audit-logs/options').set(as(admin));
+    assert.equal(options.status, 200);
+    assert.ok(options.body.data.entityTypes.length > 0);
     const audit = await api().get('/api/admin/audit-logs?entityType=Registration').set(as(admin));
     assert.ok(audit.body.data.some((a) => a.action === 'registration.rejected'));
 

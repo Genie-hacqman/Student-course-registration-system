@@ -44,7 +44,13 @@ export const auditLogQuery = z.object({
   ...paginationQuery,
   userId: id.optional(),
   action: z.string().max(100).optional(),
+  // Matches every action starting with this text, e.g. "registration." (ignored when `action` is given).
+  actionPrefix: z.string().trim().max(100).optional(),
   entityType: z.string().max(50).optional(),
+  entityId: id.optional(),
+  requestId: z.string().trim().max(64).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
 });
 
 export const reportQuery = z.object({ semesterId: id.optional() });
