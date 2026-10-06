@@ -14,7 +14,7 @@ const send = async (req, res, slip) => {
     action: 'registration.slip_printed',
     entityType: 'Registration',
     entityId: req.validated.params.id,
-    metadata: { referenceNumber: slip.referenceNumber, verificationCode: slip.verificationCode },
+    metadata: { referenceNumber: slip.referenceNumber },
     req,
   });
   res.set('Content-Type', 'application/pdf');

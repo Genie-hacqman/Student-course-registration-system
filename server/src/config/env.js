@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 
 const blankAsUnset = (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
@@ -26,6 +27,9 @@ const schema = z
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
     JWT_ACCESS_EXPIRES: z.string().default('15m'),
     JWT_REFRESH_EXPIRES_DAYS: z.coerce.number().int().positive().default(7),
+    // Signs audit-log rows and seals (see utils/audit-integrity.js). Must differ from the JWT secret in
+    // production; outside production a key derived from JWT_ACCESS_SECRET is used so dev/test need no extra setup.
+    AUDIT_HMAC_SECRET: z.preprocess(blankAsUnset, z.string().min(32, 'AUDIT_HMAC_SECRET must be at least 32 characters').optional()),
 
     BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
     PASSWORD_RESET_EXPIRES_MINUTES: z.coerce.number().int().positive().default(30),
@@ -85,6 +89,11 @@ const schema = z
         message: 'RESEND_API_KEY (or SMTP_HOST) is required in production, so activation, password-reset and registration emails can actually be sent.',
       });
     }
+    if (!data.AUDIT_HMAC_SECRET) {
+      ctx.addIssue({ code: 'custom', path: ['AUDIT_HMAC_SECRET'], message: 'AUDIT_HMAC_SECRET is required in production: it signs the audit log so tampering can be detected (generate one with `openssl rand -hex 32`).' });
+    } else if (data.AUDIT_HMAC_SECRET === data.JWT_ACCESS_SECRET) {
+      ctx.addIssue({ code: 'custom', path: ['AUDIT_HMAC_SECRET'], message: 'AUDIT_HMAC_SECRET must differ from JWT_ACCESS_SECRET.' });
+    }
     if (data.EMAIL_LOG_LINKS) {
       ctx.addIssue({ code: 'custom', path: ['EMAIL_LOG_LINKS'], message: 'EMAIL_LOG_LINKS must not be enabled in production: it writes raw account tokens to the logs.' });
     }
@@ -142,6 +151,8 @@ export default {
   ...env,
   isProduction: env.NODE_ENV === 'production',
   isTest: env.NODE_ENV === 'test',
+  auditHmacSecret: env.AUDIT_HMAC_SECRET
+    ?? crypto.createHmac('sha256', env.JWT_ACCESS_SECRET).update('scrs-audit-hmac-dev-fallback').digest('hex'),
   corsOrigins: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
   // 's3' when the bucket is configured, 'local' only outside production, else null (photo routes answer 503).
   storageDriver: env.STORAGE_DRIVER === 'local' ? 'local'

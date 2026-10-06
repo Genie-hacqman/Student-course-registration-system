@@ -49,6 +49,7 @@ export default function Privacy() {
 
       <LegalSection title="How long we keep it">
         <p>We keep information for as long as it is needed for the purposes above and for the institution's record-keeping obligations. Academic records are normally kept as part of a student's permanent record.</p>
+        <p>Security records are kept for a fixed time: sign-in records (including IP address and browser details) for 12 months, and the log of other important actions for 24 months. After that they are moved to a private archive that only the institution's administrators can reach, and removed from the live system.</p>
       </LegalSection>
 
       <LegalSection title="Your choices">

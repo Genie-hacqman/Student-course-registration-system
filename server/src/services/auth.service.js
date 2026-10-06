@@ -12,6 +12,7 @@ import {
 import { ROLES, USER_STATUS, ADMISSION_STATUS } from '../utils/constants.js';
 import { permissionsFor } from './permission.service.js';
 import * as audit from './audit.service.js';
+import { safeLoginIdentifier } from '../utils/redact.js';
 import * as sessionService from './session.service.js';
 import { sendTemplate, tokenKey } from './mail.service.js';
 import { issuePasswordReset } from './password-reset.service.js';
@@ -159,21 +160,21 @@ export const login = async ({ identifier, password }, meta) => {
   const failure = identifier.includes('@') ? 'Invalid email or password' : 'Invalid student ID or PIN';
 
   if (user?.lockedUntil > new Date()) {
-    await audit.log({ userId: user.id, action: 'auth.login_locked', metadata: { identifier, userAgent: meta.userAgent }, req: meta.req });
+    await audit.log({ userId: user.id, action: 'auth.login_locked', metadata: { identifier: safeLoginIdentifier(identifier), userAgent: meta.userAgent }, req: meta.req });
     throw new TooManyAttemptsError(lockedMessage(user.lockedUntil), 'ACCOUNT_LOCKED');
   }
 
   const valid = await comparePassword(password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !valid) {
     if (user) await recordFailedLogin(user.id);
-    await audit.log({ userId: user?.id, action: 'auth.login_failed', metadata: { email: identifier, userAgent: meta.userAgent }, req: meta.req });
+    await audit.log({ userId: user?.id, action: 'auth.login_failed', metadata: { email: safeLoginIdentifier(identifier), userAgent: meta.userAgent }, req: meta.req });
     throw new UnauthorizedError(failure);
   }
   if (user.status !== USER_STATUS.ACTIVE) throw new ForbiddenError(`Account is ${user.status}`);
 
   const tokens = await issueTokens(user, user.role.name, meta);
   await user.update({ lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null });
-  await audit.log({ userId: user.id, action: 'auth.login', entityType: 'User', entityId: user.id, metadata: { userAgent: meta.userAgent }, req: meta.req });
+  await audit.log({ userId: user.id, action: 'auth.login', entityType: 'User', entityId: user.id, metadata: { userAgent: meta.userAgent }, actor: { email: user.email, role: user.role.name }, req: meta.req });
 
   return { user: await loadProfile(user.id), ...tokens };
 };

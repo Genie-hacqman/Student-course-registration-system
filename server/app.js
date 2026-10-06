@@ -8,6 +8,7 @@ import { pinoInstance } from './src/config/logger.js';
 import routes from './src/routes/index.js';
 import webhookRoutes from './src/routes/webhook.routes.js';
 import { requestId } from './src/middleware/request-id.middleware.js';
+import { requestContext } from './src/middleware/request-context.middleware.js';
 import { apiLimiter } from './src/middleware/rate-limit.middleware.js';
 import { errorHandler, notFoundHandler } from './src/middleware/error.middleware.js';
 
@@ -47,6 +48,8 @@ if (!env.isTest) {
   }));
 }
 
+// After the body parsers (see request-context.middleware.js): lets audit.log find the request's IP, actor, etc.
+app.use(requestContext);
 app.use('/api', apiLimiter, routes);
 
 app.use(notFoundHandler);

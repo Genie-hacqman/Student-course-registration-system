@@ -7,6 +7,7 @@ import { sequelize } from './src/models/index.js';
 import { initSocketServer } from './src/sockets/socket.server.js';
 import { purgeExpiredTokens } from './src/services/session.service.js';
 import * as permissionService from './src/services/permission.service.js';
+import { runMaintenance as runAuditMaintenance, MAINTENANCE_INTERVAL_MS as AUDIT_MAINTENANCE_INTERVAL_MS } from './src/services/audit-maintenance.service.js';
 
 initSentry();
 
@@ -43,6 +44,10 @@ const start = async () => {
   cleanupTokens();
   const cleanupTimer = setInterval(cleanupTokens, TOKEN_CLEANUP_INTERVAL_MS);
   cleanupTimer.unref();
+  // Seals new audit rows into the hash chain and archives/purges expired ones (see audit-maintenance.service.js).
+  runAuditMaintenance();
+  const auditTimer = setInterval(runAuditMaintenance, AUDIT_MAINTENANCE_INTERVAL_MS);
+  auditTimer.unref();
   const permissionTimer = permissionService.startPeriodicReload();
 
   server.listen(env.PORT, () => {
@@ -52,6 +57,7 @@ const start = async () => {
   const shutdown = (signal) => {
     logger.info(`${signal} received, shutting down`);
     clearInterval(cleanupTimer);
+    clearInterval(auditTimer);
     clearInterval(permissionTimer);
     io.close();
     server.close(async () => {

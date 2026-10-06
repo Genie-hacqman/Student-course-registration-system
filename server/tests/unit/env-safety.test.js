@@ -13,6 +13,7 @@ const BASE_ENV = {
   DB_NAME: 'x',
   DB_USER: 'x',
   JWT_ACCESS_SECRET: 'a'.repeat(32),
+  AUDIT_HMAC_SECRET: 'b'.repeat(32),
 };
 
 const runEnvJs = (extraEnv) => {
@@ -107,6 +108,30 @@ describe('env.js requires a working email sender in production', () => {
 
   test('Resend with a verified-domain sender boots', () => {
     const result = runEnvJs({ ...PROD, RESEND_API_KEY: 're_test_key', EMAIL_FROM: 'SCRS <no-reply@mail.university.edu>' });
+    assert.equal(result.exitCode, 0, result.stderr);
+  });
+});
+
+describe('env.js requires a dedicated audit signing key in production', () => {
+  const PROD = {
+    NODE_ENV: 'production', CORS_ORIGIN: 'https://app.university.edu', FRONTEND_URL: 'https://app.university.edu',
+    RESEND_API_KEY: 're_test_key', EMAIL_FROM: 'SCRS <no-reply@mail.university.edu>', SMTP_HOST: '', SMTP_FROM: '',
+  };
+
+  test('a missing AUDIT_HMAC_SECRET is rejected', () => {
+    const result = runEnvJs({ ...PROD, AUDIT_HMAC_SECRET: '' });
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stderr, /AUDIT_HMAC_SECRET is required in production/);
+  });
+
+  test('reusing the JWT secret is rejected', () => {
+    const result = runEnvJs({ ...PROD, AUDIT_HMAC_SECRET: 'a'.repeat(32) });
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stderr, /must differ from JWT_ACCESS_SECRET/);
+  });
+
+  test('outside production no extra key is needed', () => {
+    const result = runEnvJs({ NODE_ENV: 'development', AUDIT_HMAC_SECRET: '' });
     assert.equal(result.exitCode, 0, result.stderr);
   });
 });

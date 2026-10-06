@@ -40,7 +40,7 @@ export const createAdmin = async () => {
       emailVerifiedAt: new Date(),
     }, { transaction });
     await audit.log({
-      userId: user.id, action: 'user.create', entityType: 'User', entityId: user.id, metadata: { role: ROLES.ADMIN, via: 'admin:create' }, transaction,
+      userId: user.id, action: 'user.create', entityType: 'User', entityId: user.id, metadata: { role: ROLES.ADMIN, via: 'admin:create' }, actor: { email: 'system:script:create-admin', role: 'SYSTEM' }, transaction,
     });
     return { created: true, email };
   });

@@ -63,6 +63,7 @@ router.put('/roles/:id/permissions', requirePermission(PERMISSIONS.ROLE_MANAGE),
 
 // Audit logs & settings
 router.get('/sign-ins', requirePermission(PERMISSIONS.AUDIT_VIEW), validate({ query: signInsQuery }), admin.signIns);
+router.get('/audit-logs/options', requirePermission(PERMISSIONS.AUDIT_VIEW), admin.auditLogOptions);
 router.get('/audit-logs', requirePermission(PERMISSIONS.AUDIT_VIEW), validate({ query: auditLogQuery }), admin.auditLogs);
 router.get('/settings', requirePermission(PERMISSIONS.SETTINGS_MANAGE), admin.settings);
 router.patch('/settings', requirePermission(PERMISSIONS.SETTINGS_MANAGE), validate({ body: settingUpdateSchema }), admin.updateSettings);

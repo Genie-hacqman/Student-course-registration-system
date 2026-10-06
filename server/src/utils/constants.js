@@ -103,7 +103,7 @@ export const PERMISSION_CATALOG = Object.freeze([
 export const EDITABLE_ROLES = Object.freeze([ROLES.REGISTRAR, ROLES.LECTURER]);
 
 /** Never grantable through the editor: role:manage stays with ADMIN; the self-service permissions with STUDENT. */
-export const NON_GRANTABLE_PERMISSIONS = Object.freeze([P.ROLE_MANAGE, P.REGISTRATION_SELF, P.APPLICATION_SELF]);
+export const NON_GRANTABLE_PERMISSIONS = Object.freeze([P.ROLE_MANAGE, P.AUDIT_VIEW, P.REGISTRATION_SELF, P.APPLICATION_SELF]);
 
 export const ATTENDANCE_STATUS = Object.freeze({ PRESENT: 'present', ABSENT: 'absent', LATE: 'late', EXCUSED: 'excused' });
 export const ASSESSMENT_TYPES = Object.freeze(['quiz', 'assignment', 'midterm', 'exam', 'project', 'other']);
