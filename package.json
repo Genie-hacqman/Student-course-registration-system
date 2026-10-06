@@ -6,12 +6,9 @@
     "dev": "concurrently -k -n server,client -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "dev:nomail": "concurrently -k -n server,client -c blue,green \"SMTP_HOST= RESEND_API_KEY= npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "install:all": "npm --prefix server install && npm --prefix client install",
-    "migrate": "npm --prefix server run db:migrate",
-    "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "migrate": "npm --prefix server run db:migrate"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
     "concurrently": "^9.2.1"
   }
 }
