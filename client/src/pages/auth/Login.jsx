@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -70,7 +71,7 @@ export default function Login() {
         </p>
       )}
       {mode !== 'staff' && (
-        <div className="mt-6 border-t border-slate-900/10 pt-5 text-center">
+        <div className="mt-6 hidden border-t border-slate-900/10 pt-5 text-center lg:block">
           <p className="text-sm font-medium text-slate-600">Want to study with us?</p>
           <Link
             to="/apply"
@@ -79,6 +80,20 @@ export default function Login() {
             Apply for admission <ArrowRight className="size-4" aria-hidden />
           </Link>
         </div>
+      )}
+      {/* On phones the card is long, so the way in for new applicants stays pinned to the bottom of the screen.
+          Portalled to <body>: the card has a backdrop filter and animated transforms, which would otherwise make
+          "fixed" mean "fixed to the card" instead of to the screen. */}
+      {mode !== 'staff' && createPortal(
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/20 bg-slate-950/85 px-4 py-3 backdrop-blur-md lg:hidden">
+          <Link
+            to="/apply"
+            className="mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-lg bg-white px-4 py-3 text-sm font-semibold text-brand-700 shadow-sm transition hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            New here? Apply for admission <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        </div>,
+        document.body,
       )}
     </>
   )

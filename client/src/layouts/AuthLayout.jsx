@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { m } from 'motion/react'
 import { BadgeCheck, GraduationCap, LayoutDashboard, Users } from 'lucide-react'
 import campusPhoto from '../assets/UniReg.jpeg'
+import SiteFooter from '../components/SiteFooter'
 import { EASE_OUT, SOFT_SPRING, fadeUp, pop, slideIn, stagger } from '../lib/motionPresets'
 
 const FEATURES = [
@@ -61,7 +62,8 @@ export default function AuthLayout() {
         <div className="absolute inset-0 bg-brand-900/20 mix-blend-multiply" />
       </div>
 
-      <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-12 lg:max-w-xl lg:px-16 xl:max-w-2xl">
+      {/* On /login the mobile Apply bar is fixed to the bottom, so that page needs room under the footer for it. */}
+      <div className={`relative flex flex-1 flex-col items-center justify-center px-4 py-12 lg:max-w-xl lg:px-16 xl:max-w-2xl ${pathname === '/login' ? 'pb-28 lg:pb-12' : ''}`}>
         <div className="w-full max-w-md">
           <m.div
             className="mb-8 flex flex-col items-center gap-2 text-center lg:mb-12 lg:flex-row lg:items-center lg:justify-start lg:gap-3 lg:text-left"
@@ -77,6 +79,11 @@ export default function AuthLayout() {
               <p className="text-sm text-white/80 lg:hidden">Student Course Registration</p>
             </m.div>
           </m.div>
+          {pathname === '/login' && (
+            <p className="-mt-4 mb-6 text-center text-sm text-white/85 lg:hidden" style={TEXT_SHADOW}>
+              Register for courses, track approvals, and see your timetable and results.
+            </p>
+          )}
           {/* The glass card rises in on a spring, then smoothly resizes (instead of jumping) when you move between
               Sign in, Apply and the other forms, while the form inside crossfades. */}
           <m.div
@@ -97,6 +104,7 @@ export default function AuthLayout() {
               </m.div>
             </AutoHeight>
           </m.div>
+          <SiteFooter className="mt-8" />
         </div>
       </div>
 

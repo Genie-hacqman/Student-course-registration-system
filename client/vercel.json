@@ -11,6 +11,14 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "geolocation=(), camera=(), microphone=()" }
       ]
+    },
+    {
+      "source": "/(student|lecturer|staff)/:path*",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/(change-pin|forgot-password|forgot-pin|reset-password|verify-email|activate-account|activate)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     }
   ]
 }
