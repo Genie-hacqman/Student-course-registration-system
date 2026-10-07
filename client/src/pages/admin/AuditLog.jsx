@@ -7,7 +7,6 @@ import DataTable from '../../components/admin/DataTable'
 import { formatDateTime, fullName } from '../../lib/format'
 import { summariseMetadata } from '../../lib/auditMetadata'
 
-/** The before/after lines the server records for edits and per-student changes, in plain words. */
 function Summary({ lines }) {
   if (!lines.length) return null
   return (
@@ -43,11 +42,9 @@ function Details({ log }) {
   )
 }
 
-/** Actions that exist in the log, grouped the way the server catalogues them. */
 function ActionSelect({ actions, value, onChange }) {
   const groups = new Map()
   for (const a of actions) groups.set(a.group, [...(groups.get(a.group) ?? []), a])
-  // A link into the page may carry an action that has no rows yet; keep it selectable.
   const known = actions.some((a) => a.action === value)
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Action">
@@ -64,7 +61,6 @@ function ActionSelect({ actions, value, onChange }) {
 
 export default function AuditLog() {
   const [params, setParams] = useSearchParams()
-  // What the log actually contains, so the filters never lag behind what the server writes.
   const options = useApi('/admin/audit-logs/options')
   const entityTypes = options.data?.entityTypes ?? []
   const actions = options.data?.actions ?? []
@@ -72,7 +68,6 @@ export default function AuditLog() {
     action: params.get('action') || undefined,
     entityType: params.get('entityType') || undefined,
     userId: params.get('userId') || undefined,
-    // A date picker gives "YYYY-MM-DD" (local); the end date covers that whole day.
     from: params.get('from') ? new Date(`${params.get('from')}T00:00:00`).toISOString() : undefined,
     to: params.get('to') ? new Date(`${params.get('to')}T23:59:59`).toISOString() : undefined,
     page: Number(params.get('page') ?? 1),
@@ -118,7 +113,6 @@ export default function AuditLog() {
                 {
                   key: 'user', header: 'Who', render: (l) => (l.user
                     ? <button className="text-left hover:text-brand-700" onClick={() => set('userId', String(l.user.id))}>{fullName(l.user)}<p className="text-xs text-slate-500">{l.user.email}</p></button>
-                    // The account may have been deleted since: the snapshot taken at the time still says who it was.
                     : l.actorEmail
                       ? <span>{l.actorEmail}<p className="text-xs text-slate-500">{l.actorRole ?? 'account removed'}</p></span>
                       : <span className="text-slate-400">System / unknown</span>),

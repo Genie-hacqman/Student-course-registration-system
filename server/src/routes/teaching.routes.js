@@ -10,9 +10,6 @@ import { updateAttendanceSchema, updateAssessmentSchema, assessmentScoresSchema 
 import { announcementSchema, updateAnnouncementSchema, listAnnouncementsQuery } from '../validators/announcement.validator.js';
 import { PERMISSIONS } from '../utils/constants.js';
 
-// Section-level routes (list/create) live in section.routes.js; these act on a single record.
-// Lecturers are limited to their own sections in the services.
-
 const recordAttendance = requirePermission(PERMISSIONS.ATTENDANCE_RECORD);
 export const attendanceRouter = Router();
 attendanceRouter.use(authenticate);
@@ -29,7 +26,6 @@ assessmentRouter.get('/:id/scores', manageAssessments, validate({ params: idPara
 assessmentRouter.put('/:id/scores', manageAssessments, validate({ params: idParam, body: assessmentScoresSchema }), assessments.setScores);
 assessmentRouter.post('/:id/publish', manageAssessments, validate({ params: idParam }), assessments.publish);
 
-// Everyone signed in reads their own feed; posting needs announcement:create.
 const post = requirePermission(PERMISSIONS.ANNOUNCEMENT_CREATE);
 export const announcementRouter = Router();
 announcementRouter.use(authenticate);

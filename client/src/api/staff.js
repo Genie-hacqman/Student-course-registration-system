@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap, unwrapPage } from './client'
 
-// Everything under ['admin'] is refreshed by staff socket events (see src/lib/socket.js).
 export const staffKeys = {
   all: ['admin'],
   registrations: (params) => ['admin', 'registrations', params],
@@ -32,7 +31,6 @@ export const useRegistrations = ({ status, semesterId, studentId, page = 1, limi
 export const useRegistration = (id) =>
   useQuery({ queryKey: staffKeys.registration(id), queryFn: () => api.get(`/admin/registrations/${id}`).then(unwrap) })
 
-/** The oldest submitted registration in the semester other than `exceptId`, for "review next". */
 export const fetchNextPending = async (semesterId, exceptId) => {
   const { items } = await api.get('/admin/registrations', {
     params: { status: 'submitted', semesterId, sort: 'submittedAt', limit: 2 },
@@ -73,7 +71,6 @@ export const downloadStaffSlip = async (id, referenceNumber) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-/** People, structure and registration progress in one call, for the admin and registrar dashboards. */
 export const useOverview = (semesterId, { enabled = true } = {}) =>
   useQuery({
     queryKey: staffKeys.report('overview', semesterId),

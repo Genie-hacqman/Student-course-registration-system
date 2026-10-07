@@ -2,11 +2,6 @@ import { useId } from 'react'
 import { Input, cx } from './ui'
 import { joinLocal, splitLocal } from '../lib/dateTime'
 
-/**
- * A date and a time in two boxes. The value is one "YYYY-MM-DDTHH:mm" string (see lib/dateTime.js), so a form keeps its
- * single field, its server error mapping and its `toLocalInput` / `fromLocalInput` conversion. Use it through `Controller`.
- * The message and hint show once under the pair, and both boxes turn red on an error.
- */
 export default function DateTimeField({ label, value, onChange, onBlur, error, hint, className }) {
   const labelId = useId()
   const messageId = useId()

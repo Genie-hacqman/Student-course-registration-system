@@ -1,8 +1,3 @@
-/**
- * What the audit log records about changes: exact before/after values for edits (never the whole request body),
- * "changed" without values for long text and personal data, from/to per student for grades, attendance and scores,
- * per-row detail for imports and bulk admission, and never a PIN or other secret.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -25,7 +20,6 @@ before(async () => {
   studentId = (await query("SELECT id FROM students WHERE student_number = 'STU2025001'"))[0].id;
   cs201 = await sectionIdFor('CS201');
 
-  // An approved registration, so CS201 has someone on its roster to grade, score and mark.
   for (const code of ['CS201', 'CS203']) {
     const res = await api().post('/api/registrations/items').set(auth(student.token)).send({ courseSectionId: await sectionIdFor(code) });
     assert.equal(res.status, 201);

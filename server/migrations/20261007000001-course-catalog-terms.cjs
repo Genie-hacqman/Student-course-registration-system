@@ -1,10 +1,5 @@
 'use strict';
 
-/**
- * Curriculum terms: which term of the academic year a semester is, and on a programme's curriculum,
- * which term a course is taught in and the academic year the entry takes effect from. All nullable:
- * NULL means "no restriction", so existing semesters and curricula behave exactly as before.
- */
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.addColumn('semesters', 'term', { type: Sequelize.TINYINT, after: 'name' });

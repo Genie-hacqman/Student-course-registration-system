@@ -11,7 +11,6 @@ module.exports = {
       onDelete: 'CASCADE',
     });
 
-    // Which courses each program's students may register for.
     await queryInterface.createTable('program_courses', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       program_id: fk('programs'),

@@ -2,8 +2,6 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Rows sharing a non-null (course_id, type, group_no) are alternatives (OR); every group is required (AND).
-    // NULL means the row is a group on its own, so existing rows and plain inserts stay "required".
     await queryInterface.addColumn('course_prerequisites', 'type', {
       type: Sequelize.ENUM('prerequisite', 'corequisite'),
       allowNull: false,

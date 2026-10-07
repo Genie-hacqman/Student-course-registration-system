@@ -1,26 +1,9 @@
 #!/usr/bin/env node
-/**
- * Simulates registration day: hundreds of students hitting the same handful of popular
- * sections in the same burst. Verifies correctness under real concurrency (never more than
- * `capacity` succeed per section, no 500s, no hangs) and reports latency/throughput so a
- * real bottleneck — e.g. the Sequelize connection pool size — shows up before it happens live.
- *
- * Run against a disposable database/server — it creates real accounts and registrations.
- * NEVER point this at production.
- *
- * Usage:
- *   BASE_URL=http://localhost:5061/api node scripts/load-test-registration.mjs
- *   STUDENTS=500 HOT_SECTIONS=3 node scripts/load-test-registration.mjs
- */
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5000/api';
 const STUDENTS = Number(process.env.STUDENTS ?? 300);
 const HOT_SECTIONS = Number(process.env.HOT_SECTIONS ?? 3);
 const SETUP_CONCURRENCY = Number(process.env.SETUP_CONCURRENCY ?? 25);
-// Real registration days are mostly continuing students with prior results, not freshmen with
-// none — and most sections require a prerequisite, so brand-new accounts wouldn't be eligible for
-// enough of them to make a meaningful test. These sign in as the seeded registrar and import a
-// passing grade in each so the burst has real, contested, eligible sections to hit.
 const PREREQUISITE_COURSE_CODES = (process.env.PREREQUISITE_COURSE_CODES ?? 'CS101,MATH101').split(',');
 const REGISTRAR_EMAIL = process.env.REGISTRAR_EMAIL ?? 'registrar@scrs.local';
 const REGISTRAR_PASSWORD = process.env.REGISTRAR_PASSWORD ?? 'Registrar@12345';
@@ -33,7 +16,6 @@ const post = (path, body, token) => fetch(`${BASE_URL}${path}`, {
 });
 const get = (path, token) => fetch(`${BASE_URL}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
 
-/** Runs `items` through `worker` with at most `limit` in flight at once. */
 const runWithConcurrency = async (items, limit, worker) => {
   const results = new Array(items.length);
   let next = 0;
@@ -54,7 +36,6 @@ const log = (...args) => console.log(new Date().toISOString().slice(11, 19), ...
 async function main() {
   log(`Target: ${BASE_URL} | students: ${STUDENTS} | hot sections: ${HOT_SECTIONS}`);
 
-  // --- Setup phase (not timed as part of the load test itself) -----------------------------
   const programsRes = await get('/programs');
   const { data: programs } = await json(programsRes);
   if (!programs?.length) throw new Error('No programs found — seed the database first (npm run db:seed:demo)');
@@ -104,10 +85,8 @@ async function main() {
   log('Hot sections (smallest capacity = most contended):');
   for (const s of hotSections) log(`  ${s.courseCode} section ${s.sectionCode}: capacity ${s.capacity}, id ${s.id}`);
 
-  // Spread every student across the hot sections, guaranteeing each is over-subscribed.
   const attempts = students.map((student, i) => ({ student, section: hotSections[i % hotSections.length] }));
 
-  // --- Burst phase (this is the actual load test) -------------------------------------------
   log(`Firing ${attempts.length} concurrent registration attempts...`);
   const burstStart = Date.now();
   const outcomes = await Promise.all(attempts.map(async ({ student, section }) => {
@@ -129,7 +108,6 @@ async function main() {
   }));
   const burstDurationMs = Date.now() - burstStart;
 
-  // --- Report ---------------------------------------------------------------------------------
   const latencies = outcomes.map((o) => o.latencyMs).sort((a, b) => a - b);
   console.log('\n=== Latency (ms) ===');
   console.log(`  min ${latencies[0]}  p50 ${percentile(latencies, 0.5)}  p95 ${percentile(latencies, 0.95)}  p99 ${percentile(latencies, 0.99)}  max ${latencies.at(-1)}`);

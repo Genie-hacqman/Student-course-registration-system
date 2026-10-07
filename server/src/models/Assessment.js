@@ -2,7 +2,6 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 import { ASSESSMENT_STATUS, ASSESSMENT_TYPES } from '../utils/constants.js';
 
-/** Coursework in a section (quiz, assignment, exam…). Students only see it once published. */
 class Assessment extends Model {}
 
 Assessment.init(

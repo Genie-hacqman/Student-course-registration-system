@@ -1,7 +1,3 @@
-/**
- * Timetable confirmation on registration approval: clashes found against the configured schedules
- * refuse the approval, are recorded for staff, and approving again after a fix confirms the timetable.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -45,7 +41,6 @@ describe('student clash introduced after submission', () => {
   test('approval is refused with the clash, recorded once, and succeeds after the schedule is fixed', async () => {
     const { student, registrationId } = await submitted(1);
 
-    // MATH201 moves onto CS201's Monday slot (another room, so the schedule edit itself is allowed).
     await moveMath({ day: 'MON', startTime: '09:00', endTime: '10:00', room: 'LT-4' });
 
     const refused = await approve(registrationId);
@@ -63,7 +58,6 @@ describe('student clash introduced after submission', () => {
     const [{ n }] = await query('SELECT COUNT(*) AS n FROM timetable_issues WHERE registration_id = :registrationId', { registrationId });
     assert.equal(n, 2, 'a retry updates the recorded issues instead of duplicating them');
 
-    // Staff see it, and it is visible on the student's own timetable too.
     const listed = await api().get(`/api/admin/timetable-issues?status=open&registrationId=${registrationId}`).set(auth(registrar.token));
     assert.equal(listed.status, 200);
     assert.equal(listed.body.meta.total, 2);
@@ -98,11 +92,10 @@ describe('student clash introduced after submission', () => {
 });
 
 describe('lecturer and room clashes with other sections', () => {
-  // The schedule and section APIs refuse these, so they are planted directly, as imported data could be.
   test('a double-booked lecturer or room blocks approval', async () => {
     const { registrationId } = await submitted(3);
     const [{ lecturer_id: lecturerId }] = await query('SELECT lecturer_id FROM course_sections WHERE id = :cs201', { cs201 });
-    const cs202 = await sectionIdFor('CS202'); // TUE 10:00-12:00 LT-2, same lecturer
+    const cs202 = await sectionIdFor('CS202');
 
     await query("UPDATE schedules SET day = 'TUE', start_time = '11:00', end_time = '12:00', room = 'LT-2' WHERE course_section_id = :math201", { math201 });
     await query('UPDATE course_sections SET lecturer_id = :lecturerId WHERE id = :math201', { lecturerId, math201 });

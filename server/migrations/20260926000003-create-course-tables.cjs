@@ -41,8 +41,6 @@ module.exports = {
       type: 'unique',
       name: 'course_prerequisites_pair_unique',
     });
-    // "Not its own prerequisite" and cycle checks live in prerequisite.service.js:
-    // MySQL forbids CHECK constraints on columns with FK referential actions.
 
     await queryInterface.createTable('course_sections', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },

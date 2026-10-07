@@ -1,11 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/**
- * One attempt at a course. Retakes in later semesters are separate rows.
- * Lecturers enter 'provisional' grades; finalising makes them 'final'.
- * Only final results are visible to students and count for prerequisites/GPA.
- */
 class Result extends Model {}
 
 Result.init(

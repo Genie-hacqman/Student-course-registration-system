@@ -5,10 +5,6 @@ import { Button, cx } from '../ui'
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 
-/**
- * A month grid with event dots, and the month's events listed underneath.
- * events: [{ label, date, tone? ('brand' | 'amber' | 'green' | 'red') }]
- */
 export function MonthCalendar({ events, initialDate }) {
   const [cursor, setCursor] = useState(() => {
     const d = initialDate ? new Date(initialDate) : new Date()
@@ -25,7 +21,7 @@ export function MonthCalendar({ events, initialDate }) {
   }, [events])
 
   const first = cursor
-  const offset = (first.getDay() + 6) % 7 // Monday-first
+  const offset = (first.getDay() + 6) % 7
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
   const cells = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => new Date(first.getFullYear(), first.getMonth(), i + 1))]
   const monthEvents = events

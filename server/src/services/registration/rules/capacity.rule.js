@@ -1,4 +1,3 @@
-/** `waitlistOffered` = global setting AND the section's own flag (computed by the service). */
 export const capacity = ({ section, waitlistOffered = false }) => {
   const rule = 'CAPACITY';
   if (section.seatsTaken < section.capacity) return { rule, passed: true };

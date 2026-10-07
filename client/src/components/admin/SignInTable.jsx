@@ -4,7 +4,6 @@ import DataTable from './DataTable'
 import { describeDevice, formatDateTime, fullName } from '../../lib/format'
 import { ROLE_LABELS } from '../../lib/roles'
 
-/** Sign-in history rows from GET /admin/sign-ins. `showPerson` is off on a single user's page. */
 export default function SignInTable({ rows, meta, onPage, showPerson = true, onPerson }) {
   return (
     <DataTable

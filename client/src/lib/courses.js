@@ -2,7 +2,6 @@ import { lecturerName } from './format'
 
 const RANK = { registered: 0, eligible: 1, full: 2, blocked: 3 }
 
-/** A course's overall status is its most favourable section's. Shared by the catalog and the registration wizard. */
 export const summarize = (course) => {
   const best = [...course.sections].sort((a, b) => RANK[a.status] - RANK[b.status])[0]
   return {

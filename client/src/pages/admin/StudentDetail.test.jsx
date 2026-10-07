@@ -24,7 +24,6 @@ const application = {
   photo: { present: true, uploadedAt: '2026-10-02T09:00:00Z', lockedAt: '2026-10-02T10:00:00Z', locked: true },
 }
 
-/** Routes every GET the page makes; `applicationResult` is the student's application, or an error. */
 const serve = ({ applicationResult = application, photoFails = false } = {}) =>
   vi.spyOn(api, 'get').mockImplementation(async (path) => {
     if (path === '/students/7') return { data: { data: student } }
@@ -36,7 +35,7 @@ const serve = ({ applicationResult = application, photoFails = false } = {}) =>
       if (photoFails) throw Object.assign(new Error('The photo could not be loaded'), { status: 503, code: 'PHOTO_UNAVAILABLE' })
       return { data: new Blob(['jpeg'], { type: 'image/jpeg' }) }
     }
-    return { data: { data: [] } } // waivers, current semester, results
+    return { data: { data: [] } }
   })
 
 const renderPage = () => render(

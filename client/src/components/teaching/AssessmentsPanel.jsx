@@ -104,7 +104,6 @@ function ScoreSheet({ assessment, onClose }) {
   )
 }
 
-/** A section's coursework: weight budget, create/edit, scoring and publishing. */
 export function AssessmentsPanel({ section }) {
   const list = useSectionAssessments(section.id)
   const create = useCreateAssessment()

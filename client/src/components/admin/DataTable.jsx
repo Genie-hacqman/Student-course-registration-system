@@ -1,9 +1,5 @@
 import { Button, EmptyState, cx } from '../ui'
 
-/**
- * columns: [{ key, header, render?(row), className? }]
- * meta (optional): `{ page, totalPages, total }` from a paginated endpoint, with onPage(n).
- */
 export default function DataTable({ columns, rows, onRowClick, empty = 'Nothing here yet', emptyHint, meta, onPage, rowKey = (r) => r.id }) {
   if (!rows?.length) return <EmptyState title={empty}>{emptyHint}</EmptyState>
   return (
@@ -45,7 +41,6 @@ export default function DataTable({ columns, rows, onRowClick, empty = 'Nothing 
   )
 }
 
-/** Stops a row click from also firing when a button inside the row is pressed. */
 export const stop = (fn) => (e) => {
   e.stopPropagation()
   fn()

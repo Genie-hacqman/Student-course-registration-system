@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { metaFor } from '../lib/pageMeta'
 
-/** Finds the head tag, or adds it, so the same code works whether index.html ships it or not. */
 function headTag(name) {
   let tag = document.head.querySelector(`meta[name="${name}"]`)
   if (!tag) {
@@ -13,10 +12,6 @@ function headTag(name) {
   return tag
 }
 
-/**
- * Keeps the tab title, meta description and robots tag in step with the current route (rules in lib/pageMeta.js).
- * Renders nothing. Search and share previews that don't run JavaScript read the static tags in index.html instead.
- */
 export default function RouteMeta() {
   const { pathname } = useLocation()
   useEffect(() => {

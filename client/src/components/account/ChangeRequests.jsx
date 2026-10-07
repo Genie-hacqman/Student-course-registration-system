@@ -133,7 +133,6 @@ function MyRequests({ requests }) {
   )
 }
 
-/** Students change their PIN themselves: no approval, and other devices are signed out. */
 function PinCard() {
   return (
     <Card>
@@ -145,11 +144,6 @@ function PinCard() {
   )
 }
 
-/**
- * Name + password section of Profile/Account: direct for admins and for students still applying,
- * request-and-approve for registrars and lecturers. Admitted students change their PIN directly; only
- * their name change needs approval.
- */
 export default function AccountSecurity() {
   const { user } = useAuth()
   const requests = useRequests()

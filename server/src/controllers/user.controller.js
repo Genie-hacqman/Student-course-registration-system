@@ -20,7 +20,6 @@ export const deactivate = async (req, res) => ok(res, await userService.deactiva
 export const sessions = async (req, res) => {
   await userService.getById(req.validated.params.id);
   const data = await authService.listSessions(req.validated.params.id, null);
-  // Another account's sign-in addresses and browsers. Looking at your own is not worth a row.
   if (Number(req.validated.params.id) !== req.user.id) {
     await recordStaffView(req, { action: 'user.sessions_viewed', entityType: 'User', entityId: req.validated.params.id });
   }

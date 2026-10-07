@@ -1,7 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/** A lecturer's additional department (joint appointment). The home department is lecturers.department_id. */
 class LecturerDepartment extends Model {}
 
 LecturerDepartment.init(

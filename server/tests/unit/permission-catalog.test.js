@@ -17,7 +17,6 @@ test('there are exactly four roles, each with its own permission set, and nothin
   for (const removed of ['SUPER_ADMIN', 'USER', 'ACADEMIC_ADVISOR', 'APPLICANT']) {
     assert.deepEqual(permissionsFor(removed), [], `${removed} has no permissions`);
   }
-  // The split between the institution (ADMIN) and academics (REGISTRAR).
   const admin = permissionsFor('ADMIN');
   const registrar = permissionsFor('REGISTRAR');
   for (const p of ['user:manage', 'application:review', 'student:admit', 'role:manage', 'settings:manage', 'account:approve', 'audit:view']) {
@@ -28,7 +27,6 @@ test('there are exactly four roles, each with its own permission set, and nothin
     assert.ok(registrar.includes(p), `REGISTRAR has ${p}`);
     assert.ok(!admin.includes(p), `ADMIN lacks ${p}`);
   }
-  // Both staff roles browse the department / programme / lecturer directories; lecturers and students don't.
   assert.ok(admin.includes('directory:view') && registrar.includes('directory:view'));
   assert.ok(!permissionsFor('LECTURER').includes('directory:view'));
   assert.deepEqual(permissionsFor('STUDENT').sort(), ['application:self', 'registration:self']);

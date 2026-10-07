@@ -13,10 +13,6 @@ const useDebounced = (value, ms = 250) => {
   return v
 }
 
-/**
- * Type-to-search picker over a paginated list endpoint. `value` is the chosen id;
- * `onChange(id, option)` receives the id and the option `{ id, label, sub }`.
- */
 function SearchPicker({ label, value, onChange, path, toOption, placeholder, error, exclude = [], extraParams }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -105,7 +101,6 @@ export function StudentPicker(props) {
   )
 }
 
-/** Plain select of every lecturer (a department's staff list is short). Empty value = unassigned. */
 export function LecturerSelect({ label = 'Lecturer', error, ...props }) {
   const lecturers = useApi('/lecturers', { limit: 100, sort: 'staffNumber' })
   return (

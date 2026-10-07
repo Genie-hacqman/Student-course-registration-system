@@ -1,11 +1,5 @@
 'use strict';
 
-/**
- * Demo-only — never run this in production:
- * - two CS201 assessments (one published, one draft) for the demo lecturer
- * - a campus-wide announcement from the admin and a CS201 announcement from the lecturer
- * No attendance: the demo semester starts after seed time, so there are no past classes to record.
- */
 module.exports = {
   async up(queryInterface) {
     if (process.env.NODE_ENV === 'production') {
@@ -25,7 +19,7 @@ module.exports = {
     const [[admin]] = await q.query(
       "SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'ADMIN' ORDER BY u.id LIMIT 1",
     );
-    if (!section || !lecturer) return; // demo academic data not seeded
+    if (!section || !lecturer) return;
 
     await queryInterface.bulkInsert('assessments', [
       {

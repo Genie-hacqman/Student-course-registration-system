@@ -6,15 +6,12 @@ import { isEmailable } from '../../src/services/notification.service.js';
 
 describe('email service', () => {
   test('falls back to logging (never throws) when SMTP is not configured', async () => {
-    // The test environment has no SMTP_HOST set, exercising the real default-transporter path.
     const result = await sendMail({ to: 'student@example.com', subject: 'Test', text: 'Hello' });
     assert.equal(result.sent, false);
     assert.match(result.error, /not configured/);
   });
 
   test('sends through an injected transporter and actually composes the message', async () => {
-    // nodemailer's jsonTransport composes and returns the message without any real network I/O —
-    // this is nodemailer's own recommended way to test callers without a mail server.
     const transporter = nodemailer.createTransport({ jsonTransport: true });
     const result = await sendMail(
       { to: 'student@example.com', subject: 'Reset your password', text: 'Click the link' },

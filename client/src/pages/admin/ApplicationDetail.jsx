@@ -22,7 +22,6 @@ function Field({ label, children }) {
   )
 }
 
-// Same convention the admission step uses for the student's admission number (see application.service.admit).
 const applicationNumber = (id) => `APP${String(id).padStart(6, '0')}`
 
 export default function ApplicationDetail() {
@@ -33,7 +32,6 @@ export default function ApplicationDetail() {
   const reject = useApiMutation((body) => http.post(`/applications/${id}/reject`, body), { success: 'Applicant notified of the decision' })
   const resend = useApiMutation(() => http.post(`/applications/${id}/resend-activation`))
 
-  // Admission stands even when the email fails; the admin is told and can resend.
   const onAdmit = async (body) => {
     const { application: a, emailDelivery } = await admit.mutateAsync(body)
     if (emailDelivery.sent) toast.success(`Admitted as ${a.student?.studentNumber}. The activation email was sent to ${a.personalEmail}.`)
@@ -153,7 +151,6 @@ export default function ApplicationDetail() {
   )
 }
 
-/** Where the admission email stands: sent, failed (with the reason), or not attempted. */
 function EmailDelivery({ application: a }) {
   const attempts = a.activationEmailAttempts ? ` · ${a.activationEmailAttempts} attempt${a.activationEmailAttempts === 1 ? '' : 's'}` : ''
   if (a.activationEmailError) {

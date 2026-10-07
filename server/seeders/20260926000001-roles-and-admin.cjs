@@ -3,7 +3,6 @@
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 
-// The four roles (see server/src/utils/constants.js). Applicants are STUDENTs who aren't admitted yet.
 const ROLES = [
   ['ADMIN', 'Institution administration: accounts, admission, departments, programmes, settings'],
   ['REGISTRAR', 'Academic administration: courses, offerings, lecturer assignment, registrations, timetable'],
@@ -11,15 +10,10 @@ const ROLES = [
   ['STUDENT', 'Students, including applicants who are not admitted yet'],
 ];
 
-// Published in the project's own docs/tests — never acceptable as a real credential.
 const PUBLISHED_DEFAULT_EMAIL = 'admin@scrs.local';
 const PUBLISHED_DEFAULT_PASSWORD = 'Admin@12345';
 const MIN_PRODUCTION_PASSWORD_LENGTH = 12;
 
-/**
- * In production, refuses to fall back to the published default admin credentials.
- * Everywhere else (dev/test), keeps the convenient defaults so local setup needs no config.
- */
 const resolveAdminCredentials = () => {
   const email = process.env.SEED_ADMIN_EMAIL;
   const password = process.env.SEED_ADMIN_PASSWORD;
@@ -45,13 +39,11 @@ const resolveAdminCredentials = () => {
 };
 
 module.exports = {
-  // Shared with `npm run admin:create` (scripts/create-admin.mjs), so both apply the same rules.
   resolveAdminCredentials,
 
   async up(queryInterface) {
     const { email, password } = resolveAdminCredentials();
     const now = new Date();
-    // INSERT IGNORE: the four-roles migration may already have created them.
     for (const [name, description] of ROLES) {
       await queryInterface.sequelize.query(
         'INSERT IGNORE INTO roles (name, description, created_at, updated_at) VALUES (:name, :description, :now, :now)',

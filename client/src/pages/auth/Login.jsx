@@ -10,7 +10,6 @@ import { Button, Input, Tabs } from '../../components/ui'
 import { applyServerErrors, emailSchema } from '../../lib/forms'
 import { areaForRole, homeForRole } from '../../lib/roles'
 
-// Students sign in with the Student ID + PIN issued at admission; staff with their email + password.
 const MODES = {
   student: {
     schema: z.object({
@@ -21,7 +20,6 @@ const MODES = {
     secret: { label: 'PIN', inputMode: 'numeric', autoComplete: 'current-password' },
     forgot: { to: '/forgot-pin', label: 'Forgot PIN?' },
   },
-  // Prospective students, before admission: the personal email they applied with.
   applicant: {
     schema: z.object({ identifier: emailSchema, password: z.string().min(1, 'Enter your password') }),
     id: { label: 'Personal email', type: 'email', autoComplete: 'email' },
@@ -50,7 +48,7 @@ export default function Login() {
 
   const choose = (next) => {
     setMode(next)
-    try { localStorage.setItem(MODE_KEY, next) } catch { /* private mode: just don't remember */ }
+    try { localStorage.setItem(MODE_KEY, next) } catch {}
   }
 
   return (
@@ -63,7 +61,6 @@ export default function Login() {
         value={mode}
         onChange={choose}
       />
-      {/* Keyed so switching tabs starts a clean form with the other mode's rules. */}
       <LoginForm key={mode} mode={mode} />
       {mode === 'student' && (
         <p className="mt-6 text-center text-sm text-slate-500">
@@ -81,9 +78,6 @@ export default function Login() {
           </Link>
         </div>
       )}
-      {/* On phones the card is long, so the way in for new applicants stays pinned to the bottom of the screen.
-          Portalled to <body>: the card has a backdrop filter and animated transforms, which would otherwise make
-          "fixed" mean "fixed to the card" instead of to the screen. */}
       {mode !== 'staff' && createPortal(
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/20 bg-slate-950/85 px-4 py-3 backdrop-blur-md lg:hidden">
           <Link
@@ -114,7 +108,6 @@ function LoginForm({ mode }) {
       if (user.mustChangePassword) return navigate('/change-pin', { replace: true })
       const role = user.role?.name
       const from = location.state?.from
-      // Only return to the page they came from if it's in their own area.
       navigate(from?.startsWith(`/${areaForRole(role)}`) ? from : homeForRole(role), { replace: true })
     } catch (err) {
       if (err.code === 'ACCOUNT_LOCKED') setLocked(err.message)

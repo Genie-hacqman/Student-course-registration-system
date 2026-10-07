@@ -14,7 +14,6 @@ export function usePrefersReducedMotion() {
   return reduced
 }
 
-/** Counts up from the previous value to `target` over `duration` ms. Jumps straight there under reduced motion. */
 export function useCountUp(target, duration = 600) {
   const reduced = usePrefersReducedMotion()
   const animate = typeof target === 'number' && !reduced
@@ -37,6 +36,5 @@ export function useCountUp(target, duration = 600) {
     return () => cancelAnimationFrame(frame)
   }, [target, duration, animate])
 
-  // Non-numbers and reduced motion skip the animation entirely.
   return animate ? value : target
 }

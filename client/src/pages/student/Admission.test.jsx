@@ -5,13 +5,11 @@ import { renderWithProviders } from '../../test/render'
 import { applicationsApi } from '../../api/applications'
 import Admission from './Admission'
 
-// jsdom has no canvas, so cropping is faked.
 vi.mock('../../lib/image', async (importOriginal) => ({
   ...(await importOriginal()),
   fileToOfficialPhoto: vi.fn().mockResolvedValue(new Blob(['jpeg'], { type: 'image/jpeg' })),
 }))
 
-// A tiny external store, so a test can swap the signed-in user mid-render the way AuthProvider's setUser does.
 const auth = vi.hoisted(() => {
   const listeners = new Set()
   const store = {
@@ -95,7 +93,7 @@ describe('Admission: the official application photo is mandatory', () => {
     renderWithProviders(<Admission />)
 
     await user.type(await screen.findByLabelText(/phone number/i), '+233 24 123 4567')
-    act(() => auth.set({ ...applicant, avatar: 'data:image/jpeg;base64,FULL' })) // what the profile uploader does via setProfile
+    act(() => auth.set({ ...applicant, avatar: 'data:image/jpeg;base64,FULL' }))
 
     expect(screen.getByLabelText(/phone number/i)).toHaveValue('+233 24 123 4567')
   })

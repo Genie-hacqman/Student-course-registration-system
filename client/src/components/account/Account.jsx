@@ -60,7 +60,6 @@ export function PasswordForm() {
   const change = useChangePassword()
   const { register, handleSubmit, setError, reset, formState: { errors } } = useForm({ resolver: zodResolver(passwordFormSchema) })
 
-  // The server ends every session on a password change, so the user signs in again.
   const onSubmit = ({ currentPassword, newPassword }) => change.mutate({ currentPassword, newPassword }, {
     onSuccess: (data) => {
       reset()
@@ -152,7 +151,6 @@ export function Sessions() {
   )
 }
 
-/** Shown in the app shell until the user confirms their email address. */
 export function VerifyEmailBanner() {
   const { user } = useAuth()
   const resend = useMutation({

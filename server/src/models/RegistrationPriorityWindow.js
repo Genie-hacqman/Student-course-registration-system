@@ -1,7 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/** Students matching (level >= minLevel, and programId if set) may start registering at opensAt. */
 class RegistrationPriorityWindow extends Model {}
 
 RegistrationPriorityWindow.init(

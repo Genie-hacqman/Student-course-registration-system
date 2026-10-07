@@ -1,8 +1,3 @@
-/**
- * The audit log: what is recorded automatically (request context, actor snapshot, signature), what is never
- * recorded (typed secrets, slip codes), that it cannot be changed through the app, that tampering and deletions
- * are detected, how failures behave inside and outside a transaction, retention with archive, and the query API.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
@@ -214,7 +209,6 @@ describe('seals, verification and tampering', () => {
     assert.ok(result.problems.some((p) => p.type === 'row_count'));
     assert.ok(result.problems.some((p) => p.type === 'seal_mismatch'));
 
-    // Put it back exactly, so later tests start from an intact log.
     await query(
       'INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, metadata, ip_address, request_id, user_agent, actor_email, actor_role, row_hmac, created_at) VALUES (:id, :user_id, :action, :entity_type, :entity_id, :metadata, :ip_address, :request_id, :user_agent, :actor_email, :actor_role, :row_hmac, :created_at)',
       { ...copy, metadata: copy.metadata === null ? null : JSON.stringify(copy.metadata) },
@@ -224,7 +218,6 @@ describe('seals, verification and tampering', () => {
 
   test('a removed seal breaks the chain', async () => {
     const seals = await AuditSeal.findAll({ where: { stream: 'main' }, order: [['id', 'ASC']] });
-    // Make a second main seal so the first can be removed from the front.
     await audit.log({ action: 'test.second_batch' });
     await maintenance.sealPending({ now: later(20 * MINUTES) });
     const all = await AuditSeal.findAll({ where: { stream: 'main' }, order: [['id', 'ASC']] });
@@ -239,8 +232,6 @@ describe('seals, verification and tampering', () => {
   });
 });
 
-// The archive goes to object storage. A developer's .env may point that at a real bucket, so these tests never
-// use the configured driver: they archive into memory.
 const memoryStorage = () => {
   const objects = new Map();
   return {
@@ -258,19 +249,17 @@ describe('retention', () => {
 
   test('sign-ins are archived and purged after 12 months, everything else after 24; the chain still verifies', async () => {
     await maintenance.sealPending({ now: later(30 * MINUTES) });
-    const SHORT = "(action LIKE 'auth.login%' OR action LIKE 'security.%')"; // the short-retention actions in the catalogue
+    const SHORT = "(action LIKE 'auth.login%' OR action LIKE 'security.%')";
     const signInsBefore = (await query(`SELECT COUNT(*) AS n FROM audit_logs WHERE ${SHORT}`))[0].n;
     const othersBefore = (await query(`SELECT COUNT(*) AS n FROM audit_logs WHERE NOT ${SHORT}`))[0].n;
     assert.ok(signInsBefore > 0 && othersBefore > 0);
 
-    // 13 months on: only the sign-in stream has expired.
     const first = await maintenance.purgeExpired({ now: later(13 * 30 * DAYS) });
     assert.equal(first.purged, Number(signInsBefore));
     assert.equal((await query(`SELECT COUNT(*) AS n FROM audit_logs WHERE ${SHORT}`))[0].n, 0);
     assert.equal((await query(`SELECT COUNT(*) AS n FROM audit_logs WHERE NOT ${SHORT}`))[0].n, othersBefore);
     assert.ok((await maintenance.verify()).ok, 'purged seals still anchor the chain');
 
-    // Each purged seal points at an archive that holds exactly its rows.
     const purged = await AuditSeal.findAll({ where: { stream: 'signin' } });
     assert.ok(purged.length > 0);
     let archived = 0;
@@ -282,7 +271,6 @@ describe('retention', () => {
     }
     assert.equal(archived, Number(signInsBefore));
 
-    // 3 years on: the rest goes too.
     const second = await maintenance.purgeExpired({ now: later(3 * 365 * DAYS) });
     assert.equal(second.purged, Number(othersBefore));
     assert.equal((await query('SELECT COUNT(*) AS n FROM audit_logs WHERE row_hmac IS NOT NULL AND id <= (SELECT MAX(to_id) FROM audit_seals)'))[0].n, 0);

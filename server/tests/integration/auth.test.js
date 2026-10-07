@@ -70,7 +70,6 @@ describe('auth', () => {
     const reuse = await api().post('/api/auth/refresh').set('Cookie', first);
     assert.equal(reuse.status, 401);
 
-    // Theft detection: the legitimately rotated token is now revoked too.
     const afterReuse = await api().post('/api/auth/refresh').set('Cookie', second);
     assert.equal(afterReuse.status, 401);
   });
@@ -92,8 +91,6 @@ describe('auth', () => {
   });
 
   test('logout racing a refresh still ends the session: the rotated-to token is revoked too', async () => {
-    // The browser sends logout with the cookie it had, while a refresh (e.g. after the access token
-    // expired) has already rotated it; the refresh's new cookie then lands after the logout.
     const { cookie: old } = await loginAs('student');
     const rotated = await api().post('/api/auth/refresh').set('Cookie', old);
     assert.equal(rotated.status, 200);
@@ -127,7 +124,6 @@ describe('auth', () => {
     });
     assert.equal(created.status, 201);
 
-    // A registrar's or lecturer's "forgot password" files a request for an admin instead of emailing a link.
     assert.equal(await authService.forgotPassword('fresh@test.local'), null);
     const token = await approvedResetToken('fresh@test.local');
     const reset = await api().post('/api/auth/reset-password').send({ token, password: 'NewPassw0rd' });
@@ -144,7 +140,6 @@ describe('auth', () => {
     assert.equal(refused.status, 403);
     assert.match(refused.body.error.message, /approval/);
 
-    // Students have a PIN instead, which they change themselves.
     const student = await createStudent(100);
     const pinOnly = await api().patch('/api/auth/password').set(auth(student.token)).send({ currentPassword: 'x', newPassword: 'Changed1Pass' });
     assert.equal(pinOnly.status, 403);
@@ -184,7 +179,6 @@ describe('strict token revocation', () => {
     assert.equal(after.body.error.message, 'Token has been revoked');
     assert.equal((await api().get('/api/courses').set(auth(token))).status, 401);
 
-    // Other sessions of the same user are unaffected by a single-device logout.
     const other = await loginAs('student');
     assert.equal((await me(other.token)).status, 200);
   });

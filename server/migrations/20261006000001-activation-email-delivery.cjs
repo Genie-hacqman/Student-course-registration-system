@@ -1,11 +1,5 @@
 'use strict';
 
-/**
- * Admission email delivery: every send of the admission/activation email is recorded on the
- * application, so a failed send is visible to the admin (who can resend) without undoing the
- * admission. Also records when the account was activated, and makes a personal email usable by
- * one application only.
- */
 module.exports = {
   async up(queryInterface, Sequelize) {
     const [duplicates] = await queryInterface.sequelize.query(

@@ -5,14 +5,12 @@ import { REGISTRATION_STATUS, fullName } from '../../lib/format'
 
 export const STUDENT_TONE = { active: 'green', probation: 'amber', suspended: 'red', graduated: 'slate' }
 
-/** Registration status for the chosen term; "Not registered" when the student has none. */
 export function RegistrationBadge({ status }) {
   if (!status) return <Badge tone="slate">Not registered</Badge>
   const meta = REGISTRATION_STATUS[status] ?? { label: status, tone: 'slate' }
   return <Badge tone={meta.tone}>{meta.label}</Badge>
 }
 
-/** Where the admission came from: an online application (with its number) or a staff admission. */
 function Admission({ admission }) {
   if (!admission) return '—'
   return (
@@ -23,10 +21,6 @@ function Admission({ admission }) {
   )
 }
 
-/**
- * The paginated student list used by the Students page, a department's Students tab and a programme's Students tab.
- * `query` is a useApi result with `{ items, meta }`; rows open the student's profile.
- */
 export default function StudentTable({ query, onPage, showDepartment = true, showProgram = true, empty = 'No students match', emptyHint }) {
   const navigate = useNavigate()
   return (

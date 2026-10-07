@@ -13,7 +13,6 @@ import { applyServerErrors, requiredNumber } from '../../lib/forms'
 import { APPLICATION_STATUS, formatDate, formatDateTime } from '../../lib/format'
 import { isAdmitted } from '../../lib/roles'
 
-// Mirrors SCRS-backend validators/application.validator.js; completeness is checked again on submit.
 const schema = z.object({
   firstName: z.string().trim().min(1, 'Required').max(100),
   lastName: z.string().trim().min(1, 'Required').max(100),
@@ -31,15 +30,10 @@ const toForm = (a) => ({
   phone: a?.phone ?? '', departmentId: a?.departmentId ?? '', programId: a?.programId ?? '', entryLevel: a?.entryLevel ?? '',
 })
 
-/** Drops empty fields (a draft may be partial) and turns the selects into numbers. */
 const toBody = (values) => Object.fromEntries(Object.entries(values)
   .filter(([, v]) => v !== '' && v != null)
   .map(([k, v]) => [k, ['departmentId', 'programId', 'entryLevel'].includes(k) ? Number(v) : v]))
 
-/**
- * Admission status for every STUDENT. Before admission: the application form, then its progress.
- * Once admitted (online or by staff): the student record, with the way into course registration.
- */
 export default function Admission() {
   const { user } = useAuth()
   const mine = useMyApplication()
@@ -93,8 +87,6 @@ function ApplicationForm({ application, emailVerified }) {
   const options = useApplicationOptions()
   const save = useSaveApplication()
   const submit = useSubmitApplication()
-  // Depend on the name strings, not the `user` object: it is replaced whenever the profile changes (e.g. after
-  // uploading the photo), and a new `defaults` resets the form, which would wipe what the applicant has typed.
   const { firstName, lastName } = user ?? {}
   const defaults = useMemo(() => toForm(application ?? { firstName, lastName }), [application, firstName, lastName])
   const { register, handleSubmit, getValues, setValue, watch, setError, reset, formState: { errors } } = useForm({
@@ -102,8 +94,6 @@ function ApplicationForm({ application, emailVerified }) {
   })
   useEffect(() => reset(defaults), [defaults, reset])
 
-  // The official application photo, not the profile picture. Kept here (not in the application cache) so saving it
-  // never swaps the application object, which would reset what the applicant has typed.
   const [photo, setPhoto] = useState(application?.photo ?? null)
   const hasPhoto = Boolean(photo?.present)
   const departments = options.data ?? []

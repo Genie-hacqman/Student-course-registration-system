@@ -1,12 +1,3 @@
-/*
- * Course-catalogue import: validation, with no database access. The service loads the lookups
- * (departments, programmes, academic years, existing courses) once and calls `validateCatalog`, so
- * every rule here is unit-tested without MySQL (tests/unit/course-import.test.js).
- *
- * One row = one course on one programme's curriculum. The same course code may appear on several
- * rows (a course shared by programmes); its course-level fields must then agree.
- */
-
 export const COURSE_TYPES = ['core', 'elective'];
 export const MAX_CREDIT_HOURS = 12;
 const CODE_PATTERN = /^[A-Z0-9-]{2,20}$/;
@@ -15,7 +6,6 @@ const SEMESTER_WORDS = { first: 1, second: 2, third: 3, '1st': 1, '2nd': 2, '3rd
 
 const text = (v) => (v == null ? '' : String(v).trim());
 
-/** "1", 2, "Semester 2", "Second", "2nd" → 1-3, or null. */
 export const parseSemester = (value) => {
   const v = text(value).toLowerCase();
   if (!v) return null;
@@ -25,7 +15,6 @@ export const parseSemester = (value) => {
   return Number.isInteger(n) && n >= 1 && n <= 3 ? n : null;
 };
 
-/** "CS101; CS102,MATH101" or an array → unique upper-cased codes. */
 export const parseCodes = (value) => {
   const list = Array.isArray(value) ? value : text(value).split(/[;,|]/);
   return [...new Set(list.map((c) => text(c).toUpperCase()).filter(Boolean))];
@@ -36,12 +25,11 @@ const toInt = (v) => {
   return /^-?\d+$/.test(s) ? Number(s) : NaN;
 };
 
-/** Normalises one raw row and collects the checks that need no other rows. */
 const checkRow = (raw, index, lookups) => {
   const errors = [];
   const row = {
     index,
-    line: Number.isInteger(raw.line) ? raw.line : index + 2, // spreadsheet line; +2 for the header row
+    line: Number.isInteger(raw.line) ? raw.line : index + 2,
     code: text(raw.courseCode).toUpperCase(),
     title: text(raw.courseTitle),
     departmentKey: text(raw.department),
@@ -111,17 +99,6 @@ const sameCourse = (a, b) => {
   return diffs;
 };
 
-/**
- * Validates every row. `lookups`:
- *   departments  Map<CODE | lowercased name, { id, code, name }>
- *   programmes   Map<CODE, { id, code, durationYears }>
- *   academicYears Map<name, { id, name }>
- *   courses      Map<CODE, { id, level }>   — existing courses (and existing prerequisite targets)
- *
- * Returns `{ results, courses }`: one result per row
- * (`{ index, line, courseCode, programme, status: valid|invalid|duplicate, errors }`) and, for the
- * valid ones, the new courses to create keyed by code (`{ code, rows: [normalised rows] }`).
- */
 export const validateCatalog = (rawRows, lookups) => {
   const checked = rawRows.map((raw, index) => checkRow(raw ?? {}, index, lookups));
   const results = checked.map(({ row, errors }) => ({
@@ -134,7 +111,6 @@ export const validateCatalog = (rawRows, lookups) => {
     r.errors.push(message);
   };
 
-  // Duplicates: an existing course is never touched; a repeated code + programme counts once.
   const seenPair = new Map();
   for (const { row } of checked) {
     if (row.code && lookups.courses.has(row.code)) {
@@ -147,7 +123,6 @@ export const validateCatalog = (rawRows, lookups) => {
     } else if (row.code && row.programmeCode) seenPair.set(key, row.line);
   }
 
-  // Rows of one course (shared by programmes) must describe the same course.
   const courses = new Map();
   for (const { row } of checked) {
     if (results[row.index].status !== 'valid') continue;
@@ -161,8 +136,6 @@ export const validateCatalog = (rawRows, lookups) => {
     else group.rows.push(row);
   }
 
-  // Prerequisites must exist (already, or as a valid new course here) and not be at a higher level.
-  // Removing a course can orphan another's prerequisite, so repeat until nothing changes.
   const invalidateCourse = (code, message) => {
     for (const r of courses.get(code).rows) fail(r.index, 'invalid', message);
     courses.delete(code);
@@ -189,8 +162,7 @@ export const validateCatalog = (rawRows, lookups) => {
     }
   }
 
-  // No prerequisite cycles among the new courses (existing courses can't point at new ones).
-  const state = new Map(); // code → 'visiting' | 'done'
+  const state = new Map();
   const cyclic = new Set();
   const visit = (code, path) => {
     if (state.get(code) === 'done' || !courses.has(code)) return;
@@ -208,7 +180,6 @@ export const validateCatalog = (rawRows, lookups) => {
   return { results, courses };
 };
 
-/** New courses in an order where every in-file prerequisite comes before the course that needs it. */
 export const importOrder = (courses) => {
   const ordered = [];
   const placed = new Set();

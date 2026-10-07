@@ -15,18 +15,6 @@ import * as waitlistService from './waitlist.service.js';
 import * as audit from './audit.service.js';
 import { summariseEntries } from '../utils/audit-diff.js';
 
-/*
- * Bulk import of real institutional data. Each endpoint takes rows keyed by natural keys (codes,
- * emails, staff numbers) and upserts them, so re-running a corrected file is safe.
- *
- * - Every row runs in its own transaction: a bad row is reported and the rest still import.
- * - A dry run wraps the whole file in one outer transaction, runs each row in a savepoint and then
- *   rolls everything back. Later rows therefore see earlier ones (a section clashing with another
- *   section in the same file is caught), exactly as in the real run.
- * - Savepoints fire `afterCommit` hooks immediately, so anything with side effects outside the
- *   database (invite emails, waitlist notifications) is skipped when `ctx.dryRun` is set.
- */
-
 const DRY_RUN_ROLLBACK = Symbol('dry-run rollback');
 
 const describeError = (err) => {
@@ -37,18 +25,12 @@ const describeError = (err) => {
   return { message: err.message, ...(err.details ? { details: err.details } : {}) };
 };
 
-/**
- * Runs `handler(row, transaction, ctx)` for every row. The handler returns 'created', 'updated'
- * or 'unchanged', optionally with `invite` (a user to email after the row commits) or
- * `credentials` (returned once in the report; never for a dry run, whose rows are rolled back).
- */
 export const runImport = async ({ rows, dryRun = false, sendInvites = false }, handler, { actor, action, keyOf, withCredentials = false }) => {
   const report = {
     dryRun, created: 0, updated: 0, unchanged: 0, failed: 0, invited: 0, errors: [], ...(withCredentials && !dryRun ? { credentials: [] } : {}),
   };
   const ctx = { actor, dryRun, cache: new Map() };
   const invites = [];
-  // What the audit entry lists per row: the natural key and what happened (never messages or credentials).
   const touched = [];
 
   const runRows = async (outer) => {
@@ -95,18 +77,14 @@ export const runImport = async ({ rows, dryRun = false, sendInvites = false }, h
   return report;
 };
 
-// ── lookups by natural key ────────────────────────────────────────────────────
-
 const findByCode = async (Model, label, code, transaction) => {
   const record = await Model.findOne({ where: { code }, transaction });
   if (!record) throw new BadRequestError(`Unknown ${label} code ${code}`);
   return record;
 };
 
-/** Omitted (undefined) fields mean "leave as is" on an upsert. */
 const stripUndefined = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 
-/** Applies `changes` and reports whether anything actually differed. */
 const applyUpdate = async (record, changes, transaction) => {
   record.set(stripUndefined(changes));
   if (!record.changed()) return 'unchanged';
@@ -123,8 +101,6 @@ const roleId = async (name, ctx, transaction) => {
   }
   return ctx.cache.get(key);
 };
-
-// ── academic structure ────────────────────────────────────────────────────────
 
 export const importDepartments = (body, actor) => runImport(body, async (row, transaction) => {
   const existing = await Department.findOne({ where: { code: row.code }, transaction });
@@ -168,10 +144,6 @@ export const importProgramCourses = (body, actor) => runImport(body, async (row,
   return { outcome: 'created' };
 }, { actor, action: 'import.program_courses', keyOf: (r) => `${r.programCode}/${r.courseCode}` });
 
-/**
- * One row is one requirement group. A group that already exists exactly as given is left alone,
- * so re-importing is safe; one that overlaps an existing group differently is an error (fix it by hand).
- */
 export const importPrerequisites = (body, actor) => runImport(body, async (row, transaction, ctx) => {
   const course = await findByCode(Course, 'course', row.courseCode, transaction);
   const required = [];
@@ -196,12 +168,6 @@ export const importPrerequisites = (body, actor) => runImport(body, async (row, 
   return { outcome: 'created' };
 }, { actor, action: 'import.prerequisites', keyOf: (r) => `${r.courseCode} <- ${r.requiresAnyOf.join('|')}` });
 
-// ── people ────────────────────────────────────────────────────────────────────
-
-/**
- * Finds the account by email or creates it without a usable password. Returns the user, whether it
- * was created, and whether it still needs an invite (never set a password).
- */
 const upsertUser = async (row, role, ctx, transaction) => {
   const user = await User.scope('withSecrets').findOne({
     where: { email: row.email }, include: [{ model: Role, as: 'role', attributes: ['name'] }], transaction,
@@ -219,13 +185,11 @@ const upsertUser = async (row, role, ctx, transaction) => {
     email: row.email,
     passwordHash: UNUSABLE_PASSWORD_HASH,
     status: USER_STATUS.ACTIVE,
-    // Staff import records for real people they know, so no verification email is needed.
     emailVerifiedAt: new Date(),
   }, { transaction });
   return { user: created, created: true, outcome: 'created', needsInvite: true };
 };
 
-/** A new account is 'created'; otherwise 'updated' if the user row changed or its profile was added or changed. */
 const combine = (account, profileOutcome) => {
   if (account.created) return 'created';
   return account.outcome === 'updated' || profileOutcome !== 'unchanged' ? 'updated' : 'unchanged';
@@ -243,8 +207,6 @@ export const importLecturers = (body, actor) => runImport(body, async (row, tran
 
   return { outcome: combine(account, profileOutcome), invite: account.needsInvite ? account.user : undefined };
 }, { actor, action: 'import.lecturers', keyOf: (r) => r.email });
-
-// ── sections and timetable ────────────────────────────────────────────────────
 
 const resolveSemesterId = async (row, ctx, transaction) => {
   if (row.semesterId) {
@@ -272,8 +234,6 @@ export const importSections = (body, actor) => runImport(body, async (row, trans
     lecturerId = lecturer.id;
   }
 
-  // The lecturer is applied last, through the assignment service (validation + history), once the
-  // section's schedule for this row is in place.
   const fields = { capacity: row.capacity, status: row.status, waitlistEnabled: row.waitlistEnabled };
   let section = await CourseSection.findOne({
     where: { courseId: course.id, semesterId, sectionCode: row.sectionCode }, transaction, lock: transaction.LOCK.UPDATE,
@@ -296,7 +256,6 @@ export const importSections = (body, actor) => runImport(body, async (row, trans
     outcome = 'created';
   }
 
-  // Timetable: replaced when given; otherwise the existing slots are re-checked against a new lecturer.
   const slots = row.schedules
     ?? (await Schedule.findAll({ where: { courseSectionId: section.id }, raw: true, transaction })).map(({ room, ...s }) => s);
   if (row.schedules) {
@@ -328,19 +287,12 @@ export const importSections = (body, actor) => runImport(body, async (row, trans
     if (outcome === 'unchanged') outcome = 'updated';
   }
 
-  // More seats on a live section: tell the waitlist, as a manual capacity change would.
   if (capacityGrewBy > 0 && !ctx.dryRun) {
     await waitlistService.notifyNext(section, { transaction, count: capacityGrewBy });
   }
   return { outcome };
 }, { actor, action: 'import.sections', keyOf: (r) => `${r.courseCode}/${r.sectionCode}` });
 
-// ── invites ───────────────────────────────────────────────────────────────────
-
-/**
- * Emails a set-your-password invite to imported accounts that have never set one and have no
- * unexpired invite outstanding. Sent in batches of `limit`; call again while `remaining` > 0.
- */
 export const sendPendingInvites = async ({ role, limit }, actor) => {
   const where = {
     passwordHash: UNUSABLE_PASSWORD_HASH,

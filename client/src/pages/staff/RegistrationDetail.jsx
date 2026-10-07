@@ -31,7 +31,6 @@ export default function RegistrationDetail() {
   const [remarks, setRemarks] = useState('')
   const [downloading, setDownloading] = useState(false)
   const [removing, setRemoving] = useState(null)
-  // Clashes found when an approval tried to confirm the timetable (recorded server-side, still open).
   const issues = useApi('/admin/timetable-issues', { registrationId: id, status: 'open', limit: 50 })
 
   if (registration.isPending) return <Loading />

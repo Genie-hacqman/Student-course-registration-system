@@ -13,7 +13,7 @@ export const remove = async (req, res) => {
 };
 
 export const students = async (req, res) => {
-  await programService.getById(req.validated.params.id); // 404 for an unknown programme
+  await programService.getById(req.validated.params.id);
   const { result, page, limit } = await studentService.list({ ...req.validated.query, programId: req.validated.params.id });
   return paginated(res, result, { page, limit });
 };

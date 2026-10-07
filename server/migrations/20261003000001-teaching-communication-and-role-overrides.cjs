@@ -8,8 +8,6 @@ module.exports = {
       references: { model: table, key: 'id' }, onUpdate: 'CASCADE', onDelete,
     });
 
-    // Admin edits to a role's permissions, layered over ROLE_PERMISSIONS in code (granted = true adds, false removes).
-    // Storing only the differences means a permission added in code later reaches every role that should have it.
     await queryInterface.createTable('role_permission_overrides', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       role_id: ref('roles'),
@@ -21,7 +19,6 @@ module.exports = {
     });
     await queryInterface.addIndex('role_permission_overrides', ['role_id', 'permission'], { unique: true });
 
-    // One class meeting's attendance. schedule_id says which timetable slot, when a section meets twice a day.
     await queryInterface.createTable('attendance_sessions', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       course_section_id: ref('course_sections'),

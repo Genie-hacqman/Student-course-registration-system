@@ -38,7 +38,6 @@ export const list = async (query, actor) => {
   if (query.courseId) where.courseId = query.courseId;
   if (query.lecturerId) where.lecturerId = query.lecturerId;
   if (query.unassigned) where.lecturerId = null;
-  // Combined with (not replacing) any semesterId/courseId filter above.
   const subqueries = [];
   if (query.academicYearId) {
     subqueries.push({ semesterId: { [Op.in]: sequelize.literal(`(SELECT id FROM semesters WHERE academic_year_id = ${sequelize.escape(query.academicYearId)})`) } });
@@ -65,7 +64,6 @@ export const getById = async (id) => {
   return section;
 };
 
-/** Setting a section's lecturer is the registry's job (lecturer:assign), whichever endpoint carries it. */
 const assertCanAssign = (actor) => {
   if (!hasPermission(actor.role, PERMISSIONS.LECTURER_ASSIGN)) {
     throw new ForbiddenError('Assigning lecturers is done by the registry (Course assignments)');
@@ -83,14 +81,12 @@ export const create = async (data, actor) => {
   const section = await sequelize.transaction(async (transaction) => {
     const created = await CourseSection.create({ ...fields, seatsTaken: 0 }, { transaction });
     await audit.log({ userId: actor.id, action: 'section.create', entityType: 'CourseSection', entityId: created.id, transaction });
-    // Validated and recorded like any other assignment (history, audit, notification).
     if (lecturerId) await assignLocked(created, lecturerId, actor, { transaction });
     return created;
   });
   return getById(section.id);
 };
 
-/** Tells a lecturer they've been un/assigned, and everyone affected that a section was cancelled. */
 const notifySectionChanges = async (section, { previousLecturerId, previousStatus, transaction }) => {
   const course = await Course.findByPk(section.courseId, { attributes: ['code'], transaction });
   const label = `${course.code} section ${section.sectionCode}`;
@@ -143,7 +139,6 @@ export const update = async (id, data, actor) => {
     }
 
     const capacityGrew = fields.capacity != null && fields.capacity > section.capacity;
-    // Lecturer changes notify on their own (lecturer-assignment.service); only cancellation is left here.
     const previousLecturerId = section.lecturerId;
     const previousStatus = section.status;
     await section.update(fields, { transaction });
@@ -162,7 +157,6 @@ export const update = async (id, data, actor) => {
   return getById(updated.id);
 };
 
-/** Sections with registered students are cancelled rather than deleted. */
 export const remove = async (id, actor) => {
   await sequelize.transaction(async (transaction) => {
     const section = await CourseSection.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
@@ -175,7 +169,6 @@ export const remove = async (id, actor) => {
       throw new ConflictError(`Section has ${registered} registered students; set its status to cancelled instead`);
     }
     const everUsed = await RegistrationItem.count({ where: { courseSectionId: id }, transaction });
-    // A section that was ever used is cancelled, not deleted, and the log must not say it was deleted.
     if (everUsed > 0) {
       const previousStatus = section.status;
       await section.update({ status: SECTION_STATUS.CANCELLED }, { transaction });

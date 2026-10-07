@@ -7,13 +7,6 @@ import {
   DATA_IMPORT_PERMS, PERMS, ROLES, can, isAdminRole, isAdmitted,
 } from './roles'
 
-/**
- * Navigation per role. An entry is a link `{ to, label, icon, end?, permission? }` or a group
- * `{ label, icon, items: [links] }`. Hiding a link is only a convenience: every staff route is
- * also wrapped in RequirePermission, and the API enforces the same permissions.
- */
-
-/** Admitted students. */
 export const STUDENT_NAV = [
   { to: '/student', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/student/admission', label: 'Admission Status', icon: FileSignature },
@@ -29,7 +22,6 @@ export const STUDENT_NAV = [
   { to: '/student/settings', label: 'Settings', icon: Settings },
 ]
 
-/** Students who aren't admitted yet: their application and account only (the student area redirects the rest). */
 export const STUDENT_APPLYING_NAV = [
   { to: '/student/admission', label: 'Admission Status', icon: FileSignature },
   { to: '/student/settings', label: 'Settings', icon: Settings },
@@ -48,8 +40,6 @@ export const LECTURER_NAV = [
   { to: '/lecturer/account?tab=security', label: 'Settings', icon: Settings },
 ]
 
-// ── Staff (admins and registrars) ─────────────────────────────────────────────
-// People and structure first, in the same order for both roles; each item shows only if the user may open it.
 const DIRECTORY_ITEMS = [
   { to: '/staff/students', label: 'Students', icon: GraduationCap, permission: PERMS.REGISTRATION_VIEW_ALL },
   { to: '/staff/lecturers', label: 'Lecturers', icon: Presentation, permission: [PERMS.DIRECTORY_VIEW, PERMS.USER_MANAGE] },
@@ -135,7 +125,6 @@ export const REGISTRAR_NAV = [
   { to: '/staff/account?tab=security', label: 'Settings', icon: Settings },
 ]
 
-/** Drops links the user can't open, and groups left empty. */
 export const visibleNav = (nav, user) => nav
   .map((entry) => (entry.items ? { ...entry, items: entry.items.filter((i) => !i.permission || can(user, i.permission)) } : entry))
   .filter((entry) => (entry.items ? entry.items.length > 0 : !entry.permission || can(user, entry.permission)))
@@ -147,10 +136,8 @@ export const navForUser = (user) => {
   return visibleNav(isAdminRole(role) ? ADMIN_NAV : REGISTRAR_NAV, user)
 }
 
-/** Every reachable link, flattened, for the quick-jump search. */
 export const flatNav = (nav) => nav.flatMap((e) => (e.items ? e.items.map((i) => ({ ...i, group: e.label })) : [e]))
 
-/** Page titles for breadcrumbs, by path segment. Unknown segments (ids) show as "Details". */
 export const SEGMENT_LABELS = {
   student: 'Student', lecturer: 'Lecturer', staff: 'Staff',
   registration: 'Registration', courses: 'Courses', 'my-courses': 'My Courses', results: 'Results', timetable: 'Timetable',

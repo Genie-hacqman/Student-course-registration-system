@@ -10,7 +10,7 @@ afterEach(() => vi.restoreAllMocks())
 
 describe('AppErrorBoundary', () => {
   it('shows a friendly page with Reload and Go home instead of a blank screen when a page crashes', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {}) // React logs the caught error; keep test output clean
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<AppErrorBoundary><Boom /></AppErrorBoundary>)
     expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()

@@ -1,9 +1,3 @@
-/**
- * The curriculum entry may pin a course to one term of the year (program_courses.semester) and to an
- * academic year it takes effect from. `curriculum` is precomputed by the service:
- * `{ semester, effectiveYear, notYetInEffect }`, or null when the course isn't on the programme
- * (programEligibility reports that). Unset values never restrict anything.
- */
 export const semesterEligibility = ({ section, semester, curriculum }) => {
   const rule = 'SEMESTER_ELIGIBILITY';
   if (!curriculum) return { rule, passed: true };

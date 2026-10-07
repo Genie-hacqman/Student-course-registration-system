@@ -14,7 +14,6 @@ import { PERMISSIONS } from '../utils/constants.js';
 
 const student = requirePermission(PERMISSIONS.REGISTRATION_SELF);
 
-// Public: anyone holding a printed slip can check it against the live registration.
 export const registrationPublicRouter = Router();
 registrationPublicRouter.get('/verify/:reference', verifyLimiter, validate({ params: verifySlipParams, query: verifySlipQuery }), slips.verify);
 

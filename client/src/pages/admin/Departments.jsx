@@ -11,7 +11,6 @@ import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import OrgStatusBadge from '../../components/directory/OrgStatusBadge'
 import { can, PERMS } from '../../lib/roles'
 
-// Mirrors departmentSchema in server/src/validators/user.validator.js.
 const schema = z.object({
   code: z.string().trim().min(2, 'At least 2 characters').max(20).transform((v) => v.toUpperCase()),
   name: z.string().trim().min(2, 'At least 2 characters').max(150),
@@ -40,7 +39,6 @@ export function DepartmentForm({ editing, onClose }) {
   )
 }
 
-/** Archive (closed to new intake) or re-activate, with a plain explanation of what changes. */
 export function DepartmentStatusDialog({ department, onClose }) {
   const archiving = department?.status !== 'archived'
   const change = useApiMutation(

@@ -18,14 +18,12 @@ router.get('/me/sections', authorize(ROLES.LECTURER), validate({ query: semester
 router.get('/me/tasks', authorize(ROLES.LECTURER), ctrl.myTasks);
 router.get('/sections/:id/roster', requirePermission(PERMISSIONS.ROSTER_VIEW), validate({ params: idParam }), ctrl.roster);
 
-// Viewing: admins (user:manage) and the registry, who assign lecturers. Managing accounts stays user:manage (ADMIN).
 const view = requireAnyPermission(PERMISSIONS.USER_MANAGE, PERMISSIONS.LECTURER_ASSIGN, PERMISSIONS.SECTION_MANAGE, PERMISSIONS.DIRECTORY_VIEW);
 const manage = requirePermission(PERMISSIONS.USER_MANAGE);
 router.get('/', view, validate({ query: listLecturersQuery }), ctrl.list);
 router.get('/:id', view, validate({ params: idParam }), ctrl.getById);
 router.post('/', manage, validate({ body: createLecturerSchema }), ctrl.create);
 router.patch('/:id', manage, validate({ params: idParam, body: updateLecturerSchema }), ctrl.update);
-// A lecturer's additional departments (joint appointments).
 router.put('/:id/departments', manage, validate({ params: idParam, body: lecturerDepartmentsSchema }), ctrl.setDepartments);
 router.post('/:id/activate', manage, validate({ params: idParam }), ctrl.activate);
 router.post('/:id/deactivate', manage, validate({ params: idParam }), ctrl.deactivate);

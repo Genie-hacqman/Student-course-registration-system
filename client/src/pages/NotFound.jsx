@@ -3,10 +3,6 @@ import BrandMark from '../components/BrandMark'
 import { ContactDetails } from '../components/SiteFooter'
 import { hasContact } from '../lib/site'
 
-/**
- * Shown for any address the app doesn't know. The host serves index.html for every path (it's a single-page app), so
- * the HTTP status is 200 here; RouteMeta marks the page noindex so search engines don't list it.
- */
 export default function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-linear-to-b from-slate-900 to-brand-900 px-4 py-12 text-center text-white">

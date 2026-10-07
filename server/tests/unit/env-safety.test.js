@@ -2,12 +2,6 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 
-/**
- * env.js validates process.env with zod and calls process.exit(1) on failure — it cannot be
- * imported in-process with bad config without killing the test runner itself. Each case here
- * spawns a real `node` subprocess with its own environment, exactly reproducing how the real
- * server would boot, and inspects the exit code and the printed error.
- */
 const BASE_ENV = {
   PATH: process.env.PATH,
   DB_NAME: 'x',
@@ -82,7 +76,6 @@ describe('env.js refuses an unsafe cross-origin setup in production', () => {
 });
 
 describe('env.js requires a working email sender in production', () => {
-  // Empty values are set explicitly: dotenv never overrides them with the developer's local .env.
   const PROD = {
     NODE_ENV: 'production', CORS_ORIGIN: 'https://app.university.edu', FRONTEND_URL: 'https://app.university.edu',
     RESEND_API_KEY: '', SMTP_HOST: '', EMAIL_FROM: '', SMTP_FROM: '',

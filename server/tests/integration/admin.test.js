@@ -112,7 +112,6 @@ describe('semesters, sections & schedules', () => {
     const current = await query('SELECT name FROM semesters WHERE is_current = 1');
     assert.deepEqual(current.map((s) => s.name), ['Summer']);
 
-    // Partial update must not reset other fields to their defaults.
     const [{ id: previous }] = await query("SELECT id FROM semesters WHERE name = 'Current Semester'");
     const patched = await api().patch(`/api/semesters/${previous}`).set(auth(registrar.token)).send({ isCurrent: true });
     assert.equal(patched.body.data.status, 'active');
@@ -137,14 +136,12 @@ describe('semesters, sections & schedules', () => {
     assert.equal(section.status, 201);
     const courseSectionId = section.body.data.id;
 
-    // Lecturer already teaches CS201 on MON 08:00-10:00.
     const lecturerClash = await api().post('/api/schedules').set(auth(registrar.token)).send({
       courseSectionId, day: 'MON', startTime: '09:00', endTime: '11:00', room: 'NEW-ROOM',
     });
     assert.equal(lecturerClash.status, 409);
     assert.equal(lecturerClash.body.error.details[0].type, 'LECTURER');
 
-    // LT-4 is used by MATH201 (no lecturer) on FRI 09:00-11:00.
     const roomClash = await api().post('/api/schedules').set(auth(registrar.token)).send({
       courseSectionId, day: 'FRI', startTime: '10:00', endTime: '12:00', room: 'lt-4',
     });

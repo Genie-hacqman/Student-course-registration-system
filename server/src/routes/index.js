@@ -40,8 +40,6 @@ router.get('/health', async (req, res) => {
       database,
       databaseLatencyMs: Math.round(databaseLatencyMs * 100) / 100,
       uptime: process.uptime(),
-      // Booleans only, never the actual host/DSN — useful for confirming a deployment's config
-      // without exposing anything a public, unauthenticated endpoint shouldn't reveal.
       integrations: { email: isEmailConfigured(), errorTracking: Boolean(env.SENTRY_DSN), storage: storage.isConfigured() },
     },
   });

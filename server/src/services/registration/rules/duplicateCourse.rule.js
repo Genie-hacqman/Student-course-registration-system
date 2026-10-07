@@ -1,4 +1,3 @@
-/** A student may hold only one section of a given course per semester. */
 export const duplicateCourse = ({ section, otherItems }) => {
   const rule = 'DUPLICATE_COURSE';
   const existing = otherItems.find((item) => item.courseId === section.courseId);

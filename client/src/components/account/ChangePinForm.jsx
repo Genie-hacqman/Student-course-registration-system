@@ -16,10 +16,6 @@ const schema = z
 
 const pinInput = { type: 'password', inputMode: 'numeric', maxLength: 6, autoComplete: 'off' }
 
-/**
- * Current PIN → new PIN → confirm. Used on the forced first-sign-in screen and in account settings.
- * The server ends every other session and returns fresh tokens for this device, so the student stays signed in.
- */
 export default function ChangePinForm({ submitLabel = 'Continue', onChanged }) {
   const { changePin } = useAuth()
   const { register, handleSubmit, setError, reset, formState: { errors, isSubmitting } } = useForm({ resolver: zodResolver(schema) })

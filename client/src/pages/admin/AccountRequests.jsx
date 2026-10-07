@@ -20,7 +20,6 @@ const TABS = [
 const approveSchema = z.object({ note: z.string().trim().max(500).optional() })
 const rejectSchema = z.object({ note: z.string().trim().min(3, 'Tell them why (at least 3 characters)').max(500) })
 
-/** What approving will do, shown in the confirmation. */
 const effectOf = (r) => (r.type === 'password_reset'
   ? `${r.user?.firstName} will be emailed a link to choose a new password (${r.user?.email}).`
   : `${fullName(r.user)} will be renamed to ${r.firstName} ${r.lastName}.`)

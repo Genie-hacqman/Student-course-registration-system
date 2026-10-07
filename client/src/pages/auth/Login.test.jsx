@@ -8,8 +8,6 @@ vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ login: vi.fn() }) 
 
 beforeEach(() => localStorage.clear())
 
-// The invitation appears twice: in the card (large screens) and pinned to the bottom of the screen (phones). The
-// test environment applies no CSS, so both are present; which one shows is down to the breakpoint.
 const applyLinks = () => screen.queryAllByRole('link', { name: /apply for admission/i })
 
 describe('Login footer', () => {

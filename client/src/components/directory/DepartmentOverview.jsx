@@ -4,10 +4,6 @@ import { plural, useStudentSummary } from '../../lib/studentSummary'
 import { Card, CardHeader, Skeleton, cx } from '../ui'
 import OrgStatusBadge from './OrgStatusBadge'
 
-/**
- * Student counts by department. Each card opens that department's own page
- * (/staff/students/departments/:id), which lists its programmes.
- */
 export default function DepartmentOverview() {
   const summary = useStudentSummary()
   const departments = summary.data?.departments ?? []

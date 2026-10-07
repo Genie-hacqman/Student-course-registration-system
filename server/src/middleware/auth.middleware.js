@@ -4,11 +4,6 @@ import { ForbiddenError, UnauthorizedError } from '../utils/errors.js';
 import { USER_STATUS } from '../utils/constants.js';
 import { isAccessTokenRevoked } from '../services/session.service.js';
 
-/**
- * Full access-token check, shared by the REST middleware and the Socket.IO handshake:
- * signature + expiry, not individually revoked (jti), account active, token_version current (ver).
- * Returns { user, payload } or throws UnauthorizedError.
- */
 export const resolveAccessToken = async (token) => {
   let payload;
   try {
@@ -29,17 +24,12 @@ export const resolveAccessToken = async (token) => {
   return { user, payload };
 };
 
-/**
- * Verifies the Bearer access token and loads the user.
- * Sets req.user = { id, email, role, status, firstName, lastName } and req.auth = { jti, exp }.
- */
 export const authenticate = async (req, res, next) => {
   const header = req.get('authorization') ?? '';
   const [scheme, token] = header.split(' ');
   if (scheme !== 'Bearer' || !token) throw new UnauthorizedError();
 
   const { user, payload } = await resolveAccessToken(token);
-  // A temporary PIN (new admission or staff reset) only unlocks the few routes needed to replace it.
   if (user.mustChangePassword && !req.allowPendingPinChange) {
     throw new ForbiddenError('Change your temporary PIN to continue', 'PIN_CHANGE_REQUIRED');
   }
@@ -56,22 +46,14 @@ export const authenticate = async (req, res, next) => {
   next();
 };
 
-/**
- * Put before `authenticate` on the routes a user with a temporary PIN may still use:
- * reading their profile, changing the PIN and signing out.
- */
 export const allowPendingPinChange = (req, res, next) => {
   req.allowPendingPinChange = true;
   next();
 };
 
-/**
- * Like `authenticate`, but never rejects: a valid Bearer token sets req.user,
- * a missing/invalid/expired one is ignored. Used where the action must always succeed (logout).
- */
 export const optionalAuthenticate = async (req, res, next) => {
   if (req.get('authorization')) {
-    req.allowPendingPinChange = true; // signing out must always work
+    req.allowPendingPinChange = true;
     try {
       await authenticate(req, res, () => {});
     } catch {

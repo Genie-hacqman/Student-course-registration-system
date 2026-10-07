@@ -10,7 +10,6 @@ import GradeSheet from './GradeSheet'
 import { REGISTRATION_STATUS, formatDate, fullName } from '../lib/format'
 import { can } from '../lib/roles'
 
-/** Class list + grades for one section. Used by lecturers (their own sections) and the registry (any section). */
 export default function SectionClass({ backTo, backLabel }) {
   const { id } = useParams()
   const { user } = useAuth()

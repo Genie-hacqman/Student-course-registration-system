@@ -4,8 +4,6 @@ import {
   importProgramsSchema, importCoursesSchema, importLecturersSchema, importSectionsSchema,
 } from '../../src/validators/import.validator.js';
 
-// Import rows are upserts: an omitted optional field must stay undefined (= "leave as is"),
-// never be filled with a default that would silently overwrite the stored value on re-import.
 test('omitted optional fields stay undefined, so re-imports never reset stored values', () => {
   const program = importProgramsSchema.parse({ rows: [{ code: 'x1', name: 'Prog', departmentCode: 'd1' }] }).rows[0];
   assert.equal(program.durationYears, undefined);

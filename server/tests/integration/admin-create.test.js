@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { resetDatabase, query, login, sequelize } from './helpers.js';
 import { createAdmin } from '../../scripts/create-admin.mjs';
 
-// In test, the credentials fall back to the seeder's dev defaults unless SEED_ADMIN_* are set.
 const env = { email: process.env.SEED_ADMIN_EMAIL, password: process.env.SEED_ADMIN_PASSWORD };
 
 before(resetDatabase);

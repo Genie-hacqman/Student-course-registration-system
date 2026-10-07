@@ -20,7 +20,6 @@ const TABS = [
   { value: 'courses', label: 'Courses' },
 ]
 
-/** Students of this department (through its programmes), narrowed by programme, level and search. */
 function StudentsTab({ departmentId, programs, params, set }) {
   const programId = params.get('program') ?? ''
   const level = params.get('level') ?? ''
@@ -48,7 +47,6 @@ function StudentsTab({ departmentId, programs, params, set }) {
   )
 }
 
-/** Lecturers whose home department this is, and those who also teach here. */
 function LecturersTab({ departmentId, params, set }) {
   const navigate = useNavigate()
   const search = params.get('search') ?? ''
@@ -139,7 +137,6 @@ function CoursesTab({ departmentId, params, set }) {
   )
 }
 
-/** One department: its counts and its students, lecturers, programmes and courses, each in a tab. */
 export default function DepartmentDetail() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -150,7 +147,6 @@ export default function DepartmentDetail() {
   const [changing, setChanging] = useState(null)
   const tab = TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'students'
 
-  /** Tab-scoped filters live in the URL; switching tabs clears them. */
   const set = (changes) => {
     const next = new URLSearchParams(params)
     for (const [key, value] of Object.entries(changes)) {

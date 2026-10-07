@@ -19,7 +19,6 @@ const yearSchema = z.object({
   endDate: z.string().min(1, 'Required'),
 }).refine((d) => d.endDate > d.startDate, { message: 'End must be after start', path: ['endDate'] })
 
-// Mirrors createSemesterSchema in SCRS-backend src/validators/schedule.validator.js.
 const semesterSchema = z.object({
   academicYearId: requiredNumber(z.number().int().positive('Choose an academic year'), 'Choose an academic year'),
   name: z.string().trim().min(2, 'At least 2 characters').max(50),
@@ -92,7 +91,7 @@ export function SemesterForm({ editing, onClose, onSaved }) {
   })
   const toBody = (v) => ({
     ...v,
-    term: v.term ?? null, // blank clears it
+    term: v.term ?? null,
 
     registrationStart: fromLocalInput(v.registrationStart),
     registrationEnd: fromLocalInput(v.registrationEnd),

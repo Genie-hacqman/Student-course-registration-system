@@ -5,7 +5,6 @@ import {
 } from './helpers.js';
 
 let student;
-// Everything here — courses, curricula, offerings, requirements and prerequisite overrides — is the registry's.
 let registrar;
 let ids;
 
@@ -48,7 +47,7 @@ describe('alternatives (OR) and minimum grades', () => {
   test('groups are ANDed, and a minimum grade is enforced', async () => {
     const y = await createCourse('CS241');
     await requirement(y.courseId, { anyOf: [await courseIdFor('CS202'), await courseIdFor('CS204')] });
-    await requirement(y.courseId, { prerequisiteCourseId: await courseIdFor('MATH101'), minGrade: 'A' }); // student has a B
+    await requirement(y.courseId, { prerequisiteCourseId: await courseIdFor('MATH101'), minGrade: 'A' });
 
     const result = await check(y.courseId);
     assert.equal(result.body.data.qualified, false);
@@ -73,7 +72,6 @@ describe('corequisites', () => {
   before(async () => {
     lecture = await createCourse('CS260', { day: 'SAT', start: '08:00', end: '10:00' });
     lab = await createCourse('CS260L', { credits: 1, day: 'SAT', start: '10:00', end: '12:00' });
-    // Mutual corequisites are allowed (no cycle error): each must be taken with the other.
     assert.equal((await requirement(lecture.courseId, { anyOf: [lab.courseId], type: 'corequisite' })).status, 201);
     assert.equal((await requirement(lab.courseId, { anyOf: [lecture.courseId], type: 'corequisite' })).status, 201);
   });
@@ -90,7 +88,7 @@ describe('corequisites', () => {
   });
 
   test('submitting without the lab is rejected; with it, submission succeeds', async () => {
-    await add(await sectionIdFor('CS201')); // reach the 6-credit minimum
+    await add(await sectionIdFor('CS201'));
     const without = await api().post('/api/registrations/submit').set(auth(student.token));
     assert.equal(without.status, 422);
     const coreq = without.body.error.details.find((d) => d.rule === 'COREQUISITE');

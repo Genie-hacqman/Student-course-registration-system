@@ -18,14 +18,11 @@ const createSchema = z.object({
   firstName: z.string().trim().min(1, 'Required').max(100),
   lastName: z.string().trim().min(1, 'Required').max(100),
   email: emailSchema,
-  // Empty: the backend emails an invite and they choose their own password.
   password: z.union([z.literal(''), passwordSchema]),
   role: z.enum(ROLE_ORDER),
-  // Student profile
   programId: optionalNumber(z.number().int().positive()),
   level: optionalNumber(z.number().int().min(100).max(900)),
   studentNumber: z.string().trim().max(30).optional(),
-  // Lecturer profile
   departmentId: optionalNumber(z.number().int().positive()),
   staffNumber: z.string().trim().max(30).optional(),
   title: z.string().trim().max(50).optional(),
@@ -35,10 +32,8 @@ const createSchema = z.object({
   .refine((d) => d.role !== 'LECTURER' || (d.staffNumber?.length ?? 0) >= 2, { message: 'At least 2 characters', path: ['staffNumber'] })
   .refine((d) => !d.studentNumber || d.studentNumber.length >= 3, { message: 'At least 3 characters', path: ['studentNumber'] })
 
-/** Creates the account, then the student or lecturer profile that the role needs. */
 function CreateUser({ open, onClose }) {
   const navigate = useNavigate()
-  // New records go into open departments and programmes only (archived ones are closed to intake).
   const programs = useApi(open ? '/programs' : null, { status: 'active' })
   const departments = useApi(open ? '/departments' : null, { status: 'active' })
   const create = useApiMutation(async (v) => {
@@ -53,7 +48,6 @@ function CreateUser({ open, onClose }) {
         await http.post('/lecturers', { userId: user.id, departmentId: v.departmentId, staffNumber: v.staffNumber, ...(v.title ? { title: v.title } : {}) })
       }
     } catch (err) {
-      // The account exists; its profile can be added from the user's page.
       toast.error(`Account created, but the ${v.role === 'STUDENT' ? 'student' : 'lecturer'} profile failed: ${err.message}`)
     }
     return user

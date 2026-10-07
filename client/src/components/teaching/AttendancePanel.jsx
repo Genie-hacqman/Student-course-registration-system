@@ -18,7 +18,6 @@ const STATUSES = [
   ['excused', 'Excused', 'E', 'peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600'],
 ]
 
-/** Radio group styled as a segmented control; arrow keys move between options natively. */
 function StatusPicker({ name, value, onChange, label }) {
   return (
     <div role="radiogroup" aria-label={label} className="inline-flex gap-1">
@@ -44,7 +43,6 @@ function StatusPicker({ name, value, onChange, label }) {
 }
 
 function RosterMarker({ students, marks, setMarks, idPrefix }) {
-  // Unmarked students count as present, matching what gets saved.
   const counts = STATUSES.map(([s, text]) => [text, students.filter((st) => (marks[st.studentId] ?? 'present') === s).length])
   return (
     <div>
@@ -160,7 +158,6 @@ function EditSession({ sessionId, onClose }) {
   )
 }
 
-/** Take attendance, review past classes, and see each student's rate. `section` comes from /lecturers/me/sections. */
 export function AttendancePanel({ section, initialSlot }) {
   const data = useSectionAttendance(section.id)
   const remove = useDeleteAttendance()

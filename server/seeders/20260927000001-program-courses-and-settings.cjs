@@ -1,6 +1,5 @@
 'use strict';
 
-/** Demo-only: puts every seeded course on the BSC-CS curriculum. Never run this in production. */
 module.exports = {
   async up(queryInterface) {
     if (process.env.NODE_ENV === 'production') {

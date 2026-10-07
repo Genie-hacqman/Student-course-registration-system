@@ -34,7 +34,6 @@
   --animate-float: float 6s ease-in-out infinite;
   --animate-float-delayed: float 6s ease-in-out 1.4s infinite;
 
-  /* Dashboard motion: short and purposeful. All of it is switched off under prefers-reduced-motion. */
   --animate-fade-up: fade-up 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-shake: shake 320ms ease-in-out;
   --animate-badge-pop: badge-pop 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -115,7 +114,6 @@ body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }
 
-/* Stagger children of an animated list: style={{ '--i': index }}. */
 .stagger {
   animation-delay: calc(var(--i, 0) * 40ms);
 }
@@ -145,13 +143,6 @@ body {
   }
 }
 
-/*
- * The frosted-glass sign-in card (AuthLayout). Translucent white over the dark campus photo comes out light grey,
- * not white, so inside the card only: muted text, links and field errors are darkened two shades so small text reads
- * clearly (aiming for WCAG AAA, 7:1, not just the AA 4.5:1 minimum), fields get a near-opaque fill so they still
- * read as fields, and the tab strip turns translucent to match.
- * Unlayered on purpose: Tailwind's utilities live in a cascade layer, and these must override them.
- */
 .auth-glass .text-slate-500 { color: var(--color-slate-700); }
 .auth-glass .text-slate-600 { color: var(--color-slate-800); }
 .auth-glass .text-brand-600 { color: var(--color-brand-800); }

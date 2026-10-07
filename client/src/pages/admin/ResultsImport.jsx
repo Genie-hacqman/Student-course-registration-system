@@ -5,7 +5,6 @@ import { Button, Card, CardHeader, PageHeader } from '../../components/ui'
 import DataTable from '../../components/admin/DataTable'
 import { GRADES } from '../../components/GradeSheet'
 
-/** Parses "studentNumber,courseCode,grade[,semesterId]" lines; a header row is skipped. */
 const parse = (text) => text
   .split(/\r?\n/)
   .map((line, i) => ({ line: i + 1, cells: line.split(',').map((c) => c.trim()) }))

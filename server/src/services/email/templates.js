@@ -1,10 +1,3 @@
-/*
- * Email templates: pure functions returning { subject, text, html }, all sharing one layout so every
- * email carries the same branding. Every interpolated value is HTML-escaped. No template ever contains a
- * password or PIN — only single-use links (and, for PIN recovery, a short-lived one-time code).
- * `ctx` is { school, frontendUrl } (see mail.service).
- */
-
 export const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 }[c]));
@@ -12,10 +5,6 @@ const e = escapeHtml;
 
 const BRAND = '#1d4ed8';
 
-/**
- * The shared layout. `rows` render as a label/value table, `action` as a button (with the URL repeated
- * as text for clients that block buttons), `note` as small print. Returns { html, text }.
- */
 const layout = ({ school, greeting, paragraphs = [], rows = [], action, note, footer }) => {
   const cell = 'padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:14px;';
   const html = `<!doctype html>
@@ -54,8 +43,6 @@ const layout = ({ school, greeting, paragraphs = [], rows = [], action, note, fo
 const make = (subject, parts, ctx) => ({ subject, ...layout({ school: ctx.school, ...parts }) });
 const link = (ctx, path) => `${ctx.frontendUrl}${path}`;
 const hello = (name) => (name ? `Dear ${name},` : 'Hello,');
-
-// ── account & admission ──────────────────────────────────────────────────────
 
 export const accountActivation = ({
   name, studentNumber, programName, departmentName, level, schoolEmail, activationUrl, hours,
@@ -96,8 +83,6 @@ export const staffInvite = ({ name, email, setPasswordUrl, hours }, ctx) => make
   note: `This link works once and expires in ${hours} hours. If it has expired, ask the administrator to send a new invite.`,
 }, ctx);
 
-// ── passwords & PINs ─────────────────────────────────────────────────────────
-
 export const passwordResetRequest = ({ name, resetUrl, minutes, approved }, ctx) => make('Reset your password', {
   greeting: hello(name),
   paragraphs: [approved
@@ -127,13 +112,10 @@ export const pinChanged = ({ name, when, recovered }, ctx) => make(recovered ? '
   note: `If this wasn't you, use "Forgot PIN" on the sign-in page right away and contact the registry.`,
 }, ctx);
 
-/** The one template carrying a secret: a 6-digit, 10-minute, single-use code — never a PIN. */
 export const pinResetCode = ({ studentNumber, code, minutes }, ctx) => make(`Your ${ctx.school} PIN reset code`, {
   paragraphs: [`Your code to reset the PIN for ${studentNumber} is:`, code],
   note: `It expires in ${minutes} minutes and works once. If you didn't ask to reset your PIN, ignore this email; your PIN has not changed.`,
 }, ctx);
-
-// ── registration & teaching ──────────────────────────────────────────────────
 
 export const registrationSubmitted = ({ name, reference, semester, credits, needsApproval }, ctx) => make('Course registration submitted', {
   greeting: hello(name),
@@ -151,7 +133,6 @@ export const registrationDecision = ({ name, approved, reason, auto, reference, 
       ? 'Your course registration was submitted and approved automatically, and your timetable is confirmed.'
       : 'Your course registration has been approved and your timetable is confirmed.']
     : ['Your course registration was not approved. Please update it and submit it again.', ...(reason ? [`Reason: ${reason}`] : [])],
-  // An automatic approval is also the student's only confirmation of what they submitted.
   rows: auto ? [['Reference', reference ?? '—'], ['Semester', semester ?? '—'], ['Credits', credits ?? '—']] : undefined,
   action: approved
     ? { label: 'View your timetable', url: link(ctx, '/student/timetable') }
@@ -177,7 +158,6 @@ export const adminAlert = ({ title, message, path }, ctx) => make(title, {
   footer: `You receive this as an administrator of ${ctx.school}.`,
 }, ctx);
 
-/** Any other emailed in-app notification (grades released, waitlist seat, staff enrolment, …). */
 export const notification = ({ name, title, message }, ctx) => make(title, {
   greeting: hello(name),
   paragraphs: [message],

@@ -18,10 +18,6 @@ const TABS = [
 ]
 const resolveSchema = z.object({ note: z.string().trim().min(3, 'Say what was done (at least 3 characters)').max(500) })
 
-/**
- * Clashes found when approving a registration tried to confirm the student's timetable. The approval
- * was refused; staff fix the schedule, room, lecturer or course list, then approve again (which re-checks).
- */
 export default function TimetableIssues() {
   const { user } = useAuth()
   const [params, setParams] = useSearchParams()

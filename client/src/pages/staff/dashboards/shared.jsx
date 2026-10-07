@@ -3,14 +3,9 @@ import { useApi } from '../../../api/admin'
 import { useRegistrations } from '../../../api/staff'
 import { PERMS, can } from '../../../lib/roles'
 
-/**
- * A readable phrase for an audit action. The server sends the catalogue's label with every entry (`actionLabel`);
- * this only covers an action it did not label, e.g. "role.permissions.update" -> "Role permissions update".
- */
 export const describeAction = (action, label) =>
   label ?? action.split('.').map((w) => w.replace(/[-_]/g, ' ')).join(' ').replace(/^./, (c) => c.toUpperCase())
 
-/** Counts that need someone's decision, each only for users who can act on it. */
 export function usePendingActions(user, semesterId) {
   const canReview = can(user, PERMS.REGISTRATION_VIEW_ALL)
   const canApproveAccounts = can(user, PERMS.ACCOUNT_APPROVE)
@@ -34,7 +29,6 @@ export const REG_TONES = {
   approved: '#16a34a', submitted: '#f59e0b', rejected: '#dc2626', draft: '#94a3b8', notStarted: '#cbd5e1',
 }
 
-/** Registration status slices in a fixed, meaningful order. */
 export const registrationSlices = (reg) => [
   { label: 'Registered', value: reg.byStatus.approved, color: REG_TONES.approved },
   { label: 'Pending approval', value: reg.byStatus.submitted, color: REG_TONES.submitted },

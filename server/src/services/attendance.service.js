@@ -16,7 +16,6 @@ const emptyCounts = () => Object.fromEntries(STATUSES.map((s) => [s, 0]));
 
 const tally = (records) => records.reduce((c, r) => { c[r.status] += 1; return c; }, emptyCounts());
 
-/** Present or late counts as attended. */
 const rate = (counts) => {
   const total = STATUSES.reduce((n, s) => n + counts[s], 0);
   return total ? Math.round(((counts.present + counts.late) / total) * 1000) / 10 : null;
@@ -35,7 +34,6 @@ const loadSession = async (sessionId, actor, { transaction } = {}) => {
   return { session, section };
 };
 
-/** Every session in the section, plus each rostered student's totals. */
 export const listForSection = async (sectionId, actor) => {
   const section = await loadForTeacher(sectionId, actor);
   const [roster, sessions] = await Promise.all([
@@ -54,7 +52,7 @@ export const listForSection = async (sectionId, actor) => {
   for (const session of sessions) {
     for (const r of session.records) {
       const counts = byStudent.get(r.studentId);
-      if (counts) counts[r.status] += 1; // students who have since dropped aren't listed
+      if (counts) counts[r.status] += 1;
     }
   }
 
@@ -102,7 +100,6 @@ const checkOnRoster = (records, roster) => {
   if (outsiders.length) throw new BadRequestError('Some students are not registered in this section', { studentIds: outsiders });
 };
 
-/** Records a class meeting. Rostered students left out of `records` are marked present. */
 export const createSession = async (sectionId, { date, scheduleId, topic, records }, actor, req) => {
   const id = await sequelize.transaction(async (transaction) => {
     const section = await loadForTeacher(sectionId, actor, { transaction });
@@ -185,7 +182,6 @@ export const removeSession = async (sessionId, actor, req) => {
   });
 };
 
-/** A student's own attendance in each of their current-semester sections. */
 export const forStudent = async (userId) => {
   const student = await studentService.getByUserId(userId);
   const semester = await semesterService.findCurrent();

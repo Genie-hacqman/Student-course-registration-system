@@ -11,16 +11,6 @@ import * as settingService from './setting.service.js';
 import * as audit from './audit.service.js';
 import { belongsToDepartment } from './lecturer.service.js';
 
-/*
- * Lecturer assignment to course offerings (course_sections). The one way a section's lecturer is set,
- * changed or removed — used by PUT/DELETE /sections/:id/lecturer, by section create/update when they
- * carry a lecturerId, and by the sections import — so every change is validated the same way, recorded
- * in section_lecturer_assignments (course_sections.lecturer_id is the current pointer) and audited.
- *
- * Callers must already hold lecturer:assign (checked by the route or by section.service), except the
- * go-live import, which runs under section:manage.
- */
-
 const lecturerLabel = (lecturer) =>
   [lecturer.title, lecturer.user?.firstName, lecturer.user?.lastName].filter(Boolean).join(' ') || lecturer.staffNumber;
 
@@ -29,22 +19,17 @@ const loadLecturer = (id, transaction) => Lecturer.findByPk(id, {
   transaction,
 });
 
-/** Lecturer clashes for `lecturerId` with the section's scheduled slots (other sections this semester). */
 export const lecturerClashes = async (section, lecturerId, transaction) => {
   const slots = await section.getSchedules({ raw: true, transaction });
   return findConflicts({
     semesterId: section.semesterId,
     lecturerId,
-    slots: slots.map(({ room, ...s }) => s), // only the lecturer matters here; rooms are checked on schedules
+    slots: slots.map(({ room, ...s }) => s),
     excludeSectionId: section.id,
     transaction,
   }).then((conflicts) => conflicts.filter((c) => c.sameLecturer));
 };
 
-/**
- * Every rule an assignment must pass. Returns { lecturer, course }; throws 400 for rule violations,
- * 409 for a duplicate assignment or a timetable clash (with the clashing classes as details).
- */
 const validateAssignment = async (section, lecturerId, transaction) => {
   const lecturer = await loadLecturer(lecturerId, transaction);
   if (!lecturer) throw new BadRequestError('Lecturer does not exist');
@@ -55,7 +40,6 @@ const validateAssignment = async (section, lecturerId, transaction) => {
   const course = await Course.findByPk(section.courseId, { attributes: ['id', 'code', 'title', 'status', 'departmentId'], transaction });
   if (course.status !== COURSE_STATUS.ACTIVE) throw new BadRequestError(`${course.code} is archived; restore it before assigning a lecturer`);
 
-  // The restriction accepts the lecturer's home department or any of their additional departments.
   if (await settingService.get('teaching.restrictLecturerDepartment', { transaction })
     && !(await belongsToDepartment(lecturer, course.departmentId, transaction))) {
     const [have, need] = await Promise.all([
@@ -95,10 +79,6 @@ const notify = async (lecturerId, type, title, message, sectionId, transaction) 
   if (lecturer) await notificationService.create({ userId: lecturer.userId, type, title, message, data: { courseSectionId: sectionId } }, { transaction });
 };
 
-/**
- * Assigns (or changes) the lecturer of a locked section inside the caller's transaction.
- * For section.service and the import, which already hold the lock; use `assign` otherwise.
- */
 export const assignLocked = async (section, lecturerId, actor, { reason, transaction, quiet = false }) => {
   const { lecturer, course } = await validateAssignment(section, lecturerId, transaction);
   const previousLecturerId = section.lecturerId;
@@ -110,7 +90,6 @@ export const assignLocked = async (section, lecturerId, actor, { reason, transac
   }, { transaction });
   await section.update({ lecturerId: lecturer.id }, { transaction });
 
-  // `quiet`: import dry runs roll back, but savepoints fire afterCommit hooks, so nothing may be sent.
   if (!quiet) {
     if (previousLecturerId) {
       await notify(previousLecturerId, 'SECTION_UNASSIGNED', 'Section reassigned', `You are no longer assigned to teach ${label}.`, section.id, transaction);
@@ -131,7 +110,6 @@ export const assignLocked = async (section, lecturerId, actor, { reason, transac
   return section;
 };
 
-/** Removes the current lecturer of a locked section inside the caller's transaction. */
 export const unassignLocked = async (section, actor, { reason, transaction, quiet = false }) => {
   if (!section.lecturerId) throw new ConflictError('This course offering has no lecturer assigned');
   const course = await Course.findByPk(section.courseId, { attributes: ['code'], transaction });
@@ -169,7 +147,6 @@ export const unassign = async (sectionId, { reason } = {}, actor) => {
 
 const personInclude = (as) => ({ model: User, as, attributes: ['id', 'firstName', 'lastName'] });
 
-/** The offering, its current lecturer and every assignment period, newest first. */
 export const history = async (sectionId) => {
   const section = await CourseSection.findByPk(sectionId, {
     attributes: ['id', 'sectionCode', 'lecturerId', 'status'],

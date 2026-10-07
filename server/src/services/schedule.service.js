@@ -15,11 +15,6 @@ const sectionInclude = {
   include: [{ model: Course, as: 'course', attributes: ['id', 'code', 'title'] }],
 };
 
-/**
- * Finds room and lecturer clashes for `slots` within one semester.
- * A clash is another (non-cancelled) section's slot, on the same day and overlapping in time,
- * that uses the same room or is taught by the same lecturer.
- */
 export const findConflicts = async ({ semesterId, lecturerId, slots, excludeScheduleIds = [], excludeSectionId, transaction }) => {
   if (!slots.length) return [];
   const days = [...new Set(slots.map((s) => s.day))];
@@ -46,7 +41,6 @@ export const findConflicts = async ({ semesterId, lecturerId, slots, excludeSche
       if (!sameRoom && !sameLecturer) continue;
       conflicts.push({
         type: sameRoom ? 'ROOM' : 'LECTURER',
-        // Both can hold at once; `type` names the first for existing callers.
         sameRoom: Boolean(sameRoom),
         sameLecturer: Boolean(sameLecturer),
         day: other.day,
@@ -80,7 +74,6 @@ export const getById = async (id) => {
   return schedule;
 };
 
-/** The section's own slots must not overlap each other either. */
 const assertNoSelfOverlap = async (sectionId, slot, excludeId) => {
   const siblings = await Schedule.findAll({
     where: { courseSectionId: sectionId, ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}) },

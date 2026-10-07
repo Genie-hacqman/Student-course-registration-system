@@ -4,7 +4,6 @@ import { Button, Modal } from '../ui'
 
 const escape = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
-/** A printable slip in its own window, so nothing else on the page ends up on paper. */
 const printSlip = ({ name, studentNumber, schoolEmail, pin }) => {
   const w = window.open('', '_blank', 'width=520,height=640')
   if (!w) return
@@ -28,7 +27,7 @@ function CopyRow({ label, value, mono }) {
       await navigator.clipboard.writeText(value)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    } catch { /* clipboard blocked: the value is on screen to copy by hand */ }
+    } catch {}
   }
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
@@ -43,10 +42,6 @@ function CopyRow({ label, value, mono }) {
   )
 }
 
-/**
- * One student's sign-in credentials, straight from admission or a PIN reset. The PIN exists only in
- * this response: the server never shows it again, so this dialog is the one chance to hand it over.
- */
 export default function CredentialsDialog({ open, onClose, credentials, name, title = 'Student account created', action }) {
   if (!credentials) return null
   return (

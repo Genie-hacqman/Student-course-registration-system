@@ -4,7 +4,6 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const now = { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') };
 
-    // Password resets and name changes that wait for the super admin's approval.
     await queryInterface.createTable('account_change_requests', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       user_id: {
@@ -28,7 +27,6 @@ module.exports = {
     await queryInterface.addIndex('account_change_requests', ['status', 'created_at']);
     await queryInterface.addIndex('account_change_requests', ['user_id', 'type', 'status']);
 
-    // Staff enrolment: who added the course, and which registration checks they overrode (and why).
     await queryInterface.addColumn('registration_items', 'added_by', {
       type: Sequelize.INTEGER,
       references: { model: 'users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL',

@@ -4,7 +4,6 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const now = { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') };
 
-    // Staggered opening: e.g. level >= 400 from Monday, >= 300 from Tuesday, everyone else from Wednesday.
     await queryInterface.createTable('registration_priority_windows', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       semester_id: {
@@ -23,7 +22,6 @@ module.exports = {
     });
     await queryInterface.addIndex('registration_priority_windows', ['semester_id', 'opens_at']);
 
-    // Individual early access (athletes, accessibility accommodations, ...).
     await queryInterface.createTable('registration_time_overrides', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       student_id: {

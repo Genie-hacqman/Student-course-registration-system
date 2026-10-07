@@ -8,7 +8,6 @@ import {
 import env from '../../src/config/env.js';
 import { createLimiter } from '../../src/middleware/rate-limit.middleware.js';
 
-/** A stand-in for `new Resend(key)`: records calls and answers like the SDK ({ data } or { error }). */
 const fakeResend = (answer) => {
   const calls = [];
   return {
@@ -80,7 +79,6 @@ describe('rate limiting', () => {
 
 describe('isEmailConfigured (what the health check reports)', () => {
   const KEYS = ['RESEND_API_KEY', 'SMTP_HOST', 'EMAIL_FROM', 'SMTP_FROM', 'isProduction'];
-  /** Runs `fn` with exactly these email settings, then restores the real ones. */
   const withEnv = (values, fn) => {
     const saved = Object.fromEntries(KEYS.map((k) => [k, env[k]]));
     for (const k of KEYS) env[k] = k === 'isProduction' ? false : undefined;

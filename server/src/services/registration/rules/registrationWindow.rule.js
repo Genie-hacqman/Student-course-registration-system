@@ -1,8 +1,3 @@
-/**
- * Changes are allowed from the student's own opening time (priority window / override,
- * precomputed as `opensAt`; defaults to the semester's registrationStart) until registration closes.
- * After a student has submitted, they may keep adding/dropping until the add/drop deadline.
- */
 export const registrationWindow = ({ semester, registration, now, opensAt, priority }) => {
   const rule = 'REGISTRATION_WINDOW';
   if (!semester) return { rule, passed: false, message: 'There is no active semester' };

@@ -91,7 +91,6 @@ function AnnouncementList({ query, page, setPage, empty, onEdit, onDelete }) {
   )
 }
 
-/** Section options for the composer: a lecturer's own current sections, or every section for staff. */
 function useSectionOptions(isLecturer, enabled) {
   const mine = useMySections({ enabled: isLecturer })
   const all = useApi(enabled && !isLecturer ? '/sections' : null, { limit: 100 })
@@ -102,7 +101,6 @@ function useSectionOptions(isLecturer, enabled) {
   return rows.map((s) => ({ id: s.id, label: `${s.course?.code ?? 'Section'} · ${s.sectionCode}${s.semester ? ` (${s.semester.name})` : ''}` }))
 }
 
-/** One page for every role: the feed; plus composing and managing posts for those allowed to post. */
 export default function Announcements() {
   const { user } = useAuth()
   const canPost = can(user, PERMS.ANNOUNCEMENT_CREATE)

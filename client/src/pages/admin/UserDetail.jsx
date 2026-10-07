@@ -49,7 +49,6 @@ function Row({ label, children }) {
   )
 }
 
-/** The user's recent sign-ins (time, device, IP), from the audit log. */
 function SignInHistory({ userId, email }) {
   const signIns = useApi('/admin/sign-ins', { userId, limit: 20 })
   return (
@@ -64,7 +63,6 @@ function SignInHistory({ userId, email }) {
   )
 }
 
-/** Devices the user is signed in on right now; an admin can sign one out. */
 function UserDevices({ userId }) {
   const devices = useApi(`/users/${userId}/sessions`)
   const end = useApiMutation((sessionId) => http.delete(`/users/${userId}/sessions/${sessionId}`), { success: 'That device has been signed out' })
@@ -108,7 +106,6 @@ export default function UserDetail() {
   const updateAccount = useApiMutation((body) => http.patch(`/users/${id}`, body), { success: 'Account updated' })
   const suspend = useApiMutation(() => http.delete(`/users/${id}`), { success: 'Account suspended' })
   const reactivate = useApiMutation(() => http.patch(`/users/${id}`, { status: 'active' }), { success: 'Account reactivated' })
-  // 409 once they have set a password; the server decides, since the password itself is never exposed.
   const invite = useApiMutation(() => http.post(`/users/${id}/invite`), { success: 'Invite sent' })
   const saveStudent = useApiMutation(({ studentId, studentNumber, ...body }) => (studentId
     ? http.patch(`/students/${studentId}`, body)
@@ -153,7 +150,6 @@ export default function UserDetail() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {/* Students sign in with the PIN from admission; invites are for staff. */}
             {!self && active && !u.lastLoginAt && role !== 'STUDENT' && (
               <Button
                 variant="secondary"

@@ -2,7 +2,6 @@ import * as Sentry from '@sentry/react'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from './ui'
 
-/** What people see instead of a blank page when something in the app crashes. */
 function CrashFallback({ eventId }) {
   return (
     <div role="alert" className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
@@ -24,7 +23,6 @@ function CrashFallback({ eventId }) {
   )
 }
 
-/** Catches render crashes anywhere in the app; reports them when Sentry is on, and works the same when it is off. */
 export default function AppErrorBoundary({ children }) {
   return <Sentry.ErrorBoundary fallback={({ eventId }) => <CrashFallback eventId={eventId} />}>{children}</Sentry.ErrorBoundary>
 }

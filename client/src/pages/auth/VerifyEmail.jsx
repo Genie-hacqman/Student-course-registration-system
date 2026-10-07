@@ -6,7 +6,6 @@ import { useAuth } from '../../auth/AuthProvider'
 import { Button, Loading } from '../../components/ui'
 import { homeForRole } from '../../lib/roles'
 
-/** Landing page for the emailed link: `${FRONTEND_URL}/verify-email?token=…`. Works signed in or out. */
 export default function VerifyEmail() {
   const [params] = useSearchParams()
   const token = params.get('token')
@@ -16,7 +15,6 @@ export default function VerifyEmail() {
   const sent = useRef(false)
 
   useEffect(() => {
-    // The token works once, so StrictMode's double effect must not send it twice.
     if (!token || sent.current) return
     sent.current = true
     authApi.verifyEmail({ token })
@@ -48,7 +46,6 @@ export default function VerifyEmail() {
   )
 }
 
-/** Signed in with an unverified email: send a fresh link right here (the API rate-limits it). */
 function ResendVerification() {
   const [state, setState] = useState('idle')
   const [message, setMessage] = useState('')

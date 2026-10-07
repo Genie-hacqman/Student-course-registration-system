@@ -1,7 +1,3 @@
-/**
- * Lecturer management (ADMIN, user:manage) and lecturer assignment to course offerings
- * (REGISTRAR, lecturer:assign): accounts, activation, validation, history, timetable clashes, views.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -24,7 +20,6 @@ const setSetting = (key, value) => query(
 );
 const PASSWORD = 'Lecturer1pass';
 
-/** The invite link's raw token only exists in the email; plant a known one once the invite is stored. */
 const activate = async (email) => {
   const [{ hash }] = await query('SELECT password_reset_hash AS hash FROM users WHERE email = :email', { email });
   assert.ok(hash, 'creating the lecturer issued an activation (set-your-password) link');
@@ -146,7 +141,7 @@ describe('course-offering assignment (REGISTRAR)', () => {
   let mathB;
 
   before(async () => {
-    math201 = await sectionIdFor('MATH201'); // seeded without a lecturer
+    math201 = await sectionIdFor('MATH201');
     mathA = await newLecturer({ departmentId: dept.MATH });
     mathB = await newLecturer({ departmentId: dept.MATH });
   });
@@ -177,7 +172,6 @@ describe('course-offering assignment (REGISTRAR)', () => {
     assert.deepEqual([previous.lecturer.id, previous.status, previous.endReason], [mathA.id, 'ended', 'Staff change']);
     assert.equal(previous.ender.id, registrar.user.id);
     assert.ok(Number((await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'lecturer.reassign'"))[0].n) >= 1);
-    // The course itself is not duplicated by a lecturer change.
     assert.equal(Number((await query("SELECT COUNT(*) AS n FROM courses WHERE code = 'MATH201'"))[0].n), 1);
   });
 
@@ -185,7 +179,6 @@ describe('course-offering assignment (REGISTRAR)', () => {
     assert.equal((await assign(math201, mathA.id, student)).status, 403);
     assert.equal((await assign(math201, mathA.id, demoLecturer)).status, 403);
     assert.equal((await assign(math201, mathA.id, admin)).status, 403);
-    // Admins don't manage course offerings at all any more (section:manage is the registry's).
     assert.equal((await api().patch(`/api/sections/${math201}`).set(auth(admin.token)).send({ lecturerId: mathA.id })).status, 403);
     assert.equal((await api().patch(`/api/sections/${math201}`).set(auth(admin.token)).send({ capacity: 60 })).status, 403);
     assert.equal((await api().patch(`/api/sections/${math201}`).set(auth(registrar.token)).send({ capacity: 60 })).status, 200);
@@ -230,7 +223,6 @@ describe('course-offering assignment (REGISTRAR)', () => {
   });
 
   test('a timetable clash is detected and shown, not saved', async () => {
-    // The demo lecturer teaches CS203 (Wed 13:00-15:00); CS204 runs Wed 14:00-16:00.
     const [{ id: demoLecturerId }] = await query("SELECT l.id FROM lecturers l JOIN users u ON u.id = l.user_id WHERE u.email = 'lecturer@scrs.local'");
     const cs204 = await sectionIdFor('CS204');
     const res = await assign(cs204, demoLecturerId);
@@ -278,7 +270,6 @@ describe('what lecturers and students see', () => {
   test('a student sees the lecturer assigned to their approved course', async () => {
     const me = await createStudent(1);
     for (const code of ['MATH201', 'CS201']) {
-      // This file also opened a past-semester MATH201 section, so pick the current one explicitly.
       const [{ id }] = await query(
         "SELECT s.id FROM course_sections s JOIN courses c ON c.id = s.course_id JOIN semesters m ON m.id = s.semester_id WHERE c.code = :code AND m.is_current = 1",
         { code },

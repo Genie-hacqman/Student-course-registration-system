@@ -34,7 +34,7 @@ describe('grade scale', () => {
   test('GPA is credit-weighted, counts the best attempt, ignores W/I', () => {
     const summary = computeGpa([
       { courseId: 1, grade: 'F', credits: 3 },
-      { courseId: 1, grade: 'B', credits: 3 }, // retake: only B counts
+      { courseId: 1, grade: 'B', credits: 3 },
       { courseId: 2, grade: 'A', credits: 1 },
       { courseId: 3, grade: 'W', credits: 3 },
     ]);

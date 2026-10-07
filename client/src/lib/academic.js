@@ -1,4 +1,3 @@
-/** Credit-weighted GPA per semester from final results, oldest first. Results without a semester are skipped. */
 export const gpaBySemester = (results = []) => {
   const groups = new Map()
   for (const r of results) {
@@ -13,7 +12,6 @@ export const gpaBySemester = (results = []) => {
     .map((g) => ({ label: g.label, value: g.credits ? Math.round((g.points / g.credits) * 100) / 100 : 0 }))
 }
 
-/** Dates that matter to a student this semester, from the registration payload and the semester record. */
 export const semesterDates = (semester, record) => {
   if (!semester) return []
   const opens = semester.myRegistrationOpensAt
@@ -30,6 +28,5 @@ export const semesterDates = (semester, record) => {
   return dates.filter((d) => d && d.date)
 }
 
-/** Only dates that haven't passed yet, soonest first. */
 export const upcoming = (dates, now = Date.now()) =>
   dates.filter((d) => new Date(d.date).getTime() >= now).sort((a, b) => new Date(a.date) - new Date(b.date))

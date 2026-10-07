@@ -14,7 +14,6 @@ import { requiredNumber } from '../../lib/forms'
 const optionalText = (max) => z.string().trim().max(max).optional().transform((v) => v || undefined)
 const optionalEmail = z.union([z.literal(''), z.email('Enter a valid email').max(191)]).optional().transform((v) => v || undefined)
 
-// Mirrors createLecturerSchema (account-creating shape) in SCRS-backend src/validators/user.validator.js.
 export const lecturerSchema = z.object({
   title: optionalText(50),
   firstName: z.string().trim().min(1, 'Required').max(100),
@@ -27,7 +26,6 @@ export const lecturerSchema = z.object({
   specialization: optionalText(150),
 })
 
-/** Lecturer status for display: suspended accounts are inactive; active ones may still be waiting to set a password. */
 export const lecturerStatus = (l) => {
   if (l.user?.status !== 'active') return { label: 'Inactive', tone: 'slate' }
   if (Number(l.invitePending)) return { label: 'Invited — not activated', tone: 'amber' }
@@ -72,10 +70,6 @@ const chip = (active) => cx(
   active ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-200 hover:ring-brand-300',
 )
 
-/**
- * Lecturers organised by department (home or additional), with search and status filters. Admins manage accounts
- * (user:manage); registrars browse and assign lecturers to offerings from the profile.
- */
 export default function Lecturers() {
   const { user } = useAuth()
   const canManage = can(user, PERMS.USER_MANAGE)
@@ -114,7 +108,6 @@ export default function Lecturers() {
         subtitle="Lecturer accounts and profiles. New lecturers get an emailed link to set their own password. The registry assigns them to courses."
         action={canManage && <Button onClick={() => setCreating(true)}><Plus className="size-4" /> Add lecturer</Button>}
       />
-      {/* By department: counts include each lecturer's home and additional departments. */}
       <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Lecturers by department">
         <button type="button" className={chip(!departmentId)} onClick={() => set('department', '')}>All departments</button>
         {summary.data?.items.map((d) => (

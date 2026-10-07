@@ -1,4 +1,3 @@
-/** Students may take courses at or below their current level. */
 export const levelEligibility = ({ student, section }) => {
   const rule = 'LEVEL_ELIGIBILITY';
   if (section.course.level <= student.level) return { rule, passed: true };

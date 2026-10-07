@@ -5,7 +5,6 @@ import ProgramStudentList from '../../components/directory/ProgramStudentList'
 import BackLink from '../../components/directory/BackLink'
 import { plural, useStudentSummary } from '../../lib/studentSummary'
 
-/** One programme of the Students section: level tabs with counts, search, and its students. */
 export default function StudentsProgram() {
   const { programId } = useParams()
   const summary = useStudentSummary()

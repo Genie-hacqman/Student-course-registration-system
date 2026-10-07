@@ -29,28 +29,22 @@ const admitSchema = z.object({
   admissionNumber: z.string().trim().max(30).optional(),
 })
 
-/** The academic year holding the current semester, else the latest one, else the calendar's guess. */
 const defaultSession = (years) => {
   const current = years?.find((y) => y.semesters?.some((s) => s.isCurrent)) ?? years?.[0]
   if (current && SESSION.test(current.name)) return current.name
   const now = new Date()
-  const start = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1 // sessions usually start around August
+  const start = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1
   return `${start}/${start + 1}`
 }
 
-/**
- * Admission: the school creates the account (Student ID, school email, temporary PIN). The PIN is
- * returned once, so the credentials dialog opens straight after.
- */
 function AdmitStudent({ open, onClose, onAdmitted }) {
-  // Only open programmes take new students (archived ones are closed to intake).
   const programs = useApi(open ? '/programs' : null, { status: 'active' })
   const years = useApi(open ? '/academic-years' : null)
   const admit = useApiMutation(({ level, admissionNumber, ...v }) => http.post('/admissions', {
     ...v, level: level ?? 100, ...(admissionNumber ? { admissionNumber } : {}),
   }))
 
-  if (open && years.isPending) return null // wait for the session default before building the form
+  if (open && years.isPending) return null
   return (
     <FormModal
       open={open}
@@ -100,11 +94,10 @@ export default function Students() {
   const { user } = useAuth()
   const canAdmit = can(user, PERMS.STUDENT_ADMIT)
   const [admitting, setAdmitting] = useState(false)
-  const [admitted, setAdmitted] = useState(null) // { student, credentials }
+  const [admitted, setAdmitted] = useState(null)
   const [params, setParams] = useSearchParams()
   const search = params.get('search') ?? ''
   const page = Number(params.get('page') ?? 1)
-  // Students only load once something is searched for; otherwise people browse by department and programme.
   const results = useApi(search ? '/students' : null, { search, page, limit: 20, sort: 'name' })
 
   const update = (changes) => {

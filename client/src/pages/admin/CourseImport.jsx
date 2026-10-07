@@ -20,14 +20,9 @@ const download = (content, name) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-/**
- * Bulk course import for the registry (course:catalog): template → upload (CSV or XLSX) → server-side
- * preview (every row checked against the database) → import the valid rows. Existing courses are never
- * changed and no sections are created; the server enforces all of it.
- */
 export default function CourseImport() {
   const input = useRef(null)
-  const [file, setFile] = useState(null) // { name, rows }
+  const [file, setFile] = useState(null)
   const [problem, setProblem] = useState(null)
   const [report, setReport] = useState(null)
   const [filter, setFilter] = useState('')

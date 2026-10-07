@@ -3,7 +3,6 @@ export const DAY_NAMES = {
 }
 export const DAY_ORDER = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 
-/** "14:00:00" → "2:00 PM" */
 export const formatTime = (t) => {
   if (!t) return ''
   const [h, m] = t.split(':').map(Number)
@@ -37,7 +36,6 @@ export const fullName = (user) => [user?.firstName, user?.lastName].filter(Boole
 
 export const initials = (user) => [user?.firstName?.[0], user?.lastName?.[0]].filter(Boolean).join('').toUpperCase() || '?'
 
-/** Registration period state for this student, from the server's own computed flags. */
 export const windowState = (semester, registration) => {
   if (!semester) return { label: 'No active semester', tone: 'slate' }
   if (semester.registrationOpen) return { label: 'Open', tone: 'green' }
@@ -62,7 +60,6 @@ export const SECTION_STATUS = {
   blocked: { label: 'Not eligible', tone: 'red' },
 }
 
-/** "Chrome on macOS" from a user-agent string — good enough to recognise your own devices. */
 export const describeDevice = (ua) => {
   if (!ua) return { label: 'Unknown device', mobile: false }
   const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Browser'
@@ -71,7 +68,6 @@ export const describeDevice = (ua) => {
 }
 
 
-/** Admission application statuses → [tone, label] for StatusBadge. */
 export const APPLICATION_STATUS = {
   draft: ['slate', 'Draft'],
   submitted: ['amber', 'Under review'],

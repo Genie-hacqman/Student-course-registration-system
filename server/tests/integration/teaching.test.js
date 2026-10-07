@@ -25,7 +25,6 @@ before(async () => {
   const submitted = await api().post('/api/registrations/submit').set(auth(student.token));
   await api().patch(`/api/admin/registrations/${submitted.body.data.id}/approve`).set(auth(registrar.token)).send({});
 
-  // A second lecturer who does not teach CS201.
   const user = await api().post('/api/users').set(auth(admin.token)).send({
     firstName: 'Other', lastName: 'Lecturer', email: 'other.teacher@test.local', password: 'Passw0rd!', role: 'LECTURER',
   });

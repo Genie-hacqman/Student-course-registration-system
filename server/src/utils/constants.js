@@ -1,7 +1,3 @@
-/**
- * The four roles. Applicants are STUDENTs from sign-up: whether one is admitted is their admission
- * status (a student record), never a role. See docs in CLAUDE.md ("Four roles").
- */
 export const ROLES = Object.freeze({
   ADMIN: 'ADMIN',
   REGISTRAR: 'REGISTRAR',
@@ -9,7 +5,6 @@ export const ROLES = Object.freeze({
   STUDENT: 'STUDENT',
 });
 
-/** Staff who see institution-wide data (e.g. archived courses, cancelled sections). */
 export const ADMIN_ROLES = [ROLES.ADMIN, ROLES.REGISTRAR];
 export const STAFF_ROLES = [...ADMIN_ROLES, ROLES.LECTURER];
 
@@ -44,11 +39,6 @@ export const PERMISSIONS = Object.freeze({
 
 const P = PERMISSIONS;
 
-/**
- * Role → permissions. Adding a capability is a data change here, not a route change.
- * ADMIN runs the institution (accounts, admission, departments/programmes, settings, audit);
- * REGISTRAR runs academics (courses, offerings, lecturer assignment, registrations, timetable, records).
- */
 export const ROLE_PERMISSIONS = Object.freeze({
   [ROLES.STUDENT]: [P.REGISTRATION_SELF, P.APPLICATION_SELF],
   [ROLES.LECTURER]: [P.ROSTER_VIEW, P.GRADE_ENTER, P.ATTENDANCE_RECORD, P.ASSESSMENT_MANAGE, P.ANNOUNCEMENT_CREATE],
@@ -63,10 +53,6 @@ export const ROLE_PERMISSIONS = Object.freeze({
   ],
 });
 
-/**
- * Human-readable catalog for the roles & permissions editor, grouped for display.
- * Every PERMISSIONS value must appear here exactly once (checked by a unit test).
- */
 export const PERMISSION_CATALOG = Object.freeze([
   { name: P.REGISTRATION_SELF, group: 'Registration', description: 'Register for courses as a student' },
   { name: P.REGISTRATION_VIEW_ALL, group: 'Registration', description: 'View all students and registrations' },
@@ -96,13 +82,8 @@ export const PERMISSION_CATALOG = Object.freeze([
   { name: P.ROLE_MANAGE, group: 'System', description: 'Edit role permissions' },
 ]);
 
-/**
- * Roles whose permissions can be edited. ADMIN is fixed (so nobody can remove the last way to
- * manage roles), and STUDENT is fixed.
- */
 export const EDITABLE_ROLES = Object.freeze([ROLES.REGISTRAR, ROLES.LECTURER]);
 
-/** Never grantable through the editor: role:manage stays with ADMIN; the self-service permissions with STUDENT. */
 export const NON_GRANTABLE_PERMISSIONS = Object.freeze([P.ROLE_MANAGE, P.AUDIT_VIEW, P.REGISTRATION_SELF, P.APPLICATION_SELF]);
 
 export const ATTENDANCE_STATUS = Object.freeze({ PRESENT: 'present', ABSENT: 'absent', LATE: 'late', EXCUSED: 'excused' });
@@ -117,7 +98,6 @@ export const ANNOUNCEMENT_AUDIENCE = Object.freeze({
   EVERYONE: 'everyone',
 });
 
-/** Departments and programmes: `archived` = closed to new intake; existing records stay visible. */
 export const ORG_STATUS = Object.freeze({ ACTIVE: 'active', ARCHIVED: 'archived' });
 export const USER_STATUS = Object.freeze({ ACTIVE: 'active', SUSPENDED: 'suspended', PENDING: 'pending' });
 export const STUDENT_STATUS = Object.freeze({ ACTIVE: 'active', PROBATION: 'probation', SUSPENDED: 'suspended', GRADUATED: 'graduated' });
@@ -133,10 +113,6 @@ export const REGISTRATION_STATUS = Object.freeze({
   CANCELLED: 'cancelled',
 });
 
-/**
- * A STUDENT's admission state, derived (auth.service.admissionStatusOf): ADMITTED once a student
- * record exists (online or staff admission); otherwise from their online application.
- */
 export const ADMISSION_STATUS = Object.freeze({
   NOT_SUBMITTED: 'NOT_SUBMITTED', PENDING: 'PENDING', ADMITTED: 'ADMITTED', REJECTED: 'REJECTED',
 });
@@ -148,10 +124,6 @@ export const APPLICATION_STATUS = Object.freeze({
   REJECTED: 'rejected',
 });
 
-/**
- * Email delivery states. `sent` = accepted by the provider's API (not yet confirmed delivered);
- * `delivered`/`bounced`/`complained`/`delivery_delayed` come from the Resend webhook.
- */
 export const EMAIL_STATUS = Object.freeze({
   NOT_CONFIGURED: 'not_configured',
   SENT: 'sent',
@@ -173,7 +145,6 @@ export const WAITLIST_STATUS = Object.freeze({ WAITING: 'waiting', NOTIFIED: 'no
 export const ACCOUNT_REQUEST_TYPE = Object.freeze({ PASSWORD_RESET: 'password_reset', NAME_CHANGE: 'name_change' });
 export const ACCOUNT_REQUEST_STATUS = Object.freeze({ PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected', CANCELLED: 'cancelled' });
 
-/** Checks staff may override (with a reason) when adding a student to a section. Everything else still blocks. */
 export const STAFF_OVERRIDABLE_RULES = Object.freeze([
   'PREREQUISITE', 'CREDIT_LIMIT', 'TIMETABLE_CONFLICT', 'LEVEL_ELIGIBILITY', 'PROGRAM_ELIGIBILITY', 'SEMESTER_ELIGIBILITY',
 ]);

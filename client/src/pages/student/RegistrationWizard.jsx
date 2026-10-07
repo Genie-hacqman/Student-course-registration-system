@@ -24,7 +24,6 @@ import { formatDateTime, fullName, lecturerName } from '../../lib/format'
 const STEPS = ['Rules & regulations', 'Qualification', 'Course selection', 'Review', 'Submit', 'Complete']
 const [RULES, QUALIFY, SELECT, REVIEW, SUBMIT, DONE] = STEPS.keys()
 
-/** Where to resume, from the registration's real status. */
 const entryStep = (registration) => {
   if (!registration) return RULES
   if (['submitted', 'approved'].includes(registration.status)) return DONE
@@ -41,8 +40,6 @@ function StepCard({ title, subtitle, icon, children, footer }) {
     </Card>
   )
 }
-
-/* ── Step 1 ─────────────────────────────────────────────────────────────── */
 
 function RulesStep({ semester, acknowledged, setAcknowledged, onNext }) {
   const rules = [
@@ -91,8 +88,6 @@ function RulesStep({ semester, acknowledged, setAcknowledged, onNext }) {
     </StepCard>
   )
 }
-
-/* ── Step 2 ─────────────────────────────────────────────────────────────── */
 
 const CHECK_STYLE = {
   pass: { icon: CheckCircle2, cls: 'text-green-600', label: 'Met' },
@@ -157,8 +152,6 @@ function QualificationStep({ semester, registration, courses, onBack, onNext }) 
     </StepCard>
   )
 }
-
-/* ── Step 3 ─────────────────────────────────────────────────────────────── */
 
 const FILTERS = [
   ['all', 'All courses'],
@@ -368,7 +361,6 @@ function SelectionStep({ semester, registration, courses, onBack, onReview, onSa
         </Card>
       </aside>
 
-      {/* Mobile: the summary rides along at the bottom of the screen. */}
       <div className="fixed inset-x-0 bottom-0 z-20 animate-sheet-up border-t border-slate-200 bg-white/95 p-4 shadow-[0_-8px_24px_-12px_rgb(15_23_42/0.2)] backdrop-blur lg:hidden">
         <SelectionSummary compact semester={semester} registration={registration} onSave={onSave} onReview={onReview} />
       </div>
@@ -406,8 +398,6 @@ function SelectionStep({ semester, registration, courses, onBack, onReview, onSa
     </div>
   )
 }
-
-/* ── Steps 4 & 5 ────────────────────────────────────────────────────────── */
 
 function RegistrationSummary({ semester, record, registration }) {
   const { user } = useAuth()
@@ -574,8 +564,6 @@ function SubmitStep({ registration, onBack, onSave, onSubmitted }) {
   )
 }
 
-/* ── Step 6 ─────────────────────────────────────────────────────────────── */
-
 function CompleteStep({ semester, record, registration, onChange }) {
   const [busy, setBusy] = useState(null)
   const approved = registration?.status === 'approved'
@@ -624,8 +612,6 @@ function CompleteStep({ semester, record, registration, onChange }) {
     </div>
   )
 }
-
-/* ── Page ───────────────────────────────────────────────────────────────── */
 
 export default function RegistrationWizard() {
   const navigate = useNavigate()

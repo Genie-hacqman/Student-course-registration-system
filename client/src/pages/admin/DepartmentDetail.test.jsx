@@ -45,10 +45,10 @@ describe('DepartmentDetail', () => {
   it('shows the counts and the department students first', async () => {
     renderPage()
     expect(await screen.findByRole('heading', { name: 'Computer Science' })).toBeInTheDocument()
-    expect(screen.getByText('Home and additional')).toBeInTheDocument() // the lecturer count's caption
+    expect(screen.getByText('Home and additional')).toBeInTheDocument()
     expect(screen.getByText('3 active')).toBeInTheDocument()
     expect(await screen.findByText('STU2025001')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /archive/i })).not.toBeInTheDocument() // registrar: read-only
+    expect(screen.queryByRole('button', { name: /archive/i })).not.toBeInTheDocument()
   })
 
   it('switches between Students, Lecturers, Programmes and Courses', async () => {

@@ -2,8 +2,6 @@ import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { BadRequestError } from './errors.js';
 
-// What an official application photo must look like. Everything is decoded and re-encoded by sharp, so only
-// bytes this server produced are ever stored (a file that merely claims to be an image fails to decode).
 export const PHOTO_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 export const PHOTO_MIN_SIDE = 300;
 export const PHOTO_MAX_SIDE = 4000;
@@ -12,10 +10,6 @@ export const PHOTO_OUTPUT_SIDE = 800;
 const FORMAT_FOR_TYPE = { 'image/jpeg': 'jpeg', 'image/png': 'png', 'image/webp': 'webp' };
 export const PHOTO_TYPES = Object.keys(FORMAT_FOR_TYPE);
 
-/**
- * Validates an uploaded photo and returns a clean JPEG: auto-rotated, flattened onto white, fitted inside
- * 800 px, with all metadata (EXIF, GPS location) stripped. Throws BadRequestError with a user-facing message.
- */
 export const normalizeOfficialPhoto = async (input, declaredType) => {
   const expected = FORMAT_FOR_TYPE[declaredType];
   if (!expected) throw new BadRequestError('Upload a JPG, PNG or WebP photo');
@@ -55,10 +49,8 @@ export const normalizeOfficialPhoto = async (input, declaredType) => {
   };
 };
 
-/** A square JPEG of `side` px, cropped around the subject (list thumbnails; the stored original is never changed). */
 export const squareJpeg = (input, side, quality = 85) =>
   sharp(input).resize(side, side, { fit: 'cover', position: sharp.strategy.attention }).jpeg({ quality }).toBuffer();
 
-/** The same as a data URL (used for the profile-picture copy at admission). */
 export const squareDataUrl = async (input, side, quality = 85) =>
   `data:image/jpeg;base64,${(await squareJpeg(input, side, quality)).toString('base64')}`;

@@ -2,7 +2,6 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { snapshot, diffFields, summariseEntries } from '../../src/utils/audit-diff.js';
 
-// A stand-in for a Sequelize instance: `.get({ plain: true })` returns the loaded values, `.update` overwrites them.
 const fakeRecord = (values) => ({
   values: { ...values },
   get() { return { ...this.values }; },

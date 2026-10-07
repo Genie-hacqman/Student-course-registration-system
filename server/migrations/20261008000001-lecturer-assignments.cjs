@@ -1,10 +1,5 @@
 'use strict';
 
-/**
- * Lecturer profiles (phone, specialization, personal email) and the history of lecturer assignments
- * to course offerings (course_sections). course_sections.lecturer_id stays the current lecturer;
- * each assignment period is one row here, so a course offering keeps a full record of who taught it.
- */
 module.exports = {
   async up(queryInterface, Sequelize) {
     const now = { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') };
@@ -40,7 +35,6 @@ module.exports = {
     await queryInterface.addIndex('section_lecturer_assignments', ['course_section_id', 'status']);
     await queryInterface.addIndex('section_lecturer_assignments', ['lecturer_id', 'status']);
 
-    // Existing assignments become the first history row of their section.
     await queryInterface.sequelize.query(
       `INSERT INTO section_lecturer_assignments (course_section_id, lecturer_id, status, assigned_at, created_at, updated_at)
        SELECT id, lecturer_id, 'active', updated_at, NOW(), NOW() FROM course_sections WHERE lecturer_id IS NOT NULL`,

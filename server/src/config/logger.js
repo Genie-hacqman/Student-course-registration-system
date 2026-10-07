@@ -1,13 +1,6 @@
 import pino from 'pino';
 import env from './env.js';
 
-/**
- * Turns this module's `(message, extra?)` call shape into pino's `(mergingObject?, message)`.
- * A pure function so it's unit-testable without touching pino's actual output stream.
- * - `extra` is an Error: pino gets `{ err: extra }` so it uses its built-in error serializer
- *   (stack trace, cause, etc.) instead of the error printing as "[object Error]".
- * - `extra` is anything else: stringified and appended to the message.
- */
 export const normalizeLogArgs = (args) => {
   const [message, ...rest] = args;
   if (rest.length === 0) return [message];
@@ -21,11 +14,8 @@ export const normalizeLogArgs = (args) => {
   return errorArg ? [{ err: errorArg }, fullMessage] : [fullMessage];
 };
 
-// Pretty-printed, colorized output locally; plain JSON lines everywhere else (production and test),
-// which is what a real log aggregator (CloudWatch, Datadog, ...) expects to parse.
 const usePrettyPrint = env.NODE_ENV === 'development';
 
-/** The underlying pino instance — used directly by pino-http in app.js so HTTP request logs share the same output/format/level. */
 export const pinoInstance = pino({
   level: env.logLevel,
   ...(usePrettyPrint

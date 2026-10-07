@@ -7,8 +7,6 @@ import { snapshot, diffFields } from '../utils/audit-diff.js';
 
 const yearInclude = { model: AcademicYear, as: 'academicYear', attributes: ['id', 'name'] };
 
-// ── Academic years ────────────────────────────────────────────────────────────
-
 export const listAcademicYears = () =>
   AcademicYear.findAll({ include: [{ model: Semester, as: 'semesters' }], order: [['startDate', 'DESC']] });
 
@@ -37,8 +35,6 @@ export const updateAcademicYear = async (id, data, actor) => {
   return year;
 };
 
-// ── Semesters ─────────────────────────────────────────────────────────────────
-
 export const list = async (query) => {
   const { page, limit, offset, order } = buildPagination(query, ['startDate', 'name', 'createdAt'], ['startDate', 'DESC']);
   const where = {};
@@ -54,7 +50,6 @@ export const getById = async (id) => {
   return semester;
 };
 
-/** The single semester flagged as current, or null. Registration always runs against this one. */
 export const findCurrent = (options = {}) => Semester.findOne({ where: { isCurrent: true }, include: [yearInclude], ...options });
 
 export const getCurrent = async () => {
@@ -81,10 +76,6 @@ const assertValidWindow = (s) => {
   }
 };
 
-/**
- * Only one semester may be current: setting one clears the flag everywhere else in the same transaction.
- * Returns the ids it cleared, so the audit entry can say which semester stopped being current.
- */
 const clearOtherCurrent = async (exceptId, transaction) => {
   const where = { isCurrent: true, id: { [Op.ne]: exceptId ?? 0 } };
   const cleared = await Semester.findAll({ where, attributes: ['id'], transaction });

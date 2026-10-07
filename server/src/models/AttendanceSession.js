@@ -1,7 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/** One class meeting's attendance register. */
 class AttendanceSession extends Model {}
 
 AttendanceSession.init(

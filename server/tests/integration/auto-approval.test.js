@@ -1,8 +1,3 @@
-/**
- * Automatic registration approval: the programme's `autoApprove` flag (or the global approval switch being
- * off) approves a clean registration on submit, with the same timetable check a registrar's approval runs.
- * A timetable problem leaves it `submitted` for the registrar.
- */
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -23,7 +18,6 @@ before(async () => {
 });
 after(() => sequelize.close());
 
-// Every test starts from the defaults: no programme flag, approval required, MATH201 fully scheduled.
 beforeEach(async () => {
   await setProgramAutoApprove(false);
   await setRequireApproval(true);
@@ -80,7 +74,6 @@ describe('programme auto-approval', () => {
     assert.ok(row.timetable_confirmed_at, 'the timetable is confirmed');
     assert.ok(row.reference_number);
 
-    // One approval message with the reference, not a "submitted" one as well.
     assert.deepEqual(await notificationTypes(student), ['REGISTRATION_APPROVED']);
     const approval = (await api().get('/api/notifications').set(auth(student.token))).body.data.find((x) => x.type === 'REGISTRATION_APPROVED');
     assert.equal(approval.data.auto, true);
@@ -99,7 +92,7 @@ describe('programme auto-approval', () => {
 
   test('the rules still apply: a failing selection is refused, not approved', async () => {
     await setProgramAutoApprove(true);
-    const student = await newStudent(['CS201']); // 3 credits is under the semester minimum
+    const student = await newStudent(['CS201']);
     const res = await submit(student);
     assert.equal(res.status, 422);
     assert.deepEqual(res.body.error.details.map((d) => d.rule), ['MINIMUM_CREDITS']);
@@ -123,7 +116,6 @@ describe('programme auto-approval', () => {
     assert.match(note.message, /timetable clash/);
     assert.equal((await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'registration.auto_approved' AND entity_id = :id", { id: res.body.data.id }))[0].n, 0);
 
-    // The registrar's own approval keeps refusing until the room is back, then confirms it.
     const approve = () => api().patch(`/api/admin/registrations/${res.body.data.id}/approve`).set(auth(registrar.token)).send({});
     assert.equal((await approve()).status, 409);
     await query("UPDATE schedules SET room = 'LT-4' WHERE course_section_id = :math201", { math201 });

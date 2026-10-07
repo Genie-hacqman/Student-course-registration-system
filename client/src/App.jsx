@@ -21,8 +21,9 @@ import NotFound from './pages/NotFound'
 import Privacy from './pages/legal/Privacy'
 import Terms from './pages/legal/Terms'
 
-// Every role's own pages (and Recharts) load on demand — only the layout shells and the auth pages
-// needed before anyone's signed in (Login above all) are in the initial bundle.
+
+
+
 const Admission = lazy(() => import('./pages/student/Admission'))
 const Dashboard = lazy(() => import('./pages/student/Dashboard'))
 const Catalog = lazy(() => import('./pages/student/Catalog'))
@@ -83,7 +84,6 @@ const LecturerResults = lazy(() => import('./pages/lecturer/Results'))
 const Announcements = lazy(() => import('./pages/Announcements'))
 const RolesPermissions = lazy(() => import('./pages/admin/RolesPermissions'))
 
-/** Old lecturer links (/lecturer/sections/:id) now open the course hub. */
 function SectionRedirect() {
   const { id } = useParams()
   return <Navigate to={`/lecturer/courses/${id}`} replace />
@@ -98,7 +98,6 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomeRedirect />} />
 
-          {/* Public to everyone, signed in or not, and linked from the footer of every sign-in page. */}
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
 
@@ -112,13 +111,10 @@ export default function App() {
             <Route element={<RequirePinChange />}>
               <Route path="/change-pin" element={<ChangePin />} />
             </Route>
-            {/* No self sign-up: student accounts are created by the school at admission. */}
             <Route path="/register" element={<Navigate to="/login" replace />} />
-            {/* Reachable while signed in too: emailed links may be opened in a logged-in browser. */}
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/activate-account" element={<Activate />} />
-            {/* Links emailed before the path changed still work. */}
             <Route path="/activate" element={<Activate />} />
           </Route>
 
@@ -141,7 +137,6 @@ export default function App() {
             </Route>
           </Route>
 
-          {/* Links from before the four-role model: applicants are students now. */}
           <Route path="/applicant/*" element={<Navigate to="/student/admission" replace />} />
 
           <Route element={<RequireArea area="lecturer" />}>
@@ -180,14 +175,12 @@ export default function App() {
               <Route element={<RequirePermission permission={PERMS.REPORT_VIEW} />}>
                 <Route path="reports" element={<Reports />} />
               </Route>
-              {/* The directory: admins and registrars browse (directory:view); changes need course:manage, checked on each action. */}
               <Route element={<RequirePermission permission={[PERMS.DIRECTORY_VIEW, PERMS.COURSE_MANAGE]} />}>
                 <Route path="departments" element={<Departments />} />
                 <Route path="departments/:id" element={<DepartmentDetail />} />
                 <Route path="programs" element={<Programs />} />
                 <Route path="programs/:id" element={<ProgramDetail />} />
               </Route>
-              {/* Admins view the catalogue (course:manage); the registry edits and imports it (course:catalog). */}
               <Route element={<RequirePermission permission={[PERMS.COURSE_MANAGE, PERMS.COURSE_CATALOG]} />}>
                 <Route path="courses" element={<Courses />} />
                 <Route path="courses/:id" element={<CourseDetail />} />
@@ -206,7 +199,6 @@ export default function App() {
                 <Route path="semesters" element={<Semesters />} />
                 <Route path="semesters/:id" element={<SemesterDetail />} />
               </Route>
-              {/* Offerings: the registry manages them (section:manage); admins can look (directory:view). */}
               <Route element={<RequirePermission permission={[PERMS.SECTION_MANAGE, PERMS.DIRECTORY_VIEW]} />}>
                 <Route path="sections" element={<Sections />} />
                 <Route path="sections/:id" element={<SectionDetail />} />

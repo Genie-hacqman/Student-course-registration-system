@@ -44,7 +44,6 @@ export default function Profile() {
           <Field label="Programme" value={s?.program?.name} />
           <Field label="Department" value={s?.program?.department?.name} />
           <Field label="Level" value={s?.level} />
-          {/* Every student record comes from an admission (online application or staff admission). */}
           <Field label="Admission status" value={s && <Badge tone="green">Admitted</Badge>} />
           <Field label="Status" value={s?.status && <StatusBadge status={s.status === 'active' ? 'active' : s.status === 'suspended' ? 'suspended' : undefined} label={s.status[0].toUpperCase() + s.status.slice(1)} />} />
           <Field label="Admitted" value={s?.admissionYear} />

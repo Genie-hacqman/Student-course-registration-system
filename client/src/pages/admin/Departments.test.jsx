@@ -19,7 +19,7 @@ describe('Departments page', () => {
     auth.user = REGISTRAR
     renderWithProviders(<Departments />)
     const row = (await screen.findByText('Computer Science')).closest('tr')
-    expect(within(row).getByText('7')).toBeInTheDocument() // courses
+    expect(within(row).getByText('7')).toBeInTheDocument()
     expect(within(row).getByText('Active')).toBeInTheDocument()
     expect(within(screen.getByText('Mathematics').closest('tr')).getByText('Archived')).toBeInTheDocument()
   })
@@ -41,6 +41,6 @@ describe('Departments page', () => {
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText(/closed to new intake/i)).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Archive department' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Activate MATH' })).toBeInTheDocument() // archived one offers activate
+    expect(screen.getByRole('button', { name: 'Activate MATH' })).toBeInTheDocument()
   })
 })

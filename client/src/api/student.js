@@ -19,7 +19,6 @@ export const useCurrentRegistration = () =>
 export const useRegistrationHistory = () =>
   useQuery({ queryKey: keys.history, queryFn: () => api.get('/registrations/history').then(unwrap) })
 
-// The whole curriculum for one semester is small, so it's fetched once and searched/filtered on the client.
 export const useAvailableCourses = () =>
   useQuery({ queryKey: keys.available, queryFn: () => api.get('/registrations/available-courses').then(unwrap) })
 
@@ -44,7 +43,6 @@ export const useResults = () =>
 export const useMyWaitlists = () =>
   useQuery({ queryKey: keys.waitlists, queryFn: () => api.get('/waitlists/me').then(unwrap) })
 
-/** Everything a registration change can affect. */
 export const invalidateRegistration = (qc) => Promise.all([
   qc.invalidateQueries({ queryKey: ['registration'] }),
   qc.invalidateQueries({ queryKey: keys.available }),
@@ -80,7 +78,6 @@ export const useSemesterList = () =>
 const fetchSlip = (registrationId) =>
   api.get(`/registrations/${registrationId}/slip`, { params: { format: 'pdf' }, responseType: 'blob' }).then((res) => res.data)
 
-/** The slip endpoint needs the Bearer token, so it's fetched as a blob instead of linked directly. */
 export const downloadSlip = async (registrationId, referenceNumber) => {
   const url = URL.createObjectURL(await fetchSlip(registrationId))
   const a = document.createElement('a')
@@ -90,7 +87,6 @@ export const downloadSlip = async (registrationId, referenceNumber) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-/** Loads the same PDF into a hidden frame and opens the browser's print dialog for it. */
 export const printSlip = async (registrationId) => {
   const url = URL.createObjectURL(await fetchSlip(registrationId))
   const frame = document.createElement('iframe')
@@ -101,10 +97,8 @@ export const printSlip = async (registrationId) => {
     try {
       frame.contentWindow.focus()
       frame.contentWindow.print()
-      // Removing the frame immediately would cancel the dialog in some browsers.
       cleanup(60_000)
     } catch {
-      // Printing from the frame was refused; show the PDF in a tab so it can be printed from there.
       window.open(url, '_blank')
       cleanup(60_000)
     }

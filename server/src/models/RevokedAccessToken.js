@@ -1,7 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/** An access token (by its jti) revoked before its natural expiry, e.g. on logout. */
 class RevokedAccessToken extends Model {}
 
 RevokedAccessToken.init(

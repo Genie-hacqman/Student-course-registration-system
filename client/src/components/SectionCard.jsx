@@ -18,10 +18,6 @@ export function ScheduleList({ schedules }) {
   )
 }
 
-/**
- * One section with its live status. `status`/`reasons` come from /registrations/available-courses,
- * which runs the same rules the add endpoint enforces.
- */
 export function SectionRow({ section, actions, showReasons = true }) {
   const status = SECTION_STATUS[section.status]
   const available = section.seatsAvailable ?? Math.max(section.capacity - section.seatsTaken, 0)
@@ -55,7 +51,6 @@ export function SectionRow({ section, actions, showReasons = true }) {
   )
 }
 
-/** Add button for eligible sections, waitlist for full ones (when offered). */
 export function SectionActionButton({ section, onAdd, onWaitlist, pendingId, onWaitlistIds }) {
   const busy = pendingId === section.id
   if (section.status === 'eligible') {

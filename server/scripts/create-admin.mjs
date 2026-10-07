@@ -1,12 +1,3 @@
-/**
- * `npm run admin:create` — creates an ADMIN from SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD when the
- * database has none. For when the seeders are already recorded as run (so `db:seed` would fail on the
- * existing roles) but no one can sign in: a wiped dev database, or a lost admin in production.
- *
- * Safe to re-run: with an admin present it changes nothing. It never promotes an existing account.
- * The same credential rules as the seeder apply (in production: both variables set, no published
- * default password, 12+ characters).
- */
 import { createRequire } from 'node:module';
 import { sequelize, User, Role } from '../src/models/index.js';
 import { hashPassword } from '../src/utils/password.js';
@@ -16,7 +7,6 @@ import * as audit from '../src/services/audit.service.js';
 const require = createRequire(import.meta.url);
 const { resolveAdminCredentials } = require('../seeders/20260926000001-roles-and-admin.cjs');
 
-/** Returns `{ created: boolean, email }`; throws with a message fit for the terminal when it refuses. */
 export const createAdmin = async () => {
   const { email, password } = resolveAdminCredentials();
 

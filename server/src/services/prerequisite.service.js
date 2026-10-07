@@ -13,12 +13,6 @@ import * as audit from './audit.service.js';
 const PREREQUISITE = 'prerequisite';
 const COREQUISITE = 'corequisite';
 
-/**
- * True if adding the edge "courseId requires prerequisiteId" would create a cycle,
- * i.e. courseId is already (directly or transitively) a prerequisite of prerequisiteId.
- * `edges` is a list of { courseId, prerequisiteCourseId } (prerequisite-type rows only:
- * corequisites are legitimately mutual, e.g. a lecture and its lab).
- */
 export const wouldCreateCycle = (edges, courseId, prerequisiteId) => {
   if (courseId === prerequisiteId) return true;
 
@@ -40,20 +34,12 @@ export const wouldCreateCycle = (edges, courseId, prerequisiteId) => {
   return false;
 };
 
-/** "CS201 (min C)" or "(MATH101 or MATH102)". */
 export const describeGroup = ({ anyOf, minGrade }) => {
   const names = anyOf.map((c) => c.code).join(' or ');
   const body = anyOf.length > 1 ? `(${names})` : names;
   return minGrade ? `${body} (min ${minGrade})` : body;
 };
 
-/**
- * Pure evaluation of requirement rows for one course.
- * - `rows`: CoursePrerequisite-like { type, groupNo, minGrade, prerequisite: { id, code, title } }
- * - `gradesByCourse`: Map<courseId, string[]> of the student's final grades
- * - `heldCourseIds`: Set of courses the student currently holds this semester (for corequisites)
- * Groups are AND-ed; courses inside a group are OR-ed.
- */
 export const evaluateGroups = ({ rows, gradesByCourse, heldCourseIds, passingGrade, overridden = false }) => {
   const groups = new Map();
   for (const row of rows) {
@@ -80,10 +66,6 @@ export const evaluateGroups = ({ rows, gradesByCourse, heldCourseIds, passingGra
   return { missing, corequisitesMissing, overridden: false };
 };
 
-/**
- * Requirements status for several courses at once (four queries, regardless of how many courses).
- * Returns Map<courseId, { missing: [group], corequisitesMissing: [group], overridden }>.
- */
 export const evaluateRequirements = async (studentId, courseIds, { semesterId, heldCourseIds = [], transaction } = {}) => {
   const out = new Map(courseIds.map((id) => [id, { missing: [], corequisitesMissing: [], overridden: false }]));
   if (!courseIds.length) return out;
@@ -91,7 +73,7 @@ export const evaluateRequirements = async (studentId, courseIds, { semesterId, h
   const rows = await CoursePrerequisite.findAll({
     where: { courseId: courseIds },
     include: [{ model: Course, as: 'prerequisite', attributes: ['id', 'code', 'title'] }],
-    order: [['id', 'ASC']], // groups are reported in the order they were defined
+    order: [['id', 'ASC']],
     transaction,
   });
   if (!rows.length) return out;
@@ -137,15 +119,12 @@ export const evaluateRequirements = async (studentId, courseIds, { semesterId, h
 export const evaluateRequirement = async (studentId, courseId, options = {}) =>
   (await evaluateRequirements(studentId, [courseId], options)).get(courseId);
 
-// ── admin: managing requirements ──────────────────────────────────────────────
-
 const findCourse = async (id, label = 'Course', transaction) => {
   const course = await Course.findByPk(id, { transaction });
   if (!course) throw new NotFoundError(label);
   return course;
 };
 
-/** Flat list of required courses, each with how it is required (type, group, minimum grade). */
 export const list = async (courseId) => {
   const course = await findCourse(courseId);
   const courses = await course.getPrerequisites({
@@ -160,14 +139,6 @@ export const list = async (courseId) => {
     .sort((a, b) => (a.groupNo ?? 0) - (b.groupNo ?? 0) || a.code.localeCompare(b.code));
 };
 
-/**
- * Adds one requirement group: a single course, or alternatives ("anyOf": any one satisfies it).
- * Body: { prerequisiteCourseId } | { anyOf: [ids], minGrade?, type? }.
- */
-/**
- * Adds one requirement group inside the caller's transaction. Shared by `add` and the bulk import.
- * `courseIds` are the alternatives (any one satisfies the group).
- */
 export const addGroup = async (courseId, { courseIds, type = PREREQUISITE, minGrade = null }, actor, transaction) => {
   courseIds = [...new Set(courseIds)];
   if (type === COREQUISITE && minGrade) throw new BadRequestError('Corequisites cannot have a minimum grade');
@@ -191,7 +162,6 @@ export const addGroup = async (courseId, { courseIds, type = PREREQUISITE, minGr
     }
   }
 
-  // A single course is its own group (null); alternatives share a new group number.
   const groupNo = courseIds.length > 1
     ? ((await CoursePrerequisite.max('groupNo', { where: { courseId }, transaction })) ?? 0) + 1
     : null;
@@ -205,10 +175,6 @@ export const addGroup = async (courseId, { courseIds, type = PREREQUISITE, minGr
   });
 };
 
-/**
- * Adds one requirement group: a single course, or alternatives ("anyOf": any one satisfies it).
- * Body: { prerequisiteCourseId } | { anyOf: [ids], minGrade?, type? }.
- */
 export const add = async (courseId, body, actor) => {
   await sequelize.transaction((transaction) => addGroup(courseId, {
     courseIds: body.anyOf ?? [body.prerequisiteCourseId],
@@ -218,7 +184,6 @@ export const add = async (courseId, body, actor) => {
   return list(courseId);
 };
 
-/** `prerequisiteId` is the id of the required course; it is removed from whichever group it is in. */
 export const remove = async (courseId, prerequisiteId, actor) => {
   await sequelize.transaction(async (transaction) => {
     const deleted = await CoursePrerequisite.destroy({ where: { courseId, prerequisiteCourseId: prerequisiteId }, transaction });
@@ -228,8 +193,6 @@ export const remove = async (courseId, prerequisiteId, actor) => {
     });
   });
 };
-
-// ── student-facing check ──────────────────────────────────────────────────────
 
 const currentHeldCourseIds = async (studentId) => {
   const semester = await Semester.findOne({ where: { isCurrent: true }, attributes: ['id'] });
@@ -262,8 +225,6 @@ export const check = async (studentId, courseId) => {
   };
 };
 
-// ── overrides (registrar) ───────────────────────────────────────────
-
 const overrideIncludes = [
   { model: Course, as: 'course', attributes: ['id', 'code', 'title'] },
   { model: Semester, as: 'semester', attributes: ['id', 'name'] },
@@ -274,7 +235,6 @@ export const listOverrides = async (studentId) => {
   return PrerequisiteOverride.findAll({ where: { studentId }, include: overrideIncludes, order: [['createdAt', 'DESC']] });
 };
 
-/** Waives a course's requirements for one student (in one semester, or permanently when semesterId is omitted). */
 export const grantOverride = async (studentId, { courseId, semesterId = null, reason }, actor, req) => {
   const override = await sequelize.transaction(async (transaction) => {
     const student = await Student.findByPk(studentId, { transaction });

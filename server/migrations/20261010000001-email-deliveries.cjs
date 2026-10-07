@@ -1,11 +1,5 @@
 'use strict';
 
-/**
- * Email delivery log: one row per logical email (keyed by idempotency_key when the sender gives one),
- * so retries never send twice and failures are visible to admins. `status` distinguishes the provider
- * accepting the email (`sent`) from confirmed delivery (`delivered`, set by the Resend webhook).
- * Message bodies are never stored (they may contain single-use links).
- */
 module.exports = {
   async up(queryInterface, Sequelize) {
     const now = { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') };
@@ -37,7 +31,6 @@ module.exports = {
     await queryInterface.addIndex('email_deliveries', ['status', 'created_at']);
     await queryInterface.addIndex('email_deliveries', ['user_id']);
 
-    // An announcement is emailed at most once (set when the email fan-out starts).
     await queryInterface.addColumn('announcements', 'emailed_at', { type: Sequelize.DATE });
   },
 

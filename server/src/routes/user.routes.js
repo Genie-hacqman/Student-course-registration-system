@@ -15,7 +15,6 @@ const router = Router();
 router.use(authenticate, requirePermission(PERMISSIONS.USER_MANAGE));
 
 router.get('/', validate({ query: listUsersQuery }), ctrl.list);
-// What administrators and registrars are allowed to do, in plain language (Administrators & Registrars page).
 router.get('/role-responsibilities', ctrl.roleResponsibilities);
 router.post('/', validate({ body: createUserSchema }), ctrl.create);
 router.get('/:id', validate({ params: idParam }), ctrl.getById);
@@ -23,7 +22,6 @@ router.patch('/:id', validate({ params: idParam, body: updateUserSchema }), ctrl
 router.delete('/:id', validate({ params: idParam }), ctrl.deactivate);
 router.post('/:id/invite', validate({ params: idParam }), ctrl.invite);
 
-// A user's signed-in devices, and signing one out on their behalf.
 router.get('/:id/sessions', validate({ params: idParam }), ctrl.sessions);
 router.delete('/:id/sessions/:sessionId', validate({ params: userSessionParams }), ctrl.endSession);
 

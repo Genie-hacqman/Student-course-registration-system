@@ -13,14 +13,13 @@ export const remove = async (req, res) => {
   return noContent(res);
 };
 
-// Directory: counts and drill-down.
 export const summary = async (req, res) => {
   const { result, page, limit } = await departmentService.summary(req.validated.query);
   return paginated(res, result, { page, limit });
 };
 export const overview = async (req, res) => ok(res, await departmentService.overview(req.validated.params.id));
 export const students = async (req, res) => {
-  await departmentService.getById(req.validated.params.id); // 404 for an unknown department
+  await departmentService.getById(req.validated.params.id);
   const { result, page, limit } = await studentService.list({ ...req.validated.query, departmentId: req.validated.params.id });
   return paginated(res, result, { page, limit });
 };

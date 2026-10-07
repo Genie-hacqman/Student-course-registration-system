@@ -4,8 +4,6 @@ import {
 import { usePrefersReducedMotion } from '../../lib/motion'
 import { REGISTRATION_STATUS } from '../../lib/format'
 
-// Recharts SVG props can't consume Tailwind classes/CSS vars, so these hexes are hand-synced
-// to the brand/status tokens in src/index.css — update both together.
 export const CHART_COLORS = {
   brand: '#2553e0',
   brandLight: '#93b0fa',
@@ -19,13 +17,11 @@ export const CHART_COLORS = {
   label: '#334155',
 }
 
-/** Distinct but calm series colours for categorical charts (programs, roles). */
 export const SERIES = ['#2553e0', '#0d9488', '#7c3aed', '#d97706', '#db2777', '#0891b2', '#65a30d', '#64748b']
 
 const axis = { tick: { fontSize: 12, fill: CHART_COLORS.axis }, tickLine: false, axisLine: false }
 const tooltipStyle = { contentStyle: { borderRadius: 8, borderColor: CHART_COLORS.grid, fontSize: 12 } }
 
-/** Wraps a chart so screen readers get a sentence instead of an SVG. */
 function Figure({ summary, height, children }) {
   return (
     <figure role="img" aria-label={summary} className="w-full" style={{ height }}>
@@ -36,7 +32,6 @@ function Figure({ summary, height, children }) {
 
 const describe = (rows, labelKey, valueKey) => rows.map((r) => `${r[labelKey]}: ${r[valueKey]}`).join(', ')
 
-/** Registrations per status, coloured like the status badges. */
 export function StatusChart({ byStatus, height = 220 }) {
   const reduced = usePrefersReducedMotion()
   const data = Object.entries(REGISTRATION_STATUS).map(([status, { label, tone }]) => ({
@@ -61,7 +56,6 @@ export function StatusChart({ byStatus, height = 220 }) {
 
 const fillColor = (rate) => (rate >= 100 ? CHART_COLORS.red : rate >= 90 ? CHART_COLORS.amber : CHART_COLORS.brand)
 
-/** Seat fill rate (%) per section, highest first. */
 export function FillRateChart({ sections, limit }) {
   const reduced = usePrefersReducedMotion()
   const data = [...sections]
@@ -83,10 +77,6 @@ export function FillRateChart({ sections, limit }) {
   )
 }
 
-/**
- * Horizontal bars for a labelled breakdown (students by program, by level, per course).
- * data: [{ label, value }]
- */
 export function BarBreakdown({ data, valueLabel = 'Count', height, color = CHART_COLORS.brand, multicolor }) {
   const reduced = usePrefersReducedMotion()
   return (
@@ -104,12 +94,10 @@ export function BarBreakdown({ data, valueLabel = 'Count', height, color = CHART
   )
 }
 
-/** Share-of-total ring with a legend that carries the numbers (so colour is never the only cue). data: [{ label, value }] */
 export function DonutChart({ data, centerLabel, centerValue, height = 200 }) {
   const reduced = usePrefersReducedMotion()
   const total = data.reduce((n, d) => n + d.value, 0)
   return (
-    // Side by side only when the card itself is wide enough, whatever the viewport.
     <div className="@container w-full">
     <div className="flex flex-col items-center gap-4 @sm:flex-row">
       <div className="relative w-full max-w-[200px] shrink-0" style={{ height }}>
@@ -145,7 +133,6 @@ export function DonutChart({ data, centerLabel, centerValue, height = 200 }) {
   )
 }
 
-/** Values over time. data: [{ label, value }] in date order. */
 export function TrendLine({ data, valueLabel = 'Count', height = 220, color = CHART_COLORS.brand }) {
   const reduced = usePrefersReducedMotion()
   return (

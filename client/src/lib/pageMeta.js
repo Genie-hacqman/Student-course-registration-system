@@ -1,15 +1,5 @@
-/**
- * Title, description and indexing rules for every route, in one place. The app is a client-side SPA, so the
- * server can't vary <head> per page; RouteMeta (components/RouteMeta.jsx) applies the result of metaFor() on each
- * navigation. The static tags in index.html are the fallback for crawlers that don't run JavaScript.
- *
- * Only the public entry pages are indexable. Everything behind a sign-in, and the emailed-link pages (their URLs
- * carry one-time tokens), are noindex. This must stay in step with the X-Robots-Tag headers in vercel.json.
- */
-
 export const SITE_NAME = 'UniReg'
 
-/** [pattern, title, description]. `:x` matches any one path segment. Public pages first, then each area. */
 const PUBLIC_ROUTES = [
   ['/', 'Sign in', 'Sign in to UniReg, the Student Course Registration System: register for courses, track approvals and view your timetable and results.'],
   ['/login', 'Sign in', 'Sign in to UniReg, the Student Course Registration System: register for courses, track approvals and view your timetable and results.'],
@@ -109,7 +99,6 @@ function matches(pattern, segments) {
   return parts.length === segments.length && parts.every((p, i) => p.startsWith(':') || p === segments[i])
 }
 
-/** Static segments outrank `:id`, so `/staff/courses/import` is not read as a course with the id "import". */
 function specificity(pattern) {
   return pattern.split('/').filter((p) => p && !p.startsWith(':')).length
 }
@@ -120,12 +109,10 @@ function find(routes, segments) {
     .sort((a, b) => specificity(b[0]) - specificity(a[0]))[0]
 }
 
-/** The `<title>` text, as "Page · UniReg" (the sign-in page leads with the product name instead). */
 export function titleFor(label) {
   return `${label} · ${SITE_NAME}`
 }
 
-/** { title, description, noindex } for a pathname. Unknown paths get the not-found meta. */
 export function metaFor(pathname) {
   const segments = pathname.split('/').filter(Boolean)
 
@@ -134,7 +121,6 @@ export function metaFor(pathname) {
 
   const priv = find(PRIVATE_ROUTES, segments)
   if (priv) {
-    // The portal name keeps "Results", "Announcements" etc. distinct between roles in tabs and browser history.
     const area = AREA_NAMES[segments[0]]
     const label = area ? `${priv[1]} · ${area} portal` : priv[1]
     const where = area ? `the ${SITE_NAME} ${area.toLowerCase()} portal` : SITE_NAME
@@ -144,5 +130,4 @@ export function metaFor(pathname) {
   return { ...NOT_FOUND, title: titleFor(NOT_FOUND.title) }
 }
 
-/** Every route pattern, for tests that check titles stay unique. */
 export const ALL_ROUTE_PATTERNS = [...PUBLIC_ROUTES, ...PRIVATE_ROUTES].map(([pattern]) => pattern)

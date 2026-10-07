@@ -12,7 +12,6 @@ import OrgStatusBadge from '../../components/directory/OrgStatusBadge'
 import { requiredNumber } from '../../lib/forms'
 import { can, PERMS } from '../../lib/roles'
 
-// Mirrors createProgramSchema in SCRS-backend src/validators/user.validator.js.
 export const programSchema = z.object({
   code: z.string().trim().min(2, 'At least 2 characters').max(20).transform((v) => v.toUpperCase()),
   name: z.string().trim().min(2, 'At least 2 characters').max(150),
@@ -54,7 +53,6 @@ export function ProgramForm({ editing, onClose, onSaved }) {
           </div>
           <Select label="Department" error={errors.departmentId?.message} {...register('departmentId')}>
             <option value="">Select department</option>
-            {/* Archived departments take no new programmes; the current one stays selectable when editing. */}
             {departments.data?.filter((d) => d.status !== 'archived' || d.id === editing?.departmentId).map((d) => (
               <option key={d.id} value={d.id}>{d.name}{d.status === 'archived' ? ' (archived)' : ''}</option>
             ))}
@@ -74,7 +72,6 @@ export function ProgramForm({ editing, onClose, onSaved }) {
   )
 }
 
-/** Archive (closed to new applications and admissions) or re-activate a programme. */
 export function ProgramStatusDialog({ program, onClose }) {
   const archiving = program?.status !== 'archived'
   const change = useApiMutation(
@@ -103,7 +100,6 @@ const STATUS_TABS = [
   { value: 'archived', label: 'Archived' },
 ]
 
-/** Programmes grouped under their departments, with student counts from the server. */
 export default function Programs() {
   const { user } = useAuth()
   const canManage = can(user, PERMS.COURSE_MANAGE)

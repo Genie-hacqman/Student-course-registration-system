@@ -19,7 +19,6 @@ const inviteSchema = z.object({
   role: z.enum([ROLES.ADMIN, ROLES.REGISTRAR]),
 })
 
-/** What each staff role is allowed to do, grouped, from the live permission settings. */
 function Responsibilities() {
   const roles = useApi('/users/role-responsibilities')
   return (
@@ -47,10 +46,6 @@ function Responsibilities() {
   )
 }
 
-/**
- * Administrators and registrars, kept apart from students and lecturers. Changing these accounts is reserved for
- * administrators; the server enforces that even if account management has been granted to another role.
- */
 export default function Administrators() {
   const { user } = useAuth()
   const isAdmin = user?.role?.name === ROLES.ADMIN

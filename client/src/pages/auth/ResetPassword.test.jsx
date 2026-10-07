@@ -26,15 +26,12 @@ describe('ResetPassword', () => {
 
     await fillAndSubmit(user)
 
-    // React Query's mutationFn also receives a context object (client, meta, mutationKey) as a 2nd arg.
     await waitFor(() => expect(authApi.resetPassword).toHaveBeenCalledWith({
       token: 'a-valid-looking-token-1234567890',
       password: 'NewPassw0rd1',
     }, expect.anything()))
   })
 
-  // Regression test: a used/expired token must not read like "you typed the password wrong" — it needs
-  // its own "request a new one" state, since retyping the password can never fix it.
   it('offers a fresh link instead of a generic error when the token is expired or already used', async () => {
     vi.spyOn(authApi, 'resetPassword').mockRejectedValue(
       new ApiError({ status: 400, code: 'BAD_REQUEST', message: 'Reset token is invalid or has expired' }),

@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, unwrap } from './client'
 
-/** Online admission (SCRS-backend /api/applications). Reviewer screens use the generic hooks in api/admin.js. */
 export const applicationsApi = {
   signUp: (body) => api.post('/applications/account', body).then(unwrap),
   activate: (body) => api.post('/applications/activate', body).then(unwrap),
@@ -10,13 +9,10 @@ export const applicationsApi = {
   mine: () => api.get('/applications/me').then(unwrap),
   save: (body) => api.put('/applications/me', body).then(unwrap),
   submit: () => api.post('/applications/me/submit').then(unwrap),
-  // Official application photo. The upload is the raw JPEG as the body; the server decides if it is still editable.
   setPhoto: (blob) => api.put('/applications/me/photo', blob, { headers: { 'Content-Type': blob.type || 'image/jpeg' } }).then(unwrap),
   removePhoto: () => api.delete('/applications/me/photo').then(unwrap),
-  // Photos are private: they are fetched with the signed-in session and shown from a blob: URL, never a public link.
   myPhoto: () => api.get('/applications/me/photo', { responseType: 'blob' }).then((res) => res.data),
   reviewPhoto: (id, size = 'full') => api.get(`/applications/${id}/photo`, { params: { size }, responseType: 'blob' }).then((res) => res.data),
-  // Staff viewing a student's record: the application they were admitted from (admins and registrars).
   forStudent: (studentId) => api.get(`/students/${studentId}/application`).then(unwrap),
   studentPhoto: (studentId, size = 'full') =>
     api.get(`/students/${studentId}/application/photo`, { params: { size }, responseType: 'blob' }).then((res) => res.data),
@@ -38,19 +34,13 @@ const PHOTO_SOURCES = {
   student: (id, size) => applicationsApi.studentPhoto(id, size),
 }
 
-/**
- * The official photo as a blob: URL (or undefined while loading / when there is none). `source` says whose photo:
- * 'me' (the applicant's own), 'review:<applicationId>' (reviewers) or 'student:<studentId>' (staff on a student's
- * record). `version` should change whenever the stored photo does (its upload time), so a replaced photo is fetched
- * again; `size` is 'full' or 'thumb'. `isError` means it could not be loaded, which is not the same as "no photo".
- */
 export const useOfficialPhotoUrl = ({ present, version, source = 'me', size = 'full' }) => {
   const [kind, id] = source.split(':')
   const query = useQuery({
     queryKey: ['official-photo', source, size, version ?? null],
     queryFn: () => PHOTO_SOURCES[kind](id, size),
     enabled: Boolean(present),
-    staleTime: Infinity, // the bytes for a given version never change
+    staleTime: Infinity,
     gcTime: 0,
     retry: false,
   })
@@ -59,7 +49,6 @@ export const useOfficialPhotoUrl = ({ present, version, source = 'me', size = 'f
   return { url, isLoading: query.isPending && Boolean(present), isError: query.isError, retry: () => query.refetch() }
 }
 
-/** The application a student was admitted from, or `none: true` for students admitted by staff. */
 export const useStudentApplication = (studentId) => {
   const query = useQuery({
     queryKey: ['students', String(studentId), 'application'],
@@ -70,7 +59,5 @@ export const useStudentApplication = (studentId) => {
   return { ...query, none, isError: query.isError && !none }
 }
 
-/** Upload, replace or remove the official photo. The response is not written into the application cache: the form
- * keeps its own state, and swapping the application object would reset what the applicant has typed. */
 export const useSetOfficialPhoto = () => useMutation({ mutationFn: applicationsApi.setPhoto })
 export const useRemoveOfficialPhoto = () => useMutation({ mutationFn: applicationsApi.removePhoto })

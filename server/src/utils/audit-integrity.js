@@ -1,26 +1,12 @@
 import crypto from 'node:crypto';
 import { SHORT_RETENTION_ACTIONS } from './audit-actions.js';
 
-/**
- * Pure integrity helpers for the audit log (no database, no config), so they can be unit tested.
- *
- * Each row carries an HMAC over its content; a scheduled job then seals batches of rows into a hash
- * chain (audit_seals). An edited row fails its HMAC, a deleted or inserted row breaks its seal, and a
- * removed seal breaks the chain. `user_id` is left out of the row HMAC on purpose: the foreign key
- * clears it (ON DELETE SET NULL) when a user is deleted, and that must not look like tampering. The
- * actor's email and role snapshot, which are covered, keep the attribution.
- */
-
-// Routine and noisy events (sign-ins, security signals) are kept for a shorter time than everything else, so
-// they get their own chain. Which actions those are is decided by the catalogue (`shortRetention`). Adding an
-// action to that list is safe only if no row with it exists yet: stream membership is part of what a seal covers.
 export { SHORT_RETENTION_ACTIONS };
 export const STREAMS = Object.freeze({ MAIN: 'main', SIGN_IN: 'signin' });
 export const streamOf = (action) => (SHORT_RETENTION_ACTIONS.includes(action) ? STREAMS.SIGN_IN : STREAMS.MAIN);
 
 export const GENESIS_HASH = '0'.repeat(64);
 
-/** JSON with object keys sorted at every depth, so MySQL's JSON key reordering cannot change the hash. */
 export const canonicalize = (value) => {
   if (value === undefined) return 'null';
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -33,7 +19,6 @@ const iso = (d) => (d instanceof Date ? d : new Date(d)).toISOString();
 export const hmac = (secret, text) => crypto.createHmac('sha256', secret).update(text).digest('hex');
 const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
-/** The HMAC stored in `audit_logs.row_hmac`. `row` is a model instance or a plain row (camelCase fields). */
 export const computeRowHmac = (secret, row) => hmac(secret, canonicalize({
   action: row.action,
   entityType: row.entityType ?? null,
@@ -47,7 +32,6 @@ export const computeRowHmac = (secret, row) => hmac(secret, canonicalize({
   createdAt: iso(row.createdAt),
 }));
 
-/** `rows` are in id order; `rowHmacs` is each row's stored HMAC in that same order. */
 export const computeSealHash = ({ stream, prevSealHash, fromId, toId, rowHmacs }) =>
   sha256([stream, prevSealHash, fromId, toId, rowHmacs.length, ...rowHmacs].join('|'));
 
@@ -57,12 +41,6 @@ export const timingSafeEqualHex = (a, b) => {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
 
-/**
- * Checks one stream's seals against the rows currently in the table.
- *  - `seals`: the stream's seals in id order, each { id, fromId, toId, rowCount, prevSealHash, sealHash, purgedAt }
- *  - `rowsFor(seal)`: the stream's rows with id in [fromId, toId], in id order (not called for purged seals)
- * Returns the list of problems found (empty when the stream is intact).
- */
 export const verifyStream = ({ secret, stream, seals, rowsFor }) => {
   const problems = [];
   let prev = GENESIS_HASH;

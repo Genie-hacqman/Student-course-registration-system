@@ -1,21 +1,6 @@
-/**
- * `npm run applicant:delete -- --email <address> [--yes] [--include-admitted]` — removes a TEST applicant account:
- * the user, their application, their official photo (from object storage), notifications, sessions and change
- * requests. Audit and email logs are kept, with the user link cleared.
- *
- * A dry run by default: it prints the database it is connected to and exactly what it would remove, and changes
- * nothing until you add --yes. It refuses staff accounts, students admitted by staff, admitted students unless
- * --include-admitted is given, and any student with academic records (deleting the user would cascade into them).
- *
- * Against production, run from server/ with the same explicit DB_* / DB_SSL* variables as the migration (and the
- * S3_* variables so the photo is removed too). Do not set NODE_ENV=production: the app's production checks would
- * then demand every other setting. See docs/deployment-runbook.md, "Deleting a test applicant".
- */
-
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 
-// Records whose existence means this is a real student, not a test: deleting the user would cascade into them.
 const ACADEMIC_TABLES = {
   registrations: 'registrations',
   results: 'results',
@@ -33,12 +18,7 @@ const count = async (sequelize, table, column, id, transaction) => {
   return Number(row.n);
 };
 
-/**
- * Finds the account (by sign-in email or the application's personal email), checks every rule, and describes what
- * a delete would do. With `apply`, deletes it. Throws RefusedError with a plain-language reason when it won't.
- */
 export const deleteApplicant = async ({ email, apply = false, includeAdmitted = false } = {}) => {
-  // Imported here, not at the top, so the CLI can quieten SQL logging before the app's config loads.
   const { sequelize, User, Role, Student, AdmissionApplication } = await import('../src/models/index.js');
   const { default: env } = await import('../src/config/env.js');
   const { ROLES } = await import('../src/utils/constants.js');
@@ -117,19 +97,14 @@ export const deleteApplicant = async ({ email, apply = false, includeAdmitted = 
   const plan = await inspect();
   if (!apply) return { ...plan, deleted: false };
 
-  // Re-check everything under a row lock, then delete; the database's foreign keys cascade the rest.
   const final = await sequelize.transaction(async (transaction) => {
     const checked = await inspect(transaction);
     await User.destroy({ where: { id: checked.user.id }, transaction });
     await audit.log({
-      // No signed-in user here: record the operator's OS account so the deletion is attributable.
       actor: { email: `system:script:delete-applicant (${os.userInfo().username})`, role: 'SYSTEM' },
       action: 'applicant.delete',
       entityType: 'User',
       entityId: checked.user.id,
-      // The log outlives the person, so it holds no name or email address: the application number and Student ID
-      // say which record this was, and a fingerprint of the address lets you confirm "was this one deleted?"
-      // for an address you already have, without the log revealing it.
       metadata: {
         applicationNumber: checked.application?.number ?? null,
         studentNumber: checked.studentNumber,
@@ -142,7 +117,6 @@ export const deleteApplicant = async ({ email, apply = false, includeAdmitted = 
     return checked;
   });
 
-  // The photo lives in object storage, outside the transaction: remove it after the rows are gone.
   let photo = 'none';
   const key = final.application?.photoKey;
   if (key) {

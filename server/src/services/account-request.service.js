@@ -15,24 +15,14 @@ import * as audit from './audit.service.js';
 const { PENDING, APPROVED, REJECTED, CANCELLED } = ACCOUNT_REQUEST_STATUS;
 const { PASSWORD_RESET, NAME_CHANGE } = ACCOUNT_REQUEST_TYPE;
 
-/**
- * A STUDENT with a student record (admitted) signs in with Student ID + PIN; before admission a
- * STUDENT has a password on their personal email. `user` must include `role` and `student`.
- */
 export const hasPin = (user) => user.role?.name === ROLES.STUDENT && Boolean(user.student);
 
-/**
- * Whether a password/name change needs an ADMIN's approval: yes for REGISTRAR, LECTURER and admitted
- * students (name changes; their PIN is self-service); no for ADMIN, and no for a student who is still
- * applying (it's their own personal email). `user` must include `role` and `student`.
- */
 export const requiresApproval = (user) => {
   if (user.role?.name === ROLES.ADMIN) return false;
   if (user.role?.name === ROLES.STUDENT && !user.student) return false;
   return true;
 };
 
-/** The includes `requiresApproval` / `hasPin` need. */
 export const roleAndStudent = [
   { model: Role, as: 'role', attributes: ['name'] },
   { model: Student, as: 'student', attributes: ['id', 'studentNumber'] },
@@ -48,7 +38,6 @@ const userInclude = {
 };
 const reviewerInclude = { model: User, as: 'reviewer', attributes: ['id', 'firstName', 'lastName'] };
 
-/** Tells every active admin that a request is waiting (in-app only; they act from the queue). */
 const notifyAdmins = async (request, user, transaction) => {
   const admins = await User.findAll({
     where: { status: USER_STATUS.ACTIVE },
@@ -68,8 +57,6 @@ const notifyAdmins = async (request, user, transaction) => {
 };
 
 const createRequest = async (user, fields, req) => sequelize.transaction(async (transaction) => {
-  // Locking the user's own row serialises their requests (one pending per type) without the gap locks a
-  // FOR UPDATE on a missing request row would take, which could block other users' requests.
   await User.findByPk(user.id, { attributes: ['id'], lock: transaction.LOCK.UPDATE, transaction });
   const pending = await AccountChangeRequest.findOne({
     where: { userId: user.id, type: fields.type, status: PENDING }, transaction,
@@ -84,10 +71,6 @@ const createRequest = async (user, fields, req) => sequelize.transaction(async (
   return { request, created: true };
 });
 
-/**
- * From "forgot password": files a reset request (or keeps the one already pending) without revealing
- * anything to the caller, which stays as enumeration-safe as the old direct flow.
- */
 export const requestPasswordReset = async (user) => {
   await createRequest(user, { type: PASSWORD_RESET, note: 'Requested from the sign-in page' });
 };
@@ -133,10 +116,6 @@ const getById = async (id) => {
   return request;
 };
 
-/**
- * Approves or rejects a pending request. An approved name change is applied at once; an approved
- * password reset emails the usual reset link after commit (the email never fails the decision).
- */
 const review = async (id, decision, note, actor, req) => {
   const request = await sequelize.transaction(async (transaction) => {
     const r = await AccountChangeRequest.findByPk(id, { include: [userInclude], lock: transaction.LOCK.UPDATE, transaction });

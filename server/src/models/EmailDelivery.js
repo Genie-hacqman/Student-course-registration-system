@@ -2,7 +2,6 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 import { EMAIL_STATUS } from '../utils/constants.js';
 
-/** One logical email and what happened to it (see email.service). No message bodies are stored. */
 class EmailDelivery extends Model {}
 
 EmailDelivery.init(

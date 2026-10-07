@@ -2,10 +2,6 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 import { ASSIGNMENT_STATUS } from '../utils/constants.js';
 
-/**
- * One period of a lecturer teaching a course offering (course_sections). The active row mirrors
- * course_sections.lecturer_id; ended rows are the history. See lecturer-assignment.service.
- */
 class SectionLecturerAssignment extends Model {}
 
 SectionLecturerAssignment.init(

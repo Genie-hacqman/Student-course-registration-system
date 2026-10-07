@@ -1,8 +1,3 @@
-/**
- * The staff directory: people organised by department and programme, with counts from the real rows, server-side
- * filters, archive = closed to new intake, lecturers in several departments, and the permission and account rules.
- * Uses only the demo seed (departments CS and MATH, programme BSC-CS) plus records created here.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -38,7 +33,6 @@ const assertNoSecrets = (res) => {
   for (const secret of SECRETS) assert.equal(text.includes(secret), false, `response leaks ${secret}`);
 };
 
-/** What the database says a department has, computed independently of the service. */
 const expectedCounts = async (departmentId) => ({
   programs: await count('SELECT COUNT(*) FROM programs WHERE department_id = :id', { id: departmentId }),
   students: await count('SELECT COUNT(*) FROM students s JOIN programs p ON p.id = s.program_id WHERE p.department_id = :id', { id: departmentId }),
@@ -66,7 +60,6 @@ describe('counts come from the actual records', () => {
       return res.body.data.find((d) => d.id === ids.cs).counts.students;
     };
     const before = await check();
-    // A newly admitted student (staff admission into BSC-CS) shows up in CS's count straight away.
     const admitted = await post('/api/admissions', { firstName: 'Count', lastName: 'Check', programId: ids.bscCs, admissionSession: '2026/2027', level: 100 });
     assert.equal(admitted.status, 201, JSON.stringify(admitted.body));
     assert.equal(await check(), before + 1);
@@ -147,11 +140,9 @@ describe('students: department, programme, term and registration filters', () =>
 describe('lecturers in more than one department', () => {
   test('additional departments: rules, listings, counts and course assignment', async () => {
     const math201 = await sectionIdFor('MATH201');
-    // With the department restriction on, a CS lecturer can't take a MATH course...
     const refused = await put(`/api/sections/${math201}/lecturer`, { lecturerId: ids.kofi }, registrar);
     assert.equal(refused.status, 400);
 
-    // ...until MATH is one of their departments. Duplicates collapse; the home department can't be repeated.
     assert.equal((await put(`/api/lecturers/${ids.kofi}/departments`, { departmentIds: [ids.cs] })).status, 400);
     const set = await put(`/api/lecturers/${ids.kofi}/departments`, { departmentIds: [ids.math, ids.math] });
     assert.equal(set.status, 200, JSON.stringify(set.body));
@@ -171,11 +162,9 @@ describe('lecturers in more than one department', () => {
     assert.equal(assigned.status, 200, JSON.stringify(assigned.body));
     assert.equal((await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'lecturer.departments_update'"))[0].n > 0, true);
 
-    // The profile shows the additional department and the teaching timetable.
     const profile = await get(`/api/lecturers/${ids.kofi}`, registrar);
     assert.deepEqual(profile.body.data.additionalDepartments.map((d) => d.code), ['MATH']);
     assert.ok(profile.body.data.assignments.some((a) => Array.isArray(a.section.schedules)));
-    // The teaching timetable comes from the offerings they actually teach this term, seed ones included.
     const teaching = profile.body.data.currentTeaching.map((t) => t.course.code);
     const expected = (await query(
       `SELECT c.code FROM course_sections cs JOIN courses c ON c.id = cs.course_id JOIN semesters s ON s.id = cs.semester_id
@@ -185,7 +174,6 @@ describe('lecturers in more than one department', () => {
     assert.ok(teaching.includes('CS201') && teaching.includes('MATH201'));
     assertNoSecrets(profile);
 
-    // Tidy up so later tests start from the seed shape.
     await api().delete(`/api/sections/${math201}/lecturer`).set(auth(registrar.token)).send({});
     assert.equal((await put(`/api/lecturers/${ids.kofi}/departments`, { departmentIds: [] })).status, 200);
   });
@@ -201,7 +189,6 @@ describe('archive = closed to new intake', () => {
     assert.equal((await post('/api/programs', { departmentId: ids.math, name: 'Test Programme', code: 'TST-MATH' })).status, 409);
     assert.equal((await post('/api/courses', { departmentId: ids.math, code: 'TST900', title: 'Test', credits: 3, level: 100 }, registrar)).status, 409);
     assert.equal((await put(`/api/lecturers/${ids.kofi}/departments`, { departmentIds: [ids.math] })).status, 409);
-    // Still visible, with everything it already had.
     const listed = await get('/api/departments/summary?status=archived');
     assert.deepEqual(listed.body.data.map((d) => d.code), ['MATH']);
     assert.equal((await get(`/api/departments/${ids.math}/overview`)).status, 200);
@@ -227,10 +214,8 @@ describe('archive = closed to new intake', () => {
     assert.equal(save.status, 409);
     assert.equal((await post('/api/admissions', { firstName: 'No', lastName: 'Room', programId: ids.bscCs, admissionSession: '2026/2027', level: 100 })).status, 409);
     assert.equal((await api().patch(`/api/students/${mover.id}`).set(auth(admin.token)).send({ programId: ids.bscCs })).status, 409);
-    // Existing students stay put and visible.
     assert.equal((await get(`/api/programs/${ids.bscCs}/students`)).body.meta.total > 0, true);
 
-    // A programme can't be reactivated while its department is archived.
     assert.equal((await post(`/api/departments/${ids.cs}/archive`)).status, 200);
     const blocked = await post(`/api/programs/${ids.bscCs}/activate`);
     assert.equal(blocked.status, 409);
@@ -308,7 +293,6 @@ describe('privileged accounts are protected', () => {
       assert.equal((await post('/api/users', { firstName: 'Also', lastName: 'Not', email: 'escalate2@test.local', role: 'REGISTRAR' }, registrar)).status, 403);
       const [{ id: adminId }] = await query("SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'ADMIN' LIMIT 1");
       assert.equal((await api().patch(`/api/users/${adminId}`).set(auth(registrar.token)).send({ status: 'suspended' })).status, 403);
-      // Ordinary accounts are still theirs to manage.
       const lecturerUser = await post('/api/users', { firstName: 'Fine', lastName: 'Lecturer', email: 'fine.lecturer@test.local', role: 'LECTURER' }, registrar);
       assert.equal(lecturerUser.status, 201);
       assert.equal((await api().patch(`/api/users/${lecturerUser.body.data.id}`).set(auth(registrar.token)).send({ role: 'ADMIN' })).status, 403, 'and cannot promote them');
@@ -326,7 +310,6 @@ describe('privileged accounts are protected', () => {
     assert.equal(self.status, 403);
     assert.equal(self.body.error.code, 'SELF_CHANGE');
     assert.equal((await api().patch(`/api/users/${me.id}`).set(auth(admin.token)).send({ status: 'suspended' })).status, 403);
-    // Defence in depth: even a direct service call can't remove the only active administrator.
     await assert.rejects(
       userService.update(me.id, { status: 'suspended' }, { id: 999999, role: 'ADMIN' }),
       (err) => err.statusCode === 409 && err.details?.code === 'LAST_ADMIN',

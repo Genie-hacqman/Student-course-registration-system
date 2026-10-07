@@ -11,7 +11,6 @@ const PALETTE = [
   'bg-rose-50 ring-rose-200 text-rose-900',
 ]
 
-/** Weekly timetable: one column per weekday (weekend only when used), classes positioned by time. */
 export default function WeekGrid({ days, conflicts }) {
   const all = days.flatMap((d) => d.classes)
   const startHour = Math.min(8, ...all.map((c) => Math.floor(minutesOf(c.startTime) / 60)))

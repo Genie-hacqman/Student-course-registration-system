@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { ALL_ROUTE_PATTERNS, metaFor } from './pageMeta.js'
 
-// Two paths that deliberately lead to the same page.
 const ALIASES = new Set(['/', '/activate'])
 const sample = (pattern) => pattern.replace(/:\w+/g, '123')
 

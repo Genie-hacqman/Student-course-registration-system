@@ -9,7 +9,6 @@ export const authApi = {
   forgotPassword: (body) => api.post('/auth/forgot-password', body).then(unwrap),
   resetPassword: (body) => api.post('/auth/reset-password', body).then(unwrap),
   changePassword: (body) => api.patch('/auth/password', body).then(unwrap),
-  // Students: the forced first change, and recovery by a code sent to the school email.
   changePin: (body) => api.patch('/auth/pin', body).then(unwrap),
   forgotPin: (body) => api.post('/auth/pin/forgot', body).then(unwrap),
   resetPin: (body) => api.post('/auth/pin/reset', body).then(unwrap),

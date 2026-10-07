@@ -8,11 +8,6 @@ import { registerCourseHandlers } from './course.socket.js';
 import { userRoom, ADMIN_ROOM } from './registration.socket.js';
 import { tokenRoom } from './auth.socket.js';
 
-/**
- * Attaches Socket.IO to the HTTP server.
- * Clients authenticate with the same access token as the REST API:
- *   io(url, { auth: { token: accessToken } })
- */
 export const initSocketServer = (httpServer) => {
   const io = new Server(httpServer, {
     cors: { origin: env.corsOrigins, credentials: true },
@@ -25,7 +20,6 @@ export const initSocketServer = (httpServer) => {
       if (!token) return next(new Error('UNAUTHORIZED'));
 
       const { user, payload } = await resolveAccessToken(token);
-      // Same rule as the REST API: nothing live until a temporary PIN has been replaced.
       if (user.mustChangePassword) return next(new Error('PIN_CHANGE_REQUIRED'));
       socket.data.user = { id: user.id, role: user.role.name };
       socket.data.jti = payload.jti;

@@ -9,13 +9,8 @@ import { snapshot, diffFields } from '../utils/audit-diff.js';
 import * as settingService from './setting.service.js';
 import { computeGpa } from '../utils/grades.js';
 
-/** Generated student number, e.g. STU202600123. Derived from the row id, so it's unique without a counter. */
 export const buildStudentNumber = (id, year) => `STU${year}${String(id).padStart(5, '0')}`;
 
-/**
- * Inserts a student row. Without an explicit `studentNumber` one is generated from the new row's id,
- * so the row is first inserted with a throwaway unique placeholder and then updated in the same transaction.
- */
 export const createStudentRecord = async ({ studentNumber, admissionYear, ...data }, transaction) => {
   const year = admissionYear ?? new Date().getUTCFullYear();
   const student = await Student.create(
@@ -38,7 +33,6 @@ const S = '`Student`.`id`';
 const applicationNumber = (id) => `APP${String(id).padStart(6, '0')}`;
 const currentSemesterId = async () => (await Semester.findOne({ where: { isCurrent: true }, attributes: ['id'] }))?.id ?? null;
 
-/** A list row: the student plus their registration status for the chosen term and where their admission came from. */
 const shapeRow = (row, semesterId) => {
   const { registrationStatus, applicationId, ...student } = row.toJSON();
   return {
@@ -50,10 +44,6 @@ const shapeRow = (row, semesterId) => {
   };
 };
 
-/**
- * Students, filtered and paginated on the server. A student's department is derived from their programme.
- * `registrationStatus` is for one term (`semesterId`, default the current one): `none` means no registration at all.
- */
 export const list = async (query) => {
   const { page, limit, offset, order: baseOrder } = buildPagination(query, ['studentNumber', 'level', 'createdAt']);
   let order = baseOrder;
@@ -73,7 +63,7 @@ export const list = async (query) => {
   const sem = semesterId ? sequelize.escape(semesterId) : null;
   if (query.registrationStatus) {
     if (!sem) {
-      if (query.registrationStatus !== 'none') and.push(sequelize.literal('1 = 0')); // no term, so nobody has one
+      if (query.registrationStatus !== 'none') and.push(sequelize.literal('1 = 0'));
     } else if (query.registrationStatus === 'none') {
       and.push(sequelize.literal(`NOT EXISTS (SELECT 1 FROM registrations r WHERE r.student_id = ${S} AND r.semester_id = ${sem})`));
     } else {
@@ -104,10 +94,6 @@ export const list = async (query) => {
   return { result: { count, rows: rows.map((row) => shapeRow(row, semesterId)) }, page, limit };
 };
 
-/**
- * How many students each department has, broken down by programme and level, from one GROUP BY over the real rows.
- * Departments and programmes with no students are included with zero. `status` counts only students in that status.
- */
 export const summary = async ({ status } = {}) => {
   const rows = await sequelize.query(
     `SELECT d.id AS departmentId, d.code AS departmentCode, d.name AS departmentName, d.status AS departmentStatus,
@@ -152,10 +138,6 @@ export const getById = async (id) => {
   return student;
 };
 
-/**
- * The student record of a signed-in user, or 403. A STUDENT account without one is an applicant who
- * isn't admitted yet: every student feature (registration, timetable, results, slip) needs admission.
- */
 export const getByUserId = async (userId) => {
   const student = await Student.findOne({ where: { userId }, include: [userWithAvatarInclude, programInclude] });
   if (!student) {
@@ -180,7 +162,6 @@ export const create = async (data, actor) => {
 
 export const update = async (id, data, actor) => {
   const student = await getById(id);
-  // Moving a student into a programme counts as new intake; staying in an archived one is fine.
   if (data.programId && data.programId !== student.programId) await assertProgramOpen(data.programId);
   const fields = Object.keys(data);
   const before = snapshot(student, fields);
@@ -194,10 +175,6 @@ export const update = async (id, data, actor) => {
   return getById(id);
 };
 
-/**
- * A student's results plus a GPA summary (final results only, best attempt per course).
- * Students see final results only; staff can include provisional ones.
- */
 export const getResults = async (studentId, { finalOnly = true } = {}) => {
   const results = await Result.findAll({
     where: { studentId, ...(finalOnly ? { status: 'final' } : {}) },

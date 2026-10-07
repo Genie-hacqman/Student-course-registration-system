@@ -7,7 +7,7 @@ import { api } from '../../api/client'
 import { plain } from '../../test/directoryFixtures'
 import SemesterDetail from './SemesterDetail'
 
-const local = (value) => new Date(value).toISOString() // the forms work in the browser's local time
+const local = (value) => new Date(value).toISOString()
 
 const semester = {
   id: 5, academicYearId: 1, name: 'First Semester', term: 1, startDate: '2027-06-01', endDate: '2027-09-30', isCurrent: false,

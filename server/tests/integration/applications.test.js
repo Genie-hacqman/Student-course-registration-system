@@ -1,7 +1,3 @@
-/**
- * Online admission, end to end: applicant sign-up → application → admin review → activation link →
- * student sign-in → eligible course catalogue → registration → registrar approval with timetable confirmation.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -116,7 +112,6 @@ describe('authorization', () => {
     ]) {
       assert.equal((await api()[method](path).set(auth(applicant.token))).status, 403, `${method.toUpperCase()} ${path}`);
     }
-    // Same role as admitted students; it's the missing admission that blocks registration, on the backend.
     const blocked = await api().get('/api/registrations/available-courses').set(auth(applicant.token));
     assert.equal(blocked.body.error.code, 'ADMISSION_REQUIRED');
     assert.equal((await api().get('/api/timetable/me').set(auth(applicant.token))).body.error.code, 'ADMISSION_REQUIRED');
@@ -318,7 +313,6 @@ describe('from admission to an approved registration and timetable', () => {
     await activate(await plantActivationToken(application.userId));
     const me = await login(studentNumber, PIN);
 
-    // Eligibility comes from the approved programme and level, enforced by the backend rules.
     const available = await api().get('/api/registrations/available-courses').set(auth(me.token));
     assert.equal(available.status, 200);
     const { program, courses } = available.body.data;
@@ -331,20 +325,18 @@ describe('from admission to an approved registration and timetable', () => {
     assert.equal(blocked.status, 422, 'the backend refuses it too, not just the listing');
     assert.ok(blocked.body.error.details.some((f) => f.rule === 'LEVEL_ELIGIBILITY'));
 
-    // Promote to level 200 with the prerequisites passed, as a returning student would be.
     await query('UPDATE students SET level = 200 WHERE id = :studentId', { studentId });
     await query(
       `INSERT INTO results (student_id, course_id, grade, grade_point, passed, created_at, updated_at)
        SELECT :studentId, id, 'A', 4.0, true, NOW(), NOW() FROM courses WHERE code IN ('CS101', 'MATH101')`,
       { studentId },
     );
-    for (const code of ['CS201', 'MATH201']) { // the minimum load is 6 credits
+    for (const code of ['CS201', 'MATH201']) {
       assert.equal((await api().post('/api/registrations/items').set(auth(me.token)).send({ courseSectionId: await sectionIdFor(code) })).status, 201, code);
     }
     const submitted = await api().post('/api/registrations/submit').set(auth(me.token));
     assert.equal(submitted.status, 200, JSON.stringify(submitted.body));
 
-    // Students can never approve, their own registration or anyone's.
     assert.equal((await api().patch(`/api/admin/registrations/${submitted.body.data.id}/approve`).set(auth(me.token)).send({})).status, 403);
 
     const approved = await api().patch(`/api/admin/registrations/${submitted.body.data.id}/approve`).set(auth(registrar.token)).send({});
@@ -362,7 +354,6 @@ describe('admission email delivery', () => {
   const outbox = [];
   const working = { sendMail: async (message) => { outbox.push(message); return { messageId: `<m${outbox.length}@test>` }; } };
   const broken = { sendMail: async () => { throw new Error('SMTP connection refused'); } };
-  // The outbox also collects other mail (verification, admin alerts): pick activation emails out of it.
   const activationEmails = (from = 0) => outbox.slice(from).filter((m) => /Activate Student Account/.test(m.html ?? ''));
   const linkIn = (message) => message.text.match(/(http\S+\/activate-account\?token=([\w-]+))/);
   const studentsFor = async (userId) => (await query('SELECT COUNT(*) AS n FROM students WHERE user_id = :userId', { userId }))[0].n;
@@ -424,7 +415,6 @@ describe('admission email delivery', () => {
     const detail = await api().get(`/api/applications/${application.id}`).set(auth(admin.token));
     assert.match(detail.body.data.activationEmailError, /SMTP connection refused/);
 
-    // A failed send can be retried straight away.
     useTransporterForTests(working);
     const resent = await api().post(`/api/applications/${application.id}/resend-activation`).set(auth(admin.token));
     assert.equal(resent.status, 200, JSON.stringify(resent.body));
@@ -435,7 +425,6 @@ describe('admission email delivery', () => {
     assert.equal(after.attempts, 2);
     assert.equal(await studentsFor(application.userId), 1, 'resending never creates another student');
 
-    // After a successful send, another resend within the cooldown is refused.
     const tooSoon = await api().post(`/api/applications/${application.id}/resend-activation`).set(auth(admin.token));
     assert.equal(tooSoon.status, 429);
     assert.equal(tooSoon.body.error.code, 'RESEND_COOLDOWN');
@@ -448,7 +437,6 @@ describe('admission email delivery', () => {
     const [{ personal_email: email }] = await query("SELECT personal_email FROM admission_applications WHERE status = 'admitted' LIMIT 1");
     const res = await signUp({ firstName: 'Again', lastName: 'Person', email, password: SIGN_UP_PASSWORD });
     assert.equal(res.status, 202, 'same answer as a fresh sign-up');
-    // The admitted account now signs in with the school email, so any account with this email would be a new one.
     const [{ n }] = await query('SELECT COUNT(*) AS n FROM users WHERE email = :email', { email });
     assert.equal(n, 0);
   });

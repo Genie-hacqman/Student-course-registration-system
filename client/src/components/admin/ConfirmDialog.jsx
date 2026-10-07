@@ -3,10 +3,6 @@ import { toast } from 'sonner'
 import { Button, Modal } from '../ui'
 import { friendlyMessage } from '../../lib/forms'
 
-/**
- * Asks before a destructive or significant action. `onConfirm` returns a promise;
- * a server refusal (e.g. still in use) is shown in the dialog instead of closing it.
- */
 export default function ConfirmDialog({ open, onClose, title, children, confirmLabel = 'Confirm', danger = true, onConfirm }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)

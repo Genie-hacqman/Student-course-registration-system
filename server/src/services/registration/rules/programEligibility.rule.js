@@ -1,4 +1,3 @@
-/** The course must be on the student's program curriculum (program_courses). `inProgram` is precomputed. */
 export const programEligibility = ({ section, inProgram, programName }) => {
   const rule = 'PROGRAM_ELIGIBILITY';
   if (inProgram) return { rule, passed: true };

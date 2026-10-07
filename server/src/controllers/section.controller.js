@@ -14,7 +14,6 @@ export const remove = async (req, res) => {
   return noContent(res);
 };
 
-// Lecturer assignment (lecturer:assign); responses are the offering's assignment history.
 export const assignLecturer = async (req, res) =>
   ok(res, await assignmentService.assign(req.validated.params.id, req.validated.body, req.user));
 export const unassignLecturer = async (req, res) =>

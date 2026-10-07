@@ -13,9 +13,6 @@ const mockDeliveries = (items) => vi.spyOn(api, 'get').mockResolvedValue({
   data: { success: true, data: items, meta: { page: 1, limit: 25, total: items.length, totalPages: 1 } },
 })
 
-// The status tabs above the table use these same words ("Accepted", "Delivered", "Failed") as their
-// own labels, so every assertion here is scoped to the table body — never a bare screen.findByText —
-// or it could pass by matching a tab instead of confirming the row actually rendered.
 const tableBody = async () => within(await screen.findByRole('table'))
 
 describe('EmailLog', () => {
@@ -40,8 +37,6 @@ describe('EmailLog', () => {
   })
 
   it('never renders a message body, even if a row happened to carry one', async () => {
-    // The real API never returns these fields, but the page's own columns are what actually
-    // guarantee nothing sensitive shows up — this proves that guarantee holds even if a row did.
     mockDeliveries([row({ html: '<p>secret reset link</p>', text: 'secret reset link' })])
     renderWithProviders(<EmailLog />)
 

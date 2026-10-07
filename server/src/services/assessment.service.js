@@ -24,7 +24,6 @@ const loadAssessment = async (id, actor, { transaction, lock } = {}) => {
   return { assessment, section };
 };
 
-/** Weights in a section may not add up to more than 100%. */
 const checkWeightBudget = async (sectionId, weight, exceptId, transaction) => {
   const others = await Assessment.findAll({ where: { courseSectionId: sectionId }, attributes: ['id', 'weight'], transaction });
   const used = others.filter((a) => a.id !== exceptId).reduce((sum, a) => sum + a.weight, 0);
@@ -158,7 +157,6 @@ export const setScores = async (id, scores, actor, req) => {
   return getScores(id, actor);
 };
 
-/** Makes the assessment (and any scores) visible to students and notifies them. */
 export const publish = async (id, actor, req) => sequelize.transaction(async (transaction) => {
   const { assessment, section } = await loadAssessment(id, actor, { transaction, lock: true });
   if (assessment.status === ASSESSMENT_STATUS.PUBLISHED) throw new ConflictError('This assessment is already published');
@@ -181,7 +179,6 @@ export const publish = async (id, actor, req) => sequelize.transaction(async (tr
   return assessment;
 });
 
-/** Published assessments in the student's current sections, with their own score where one exists. */
 export const forStudent = async (userId) => {
   const student = await studentService.getByUserId(userId);
   const semester = await semesterService.findCurrent();

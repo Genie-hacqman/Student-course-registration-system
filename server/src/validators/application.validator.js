@@ -14,10 +14,6 @@ export const signUpSchema = z.object({
   password,
 });
 
-/**
- * Draft save: every field optional, none with a default (a save must not reset what's already there).
- * The personal email is the account's and isn't editable here. Completeness is checked on submit.
- */
 export const saveApplicationSchema = z
   .object({
     firstName: name,
@@ -48,12 +44,10 @@ export const admitApplicationSchema = z.object({
   admissionSession: admissionSession.optional(),
 });
 
-/** Official photo reads: the stored photo, or a small square thumbnail for lists. */
 export const photoQuery = z.object({ size: z.enum(['full', 'thumb']).default('full') });
 
 export const rejectApplicationSchema = z.object({ reason: z.string().trim().max(500).optional() });
 
-// Only the PIN's shape here; the strength rules (pinProblem) run in the service, where the Student ID is known.
 export const activateSchema = z
   .object({
     token: z.string().min(20).max(200),

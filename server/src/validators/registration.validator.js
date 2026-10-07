@@ -44,7 +44,6 @@ export const auditLogQuery = z.object({
   ...paginationQuery,
   userId: id.optional(),
   action: z.string().max(100).optional(),
-  // Matches every action starting with this text, e.g. "registration." (ignored when `action` is given).
   actionPrefix: z.string().trim().max(100).optional(),
   entityType: z.string().max(50).optional(),
   entityId: id.optional(),
@@ -55,7 +54,6 @@ export const auditLogQuery = z.object({
 
 export const reportQuery = z.object({ semesterId: id.optional() });
 
-/** Value rule for every setting the code reads (see setting.service DEFAULTS). */
 export const SETTING_VALUES = {
   'registration.requireApproval': z.boolean(),
   'registration.waitlistEnabled': z.boolean(),
@@ -89,7 +87,6 @@ export const slipQuery = z.object({ format: z.enum(['pdf', 'json']).default('pdf
 export const verifySlipParams = z.object({ reference: z.string().trim().regex(/^REG-\d{4}-\d{2,}-\d{6,}$/, 'Invalid reference number') });
 export const verifySlipQuery = z.object({ code: z.string().trim().max(20).optional() });
 
-// Staff enrolment
 export const sectionStudentParams = z.object({ id, studentId: id });
 export const staffAddSchema = z
   .object({
@@ -100,7 +97,6 @@ export const staffAddSchema = z
   .refine((d) => !d.override || d.reason, { message: 'Give a reason for overriding the checks', path: ['reason'] });
 export const staffDropSchema = z.object({ reason: z.string().trim().min(5).max(500) });
 
-// Account change requests (ADMIN, account:approve)
 export const accountRequestsQuery = z.object({
   ...paginationQuery,
   status: z.enum(Object.values(ACCOUNT_REQUEST_STATUS)).optional(),
@@ -109,7 +105,6 @@ export const accountRequestsQuery = z.object({
 export const approveRequestSchema = z.object({ note: z.string().trim().max(500).optional() });
 export const rejectRequestSchema = z.object({ note: z.string().trim().min(3).max(500) });
 
-// Sign-in history
 export const signInsQuery = z.object({
   ...paginationQuery,
   userId: id.optional(),

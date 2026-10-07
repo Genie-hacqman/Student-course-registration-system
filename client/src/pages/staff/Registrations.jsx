@@ -20,7 +20,6 @@ export default function Registrations() {
   const status = params.get('status') ?? 'submitted'
   const page = Number(params.get('page') ?? 1)
   const studentId = params.get('student')
-  // A single student's history spans semesters, so the semester filter is dropped for it.
   const list = useRegistrations({ status: status || undefined, semesterId: studentId ? undefined : semesterId, studentId, page })
 
   const set = (changes) => {

@@ -36,12 +36,6 @@ export const updateCourseSchema = z
 
 export const courseIdParam = z.object({ courseId: id });
 export const prerequisiteParams = z.object({ courseId: id, prerequisiteId: id });
-/**
- * One requirement group. Either a single course (legacy shape) or alternatives:
- *   { "prerequisiteCourseId": 3 }
- *   { "anyOf": [3, 9], "minGrade": "C", "type": "prerequisite" }   // CS201 or CS205, with at least a C
- *   { "anyOf": [12], "type": "corequisite" }                        // must be taken together
- */
 export const addPrerequisiteSchema = z
   .object({
     prerequisiteCourseId: id.optional(),

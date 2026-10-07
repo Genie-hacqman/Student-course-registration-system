@@ -1,7 +1,3 @@
-/**
- * Route smoke test: every route registered under /api is called at least once here,
- * and the final test fails if a route exists that this file never reached.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -14,7 +10,6 @@ import {
   createApplicant, submitApplication, plantActivationToken, uploadAvatar, uploadApplicationPhoto,
 } from './helpers.js';
 
-// ── route coverage bookkeeping ────────────────────────────────────────────────
 const require = createRequire(import.meta.url);
 const Route = require('router/lib/route.js');
 const hit = new Set();
@@ -24,7 +19,6 @@ Route.prototype.dispatch = function dispatch(req, res, done) {
   return originalDispatch.call(this, req, res, done);
 };
 
-/** All routes, as "METHOD /api/prefix/path", read from the routers themselves. */
 const routeInventory = () => {
   const source = readFileSync(new URL('../../src/routes/index.js', import.meta.url), 'utf8');
   const prefixes = [...source.matchAll(/router\.use\('([^']+)'/g)].map((m) => m[1]);
@@ -45,7 +39,6 @@ const routeInventory = () => {
   return routes;
 };
 
-// ── fixtures ──────────────────────────────────────────────────────────────────
 let admin;
 let registrar;
 let lecturer;
@@ -71,8 +64,6 @@ describe('health & auth', () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.data.database, 'up');
 
-    // Email counts as configured with Resend (not only SMTP), and only then. Set both cases explicitly so the
-    // result doesn't depend on the developer's own .env.
     const saved = { RESEND_API_KEY: env.RESEND_API_KEY, SMTP_HOST: env.SMTP_HOST, EMAIL_FROM: env.EMAIL_FROM };
     try {
       Object.assign(env, { RESEND_API_KEY: undefined, SMTP_HOST: undefined, EMAIL_FROM: undefined });
@@ -104,7 +95,6 @@ describe('health & auth', () => {
     assert.equal((await api().get('/api/auth/me').set(auth(session.token))).body.data.email, schoolEmail);
     assert.equal((await api().post('/api/auth/refresh').set('Cookie', session.cookie)).status, 200);
 
-    // Account self-service, as the device that changed the PIN (its cookie marks the "current" session).
     const pinCookie = changed.headers['set-cookie'].find((c) => c.startsWith('scrs_refresh='));
     const asDevice = (r) => r.set(auth(changed.body.data.accessToken)).set('Cookie', pinCookie);
     assert.equal((await asDevice(api().patch('/api/auth/me')).send({ lastName: 'Tested' })).status, 403, 'students need approval');
@@ -121,7 +111,6 @@ describe('health & auth', () => {
       .send({ currentPassword: '480162', newPassword: 'Changed1Pass' });
     assert.equal(password.status, 403, 'students change a PIN, not a password');
 
-    // Name change: request → cancel → request again → an admin rejects, then approves a third one.
     const asStudent = (r) => r.set(auth(session.token));
     const nameReq = () => asStudent(api().post('/api/auth/change-requests')).send({ type: 'name_change', firstName: 'Route', lastName: 'Renamed' });
     const first2 = await nameReq();
@@ -138,11 +127,9 @@ describe('health & auth', () => {
     assert.equal((await asStudent(api().get('/api/auth/me'))).body.data.lastName, 'Renamed');
     assert.equal((await asStudent(api().get('/api/auth/change-requests'))).body.data.length, 3);
 
-    // Staff password recovery still exists; for students it is the PIN flow below.
     assert.equal((await api().post('/api/auth/forgot-password').send({ email: 'nobody@test.local' })).status, 200);
     assert.equal((await api().post('/api/auth/reset-password').send({ token: 'y'.repeat(40), password: 'Reset1Pass' })).status, 400);
 
-    // Forgot PIN: the route emails a code; the raw code only exists in that email, so get one from the service.
     assert.equal((await api().post('/api/auth/pin/forgot').send({ studentNumber, email: schoolEmail })).status, 200);
     await query('UPDATE users SET pin_otp_sent_at = NULL WHERE email = :email', { email: schoolEmail });
     const otp = await pinService.forgotPin({ studentNumber, email: schoolEmail });
@@ -156,7 +143,6 @@ describe('health & auth', () => {
     assert.equal((await api().post('/api/auth/logout-all').set(auth(again.token))).status, 200);
     assert.equal((await api().get('/api/auth/me').set(auth(again.token))).status, 401);
 
-    // Staff issue a new temporary PIN; the student must change it again.
     const [{ id: studentId }] = await query('SELECT id FROM students WHERE student_number = :studentNumber', { studentNumber });
     const staffReset = await api().post(`/api/students/${studentId}/reset-pin`).set(as(admin));
     assert.equal(staffReset.status, 200);
@@ -193,7 +179,6 @@ describe('users', () => {
     const promoted = await api().patch(`/api/users/${ids.adaUser}`).set(as(admin)).send({ role: 'REGISTRAR', firstName: 'Augusta' });
     assert.equal(promoted.status, 200);
     assert.equal(promoted.body.data.role.name, 'REGISTRAR');
-    // Only the four roles exist: the removed ones are rejected.
     for (const removed of ['SUPER_ADMIN', 'USER', 'ACADEMIC_ADVISOR', 'APPLICANT']) {
       assert.equal((await api().patch(`/api/users/${ids.adaUser}`).set(as(admin)).send({ role: removed })).status, 422, removed);
     }
@@ -230,7 +215,6 @@ describe('departments & programs', () => {
     const renamed = await api().patch(`/api/departments/${ids.phy}`).set(as(admin)).send({ name: 'Applied Physics' });
     assert.equal(renamed.body.data.name, 'Applied Physics');
 
-    // The directory: counts, drill-down, a lecturer's additional departments, archive and re-activate.
     assert.equal((await api().get('/api/departments/summary').set(as(registrar))).status, 200);
     assert.equal((await api().get(`/api/departments/${ids.cs}/overview`).set(as(registrar))).status, 200);
     assert.equal((await api().get(`/api/departments/${ids.cs}/students`).set(as(registrar))).status, 200);
@@ -325,7 +309,6 @@ describe('students & lecturers', () => {
 
     const list = await api().get(`/api/lecturers?departmentId=${ids.cs}`).set(as(admin));
     assert.deepEqual(list.body.data.map((l) => l.staffNumber).sort(), ['STF1001', 'STF2002']);
-    // Registrars view lecturers (they assign them to course offerings) but can't edit a lecturer record.
     assert.equal((await api().get('/api/lecturers').set(as(registrar))).status, 200);
     assert.equal((await api().get(`/api/lecturers/${created.body.data.id}`).set(as(registrar))).status, 200);
     assert.equal((await api().patch(`/api/lecturers/${created.body.data.id}`).set(as(registrar)).send({ title: 'x' })).status, 403);
@@ -337,7 +320,7 @@ describe('students & lecturers', () => {
 
     const mine = await api().get(`/api/lecturers/me/sections?semesterId=${ids.semester}`).set(as(lecturer));
     assert.equal(mine.status, 200);
-    assert.deepEqual(mine.body.data.map((s) => s.course.code).sort(), ['CS201', 'CS202', 'CS203', 'CS301', 'CS301L']); // CS204 is unassigned in the demo seed
+    assert.deepEqual(mine.body.data.map((s) => s.course.code).sort(), ['CS201', 'CS202', 'CS203', 'CS301', 'CS301L']);
 
     const timetable = await api().get('/api/timetable/lecturer/me').set(as(lecturer));
     assert.equal(timetable.status, 200);
@@ -440,7 +423,6 @@ describe('courses, prerequisites, sections & schedules', () => {
     assert.equal((await api().delete(`/api/schedules/${scheduleId}`).set(as(registrar))).status, 204);
     assert.equal((await api().get(`/api/schedules/${scheduleId}`).set(as(student))).status, 404);
 
-    // Never used → hard delete.
     assert.equal((await api().delete(`/api/sections/${sectionId}`).set(as(registrar))).status, 204);
     assert.equal((await api().get(`/api/sections/${sectionId}`).set(as(student))).status, 404);
 
@@ -458,7 +440,6 @@ describe('registration lifecycle, waitlist, notifications, timetable', () => {
     assert.equal(addRes.status, 201);
     await api().post('/api/registrations/items').set(as(student)).send({ courseSectionId: await sectionIdFor('MATH201') });
 
-    // A section with a registered student cannot be deleted.
     assert.equal((await api().delete(`/api/sections/${cs201}`).set(as(registrar))).status, 409);
 
     const current = await api().get('/api/registrations/current').set(as(student));
@@ -696,7 +677,6 @@ describe('teaching, announcements, roles & overview', () => {
       sections: [{ courseCode: 'CS101', sectionCode: 'RT', capacity: 5 }],
     };
     for (const [path, body] of Object.entries(rows)) {
-      // Departments, programmes and people are loaded by the admin; the catalogue and offerings by the registry.
       const who = ['courses', 'program-courses', 'prerequisites', 'sections'].includes(path) ? registrar : admin;
       const res = await api().post(`/api/admin/import/${path}`).set(as(who)).send({ rows: body, dryRun: true });
       assert.equal(res.status, 200, `${path}: ${JSON.stringify(res.body)}`);
@@ -719,9 +699,6 @@ describe('teaching, announcements, roles & overview', () => {
   });
 });
 
-// Placed last: it registers a new student and section, which would otherwise shift the
-// shared demo student's/registrar's aggregate counts (report totals, curriculum lists) that
-// earlier tests in this file depend on.
 describe('section lifecycle notifications', () => {
   test('cancelling, unassigning or rescheduling a section notifies the lecturer and its registered students', async () => {
     const course = await api().post('/api/courses').set(as(registrar))
@@ -760,13 +737,11 @@ describe('section lifecycle notifications', () => {
   });
 });
 
-// Also after the aggregate-count tests: admitting an applicant adds a student.
 describe('online admission and timetable issues', () => {
   test('sign up → options → save → submit → review list/detail → admit → resend → activate; reject', async () => {
     const applicant = await createApplicant('rt');
     assert.equal((await api().get('/api/applications/options').set(as(applicant))).status, 200);
     assert.equal((await api().get('/api/applications/me').set(as(applicant))).body.data.application, null);
-    // Official photo: nothing yet, then submitApplication uploads one; reviewers can read it, applicants cannot edit it after submit.
     assert.equal((await api().get('/api/applications/me/photo').set(as(applicant))).status, 404);
     assert.equal((await api().delete('/api/applications/me/photo').set(as(applicant))).status, 404);
     const application = await submitApplication(applicant);
@@ -778,7 +753,6 @@ describe('online admission and timetable issues', () => {
     assert.equal((await api().get(`/api/applications/${application.id}`).set(as(admin))).status, 200);
     const admitted = await api().post(`/api/applications/${application.id}/admit`).set(as(admin)).send({});
     assert.equal(admitted.status, 200, JSON.stringify(admitted.body));
-    // Staff viewing the new student's record see the application and photo it came from.
     const studentId = admitted.body.data.application.student.id;
     assert.equal((await api().get(`/api/students/${studentId}/application`).set(as(registrar))).status, 200);
     assert.equal((await api().get(`/api/students/${studentId}/application/photo?size=thumb`).set(as(registrar))).status, 200);

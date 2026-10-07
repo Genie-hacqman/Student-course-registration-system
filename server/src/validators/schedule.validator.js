@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { id, time, dateOnly, isoDate, paginationQuery } from './common.validator.js';
 import { DAYS, SECTION_STATUS, SEMESTER_STATUS } from '../utils/constants.js';
 
-// Academic years
 export const academicYearSchema = z
   .object({
     name: z.string().trim().regex(/^\d{4}\/\d{4}$/, 'Name must look like 2026/2027'),
@@ -15,11 +14,9 @@ export const updateAcademicYearSchema = z
   .object({ name: z.string().trim().regex(/^\d{4}\/\d{4}$/), startDate: dateOnly, endDate: dateOnly })
   .partial();
 
-// Semesters
 const semesterFields = {
   academicYearId: id,
   name: z.string().trim().min(2).max(50),
-  // Term of the academic year (1-3), matched against a curriculum entry's semester; null = not set.
   term: z.coerce.number().int().min(1).max(3).nullable().optional(),
   startDate: dateOnly,
   endDate: dateOnly,
@@ -56,8 +53,6 @@ export const createSemesterSchema = z
   })
   .superRefine(checkSemesterDates);
 
-// Note: update schemas are built from fields without defaults — zod 4 applies defaults even inside .partial().
-
 export const updateSemesterSchema = z
   .object(semesterFields)
   .partial()
@@ -70,7 +65,6 @@ export const listSemestersQuery = z.object({
   status: z.enum(Object.values(SEMESTER_STATUS)).optional(),
 });
 
-// Sections
 export const createSectionSchema = z.object({
   courseId: id,
   semesterId: id,
@@ -97,14 +91,12 @@ export const listSectionsQuery = z.object({
   semesterId: id.optional(),
   academicYearId: id.optional(),
   courseId: id.optional(),
-  departmentId: id.optional(), // the course's department
+  departmentId: id.optional(),
   lecturerId: id.optional(),
-  // "true": only offerings with no lecturer yet (Course assignments).
   unassigned: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
   status: z.enum(Object.values(SECTION_STATUS)).optional(),
 });
 
-// Schedules
 const scheduleFields = {
   courseSectionId: id,
   day: z.enum(DAYS),
@@ -129,7 +121,6 @@ export const updateScheduleSchema = z
 
 export const listSchedulesQuery = z.object({ courseSectionId: id.optional(), semesterId: id.optional() });
 
-// Registration priority
 export const priorityWindowSchema = z.object({
   name: z.string().trim().min(2).max(100),
   minLevel: z.coerce.number().int().min(100).max(900).optional(),
@@ -153,7 +144,6 @@ export const registrationOverrideSchema = z.object({
 });
 export const overrideStudentParams = z.object({ id, studentId: id });
 
-// Lecturer assignment to a course offering (lecturer:assign)
 export const assignLecturerSchema = z.object({
   lecturerId: id,
   reason: z.string().trim().max(255).optional(),

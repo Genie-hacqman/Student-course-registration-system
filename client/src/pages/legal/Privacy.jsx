@@ -1,10 +1,6 @@
 import LegalLayout, { LegalSection } from './LegalLayout'
 import { SITE } from '../../lib/site'
 
-/**
- * Describes what UniReg actually stores and sets (see the server models and client/src/lib/monitoring.js).
- * Keep it true to the code: when a new cookie, tracker or provider is added, this page changes with it.
- */
 export default function Privacy() {
   return (
     <LegalLayout

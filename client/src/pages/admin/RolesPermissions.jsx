@@ -7,7 +7,6 @@ import { Badge, Button, Card, CardHeader, ErrorState, PageHeader, Skeleton, Skel
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import { ROLE_LABELS } from '../../lib/roles'
 
-// Mirrors NON_GRANTABLE_PERMISSIONS in SCRS-backend src/utils/constants.js; the API refuses them anyway.
 const NON_GRANTABLE = ['role:manage', 'registration:self']
 
 function PermissionMatrix({ role, catalog, isOwnRole }) {

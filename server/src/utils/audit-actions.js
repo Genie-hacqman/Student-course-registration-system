@@ -1,17 +1,3 @@
-/**
- * Every action string `audit.log` may record, with a label for the UI and a group.
- *
- * Existing strings are kept exactly as they were first written: rows are signed with their action and
- * history must stay filterable, so inconsistent names (`registration.approved` next to `registration.submit`,
- * `grades.enter` next to `result.amend`) are documented here rather than migrated. New events follow
- * `<thing>.<what_happened>` in the past tense.
- *
- * `shortRetention` events are routine or noisy (sign-ins, security signals) and are archived and purged after
- * 12 months instead of 24; they form the 'signin' stream in audit-integrity.js.
- *
- * Pure data, no imports: unit tests and the verify script load it without any configuration.
- */
-
 const GROUPS = Object.freeze({
   AUTH: 'Sign-in and accounts',
   SECURITY: 'Security signals',
@@ -28,7 +14,6 @@ const GROUPS = Object.freeze({
 const entries = (group, list, extra = {}) => list.map(([action, label]) => ({ action, label, group, ...extra }));
 
 export const AUDIT_CATALOGUE = Object.freeze([
-  // Sign-in and accounts
   ...entries(GROUPS.AUTH, [
     ['auth.login', 'Signed in'],
     ['auth.login_failed', 'Failed sign-in'],
@@ -59,7 +44,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['account_request.cancel', 'Account request cancelled'],
   ]),
 
-  // Security signals (kept 12 months)
   ...entries(GROUPS.SECURITY, [
     ['security.login_blocked', 'Sign-in blocked (account not active)'],
     ['security.account_locked', 'Account locked after failed sign-ins'],
@@ -71,7 +55,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['security.rate_limited', 'Rate limit hit'],
   ], { shortRetention: true }),
 
-  // Users and roles
   ...entries(GROUPS.USERS, [
     ['user.create', 'Account created'],
     ['user.update', 'Account changed'],
@@ -79,7 +62,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['role.permissions.update', 'Role permissions changed'],
   ]),
 
-  // Admission
   ...entries(GROUPS.ADMISSION, [
     ['application.sign_up', 'Applicant signed up'],
     ['application.save', 'Application saved'],
@@ -96,7 +78,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['student.pin_reset', 'Student PIN reset by staff'],
   ]),
 
-  // Departments, programmes, staff
   ...entries(GROUPS.DIRECTORY, [
     ['department.create', 'Department created'],
     ['department.update', 'Department changed'],
@@ -123,7 +104,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['lecturer.unassign', 'Lecturer removed from a section'],
   ]),
 
-  // Courses and timetable
   ...entries(GROUPS.ACADEMICS, [
     ['course.create', 'Course created'],
     ['course.update', 'Course changed'],
@@ -152,7 +132,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['timetable.issue_resolved', 'Timetable issue resolved'],
   ]),
 
-  // Registration
   ...entries(GROUPS.REGISTRATION, [
     ['registration.add', 'Course added'],
     ['registration.drop', 'Course dropped'],
@@ -170,7 +149,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['waitlist.converted', 'Waitlist place converted to a seat'],
   ]),
 
-  // Teaching and results
   ...entries(GROUPS.TEACHING, [
     ['grades.enter', 'Grades entered'],
     ['grades.finalize', 'Grades finalised'],
@@ -189,7 +167,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['announcement.delete', 'Announcement deleted'],
   ]),
 
-  // Imports
   ...entries(GROUPS.IMPORTS, [
     ['import.departments', 'Departments imported'],
     ['import.programs', 'Programmes imported'],
@@ -203,7 +180,6 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['import.course_catalog', 'Course catalogue imported'],
   ]),
 
-  // System
   ...entries(GROUPS.SYSTEM, [
     ['settings.update', 'Settings changed'],
     ['audit.viewed', 'Audit log viewed'],
@@ -214,10 +190,8 @@ const BY_ACTION = new Map(AUDIT_CATALOGUE.map((e) => [e.action, e]));
 
 export const isKnownAction = (action) => BY_ACTION.has(action);
 
-/** The label for an action, or the action itself for one the catalogue does not know (older or test rows). */
 export const actionLabel = (action) => BY_ACTION.get(action)?.label ?? action;
 
 export const actionGroup = (action) => BY_ACTION.get(action)?.group ?? 'Other';
 
-/** Actions archived and purged after 12 months instead of 24: sign-ins and security signals. */
 export const SHORT_RETENTION_ACTIONS = Object.freeze(AUDIT_CATALOGUE.filter((e) => e.shortRetention).map((e) => e.action));

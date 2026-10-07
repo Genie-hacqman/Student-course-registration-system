@@ -11,7 +11,6 @@ import { applyServerErrors, passwordSchema } from '../../lib/forms'
 const schema = z.object({ password: passwordSchema, confirmPassword: z.string() })
   .refine((d) => d.password === d.confirmPassword, { message: 'Passwords do not match', path: ['confirmPassword'] })
 
-/** Landing page for the emailed link: `${FRONTEND_URL}/reset-password?token=…`. */
 export default function ResetPassword() {
   const [params] = useSearchParams()
   const token = params.get('token')
@@ -45,7 +44,6 @@ export default function ResetPassword() {
       toast.success(data.message)
       navigate('/login', { replace: true })
     },
-    // An expired or already-used link can't be fixed by retyping the password: say so and offer a new one.
     onError: (err) => (err.status === 400 && /token/i.test(err.message) ? setLinkProblem('It has expired or was already used.') : applyServerErrors(err, setError)),
   })
 

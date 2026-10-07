@@ -1,9 +1,3 @@
-/**
- * `npm run sentry:test` — sends one clearly labelled test error to Sentry and waits for it to be delivered, so you
- * can confirm SENTRY_DSN works before relying on it. Changes nothing in the app or the database.
- *
- *   SENTRY_DSN=https://...ingest.sentry.io/... npm run sentry:test
- */
 import * as Sentry from '@sentry/node';
 import { scrubEvent } from '../src/config/sentry-scrub.js';
 

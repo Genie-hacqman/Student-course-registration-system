@@ -10,29 +10,20 @@ import {
 } from '../validators/application.validator.js';
 import { PERMISSIONS } from '../utils/constants.js';
 
-/**
- * Online admission. Applicants sign up here with their personal email (the one self sign-up in the
- * system, and it creates a STUDENT who is not yet admitted); a student record comes from admitting an application
- * here, or from staff admission (/api/admissions).
- */
 const router = Router();
 
-// Public
 router.post('/account', authLimiter, validate({ body: signUpSchema }), ctrl.signUp);
 router.post('/activate', activationLimiter, validate({ body: activateSchema }), ctrl.activate);
 
-// Applicant: their own application only
 const applicant = [authenticate, requirePermission(PERMISSIONS.APPLICATION_SELF)];
 router.get('/options', ...applicant, ctrl.options);
 router.get('/me', ...applicant, ctrl.mine);
 router.put('/me', ...applicant, validate({ body: saveApplicationSchema }), ctrl.saveMine);
 router.post('/me/submit', ...applicant, ctrl.submitMine);
-// Official application photo: draft only (enforced in the service, under the application's row lock).
 router.put('/me/photo', ...applicant, photoLimiter, ctrl.setPhoto);
 router.delete('/me/photo', ...applicant, photoLimiter, ctrl.removePhoto);
 router.get('/me/photo', ...applicant, ctrl.myPhoto);
 
-// Reviewers
 const reviewer = [authenticate, requirePermission(PERMISSIONS.APPLICATION_REVIEW)];
 router.get('/', ...reviewer, validate({ query: listApplicationsQuery }), ctrl.list);
 router.get('/:id', ...reviewer, validate({ params: idParam }), ctrl.getById);

@@ -10,7 +10,6 @@ after(() => sequelize.close());
 
 describe('email verification', () => {
   test('an unverified account is verified with the emailed token', async () => {
-    // Every account is created verified now (admission, staff); this covers any that aren't, e.g. older ones.
     const admin = await loginAs('admin');
     await api().post('/api/users').set(auth(admin.token)).send({
       firstName: 'Nana', lastName: 'Ansah', email: 'verify@test.local', password: 'Passw0rd!', role: 'LECTURER',
@@ -23,7 +22,6 @@ describe('email verification', () => {
 
     assert.equal((await api().post('/api/auth/verify-email/resend').set(auth(token))).status, 200);
 
-    // The raw token only exists in the email, so plant a known one the way the service stores it.
     const raw = 'k'.repeat(40);
     await query("UPDATE users SET email_verification_hash = :hash WHERE email = 'verify@test.local'", { hash: hashToken(raw) });
     assert.equal((await api().post('/api/auth/verify-email').send({ token: raw })).status, 200);
@@ -121,7 +119,6 @@ describe('profile picture', () => {
     assert.equal((await uploadAvatar(user, TEST_AVATAR, big)).status, 400, 'oversized thumbnail');
     assert.equal((await uploadAvatar(user, TEST_AVATAR, 'data:image/png;base64,AAAA')).status, 422, 'thumbnail must be a JPEG');
 
-    // Replacing without a thumbnail clears the old one, so a stale face never outlives its picture.
     assert.equal((await uploadAvatar(user)).status, 200);
     assert.equal((await api().get('/api/auth/me').set(auth(user.token))).body.data.avatarThumb, null);
   });
@@ -159,10 +156,8 @@ describe('sessions', () => {
     assert.equal((await api().delete(`/api/auth/sessions/${current[0].id}`).set(auth(laptop.token)).set('Cookie', laptop.cookie)).status, 400);
     assert.equal((await api().delete(`/api/auth/sessions/${phoneSession.id}`).set(auth(laptop.token)).set('Cookie', laptop.cookie)).status, 204);
 
-    // The phone is cut off at once: its access token and its refresh token both stop working.
     assert.equal((await api().get('/api/auth/me').set(auth(phone.token))).status, 401);
     assert.equal((await api().post('/api/auth/refresh').set('Cookie', phone.cookie)).status, 401);
-    // ...and presenting that ended session's token is not treated as theft: the laptop keeps working.
     assert.equal((await api().post('/api/auth/refresh').set('Cookie', laptop.cookie)).status, 200);
 
     assert.equal((await api().delete('/api/auth/sessions/999999').set(auth(laptop.token))).status, 404);

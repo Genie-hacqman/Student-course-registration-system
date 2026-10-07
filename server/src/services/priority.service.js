@@ -10,13 +10,6 @@ const windowMatches = (window, student) =>
   (window.minLevel == null || student.level >= window.minLevel)
   && (window.programId == null || window.programId === student.programId);
 
-/**
- * Pure resolution of when a student may start registering.
- * 1. An individual override wins.
- * 2. Otherwise the earliest window the student matches.
- * 3. A student matching no window waits for the latest window (the general slot).
- * 4. With no windows at all, everyone starts at semester.registrationStart.
- */
 export const resolveOpensAtFrom = ({ semester, student, windows, override }) => {
   if (override) return { opensAt: new Date(override.opensAt), source: 'override', windowName: 'Individual registration time' };
   if (!windows.length) return { opensAt: new Date(semester.registrationStart), source: 'semester', windowName: null };
@@ -33,8 +26,6 @@ export const resolveOpensAt = async (student, semester, { transaction } = {}) =>
   ]);
   return resolveOpensAtFrom({ semester, student, windows, override });
 };
-
-// ── registrar management ──────────────────────────────────────────────────────
 
 const loadSemester = async (semesterId, transaction) => {
   const semester = await Semester.findByPk(semesterId, { transaction });
@@ -111,7 +102,6 @@ export const listOverrides = async (semesterId) => {
   });
 };
 
-/** Sets (or replaces) one student's registration start time for the semester. */
 export const setOverride = async (semesterId, { studentId, opensAt, reason }, actor) => {
   return sequelize.transaction(async (transaction) => {
     const semester = await loadSemester(semesterId, transaction);

@@ -1,13 +1,12 @@
 import { slotsOverlap } from '../../../utils/time.js';
 
-/** The section's class times must not overlap any other section the student holds. */
 export const timetableConflict = ({ section, otherItems }) => {
   const rule = 'TIMETABLE_CONFLICT';
   const clashes = [];
   const conflicting = new Map();
 
   for (const item of otherItems) {
-    if (item.courseSectionId === section.id) continue; // reported by the duplicate-course rule
+    if (item.courseSectionId === section.id) continue;
     const other = item.section.course;
     for (const mine of section.schedules) {
       for (const theirs of item.section.schedules) {

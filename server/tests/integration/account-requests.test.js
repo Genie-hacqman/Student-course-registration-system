@@ -76,7 +76,6 @@ describe('staff password resets need an admin', () => {
     assert.equal(filed.status, 403);
     assert.equal((await pendingFor(student.email, 'password_reset')).length, 0);
 
-    // Even a request that slipped in some other way must not be approvable into a password.
     await sequelize.query(
       "INSERT INTO account_change_requests (user_id, type, status, created_at, updated_at) VALUES (:userId, 'password_reset', 'pending', NOW(), NOW())",
       { replacements: { userId: student.userId } },

@@ -1,16 +1,10 @@
 import { randomInt } from 'node:crypto';
 
-/*
- * Student PINs: 6 digits. That's a small space (10^6), which is why sign-in has a per-account
- * lockout on top of the per-IP rate limit, and why the obviously guessable PINs below are refused.
- */
-
 export const PIN_LENGTH = 6;
 export const PIN_PATTERN = /^\d{6}$/;
 
 const isRun = (pin, step) => [...pin].every((d, i) => i === 0 || Number(d) === (Number(pin[i - 1]) + step + 10) % 10);
 
-/** Why a PIN is unacceptable, or null. `studentNumber` stops students reusing their own ID digits. */
 export const pinProblem = (pin, { studentNumber } = {}) => {
   if (!PIN_PATTERN.test(pin)) return `PIN must be exactly ${PIN_LENGTH} digits`;
   if (/^(\d)\1+$/.test(pin)) return 'PIN cannot be the same digit repeated';
@@ -20,7 +14,6 @@ export const pinProblem = (pin, { studentNumber } = {}) => {
   return null;
 };
 
-/** A random PIN that passes `pinProblem`, from a CSPRNG. */
 export const generatePin = (opts) => {
   for (;;) {
     const pin = String(randomInt(0, 10 ** PIN_LENGTH)).padStart(PIN_LENGTH, '0');
@@ -28,8 +21,6 @@ export const generatePin = (opts) => {
   }
 };
 
-/** "STU202600123" + "school.edu.gh" → "stu202600123@school.edu.gh" */
 export const schoolEmailFor = (studentNumber, domain) => `${studentNumber.toLowerCase()}@${domain.toLowerCase()}`;
 
-/** "2026/2027" → 2026 */
 export const sessionStartYear = (session) => Number(session.slice(0, 4));

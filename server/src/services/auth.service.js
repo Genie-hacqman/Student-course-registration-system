@@ -23,7 +23,6 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Compared against when the email is unknown, so response time doesn't reveal whether an account exists.
 const DUMMY_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEeO5J8m7bY1qH1d5b0zjz1yQWf0rP9e8m2';
 
 const APPLICATION_TO_ADMISSION = {
@@ -32,7 +31,6 @@ const APPLICATION_TO_ADMISSION = {
   admitted: ADMISSION_STATUS.ADMITTED,
 };
 
-/** A STUDENT's admission state (never a role): ADMITTED with a student record, else from their application. */
 export const admissionStatusOf = async (user) => {
   if (user.role?.name !== ROLES.STUDENT) return undefined;
   if (user.student) return ADMISSION_STATUS.ADMITTED;
@@ -40,7 +38,6 @@ export const admissionStatusOf = async (user) => {
   return APPLICATION_TO_ADMISSION[application?.status] ?? ADMISSION_STATUS.NOT_SUBMITTED;
 };
 
-/** The signed-in user's profile plus their effective permissions (and a student's admission status). */
 export const loadProfile = async (userId) => {
   const user = await findProfile(userId);
   if (!user) return user;
@@ -81,7 +78,6 @@ export const issueTokens = async (user, roleName, meta = {}, transaction) => {
       userId: user.id,
       tokenHash: hashToken(refreshToken),
       expiresAt: refreshExpiresAt,
-      // Remembered so ending this one session can also cut off its current access token.
       accessJti: jti,
       accessExpiresAt: new Date(exp * 1000),
       userAgent: meta.userAgent?.slice(0, 255),
@@ -95,7 +91,6 @@ export const issueTokens = async (user, roleName, meta = {}, transaction) => {
 
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 
-/** Stores a fresh verification token for the user and returns the raw value for the email link. */
 export const issueVerificationToken = async (userId, transaction) => {
   const token = generateOpaqueToken();
   await User.update(
@@ -105,7 +100,6 @@ export const issueVerificationToken = async (userId, transaction) => {
   return token;
 };
 
-/** `user` needs id, email and firstName. Keyed on the token, so a retried request doesn't send twice. */
 export const sendVerificationEmail = (user, token) => sendTemplate('emailVerification', {
   name: user.firstName,
   verifyUrl: `${env.FRONTEND_URL}/verify-email?token=${token}`,
@@ -114,23 +108,19 @@ export const sendVerificationEmail = (user, token) => sendTemplate('emailVerific
 
 const formatWhen = (date = new Date()) => date.toUTCString();
 
-/** Security alert after a credential change; after commit, never blocking the change itself. */
 export const sendCredentialAlert = (user, template, data = {}) => sendTemplate(template, {
   name: user.firstName, when: formatWhen(), ...data,
 }, {
   to: user.email,
-  // One alert per change: token_version is bumped by every credential change (endAllSessions).
   idempotencyKey: `${template}:${user.id}:${user.tokenVersion ?? Date.now()}`,
   userId: user.id,
   entityType: 'User',
   entityId: user.id,
 });
 
-// Sign-in lockout, per account (on top of the per-IP authLimiter): student PINs are only 6 digits.
 export const MAX_FAILED_LOGINS = 5;
 export const LOCKOUT_MS = 15 * 60 * 1000;
 
-/** Staff sign in with their email; students with their Student ID (or their school email). */
 const findLoginUser = (identifier) => {
   const role = { model: Role, as: 'role' };
   if (identifier.includes('@')) {
@@ -141,10 +131,6 @@ const findLoginUser = (identifier) => {
   });
 };
 
-/**
- * Counts a failed attempt in one statement, so parallel guesses can't slip past the limit. The
- * MAX_FAILED_LOGINS-th failure locks the account for LOCKOUT_MS and starts the count again.
- */
 const recordFailedLogin = (userId) => sequelize.query(
   `UPDATE users
       SET locked_until = IF(failed_login_attempts + 1 >= :max, :lockUntil, locked_until),
@@ -153,11 +139,6 @@ const recordFailedLogin = (userId) => sequelize.query(
   { replacements: { userId, max: MAX_FAILED_LOGINS, lockUntil: new Date(Date.now() + LOCKOUT_MS) } },
 );
 
-/**
- * `recordFailedLogin` locks the account in the same statement that counts the failure, and does not say whether
- * it did. Read the lock back rather than inferring it from a count read earlier, which parallel guesses make
- * unreliable. Parallel requests can each see the lock and write a row; that is acceptable.
- */
 const recordLockIfLocked = async (userId, meta) => {
   const row = await User.findByPk(userId, { attributes: ['id', 'lockedUntil'] });
   if (!row?.lockedUntil || row.lockedUntil <= new Date()) return;
@@ -187,7 +168,6 @@ export const login = async ({ identifier, password }, meta) => {
     throw new UnauthorizedError(failure);
   }
   if (user.status !== USER_STATUS.ACTIVE) {
-    // The password was right, but the account may not sign in: worth knowing, e.g. a suspended user trying again.
     await audit.log({
       userId: user.id, action: 'security.login_blocked', entityType: 'User', entityId: user.id, req: meta.req,
       metadata: { status: user.status, identifier: safeLoginIdentifier(identifier), userAgent: meta.userAgent },
@@ -202,18 +182,11 @@ export const login = async ({ identifier, password }, meta) => {
   return { user: await loadProfile(user.id), ...tokens };
 };
 
-/**
- * Rotates the refresh token. A token can be used once: presenting one that was already rotated
- * (replaced by a newer token) is treated as theft, and every session for that user is revoked.
- * A token revoked by signing out — including a session ended from another device — is just rejected.
- */
 export const refresh = async (rawToken, meta) => {
   if (!rawToken) throw new UnauthorizedError('Refresh token missing');
 
   const stored = await RefreshToken.findOne({ where: { tokenHash: hashToken(rawToken) } });
   if (!stored) {
-    // A cookie that matches nothing we issued: forged, or from a database restore. One row per address per
-    // ten minutes, because a client holding a stale cookie retries.
     if (!seenRecently(`refresh-unknown|${meta.req?.ip}`, 10 * 60 * 1000)) {
       await audit.log({ action: 'security.refresh_rejected', metadata: { reason: 'unknown_token', userAgent: meta.userAgent }, req: meta.req });
     }
@@ -227,7 +200,6 @@ export const refresh = async (rawToken, meta) => {
         await audit.log({ userId: stored.userId, action: 'auth.refresh_reuse_detected', req: meta.req, transaction });
       });
     } else {
-      // Signed out, or ended from another device, and the cookie came back anyway.
       await audit.log({
         userId: stored.userId, action: 'security.refresh_rejected', entityType: 'User', entityId: stored.userId, req: meta.req,
         metadata: { reason: 'revoked', userAgent: meta.userAgent },
@@ -239,7 +211,6 @@ export const refresh = async (rawToken, meta) => {
 
   const user = await User.findByPk(stored.userId, { include: [{ model: Role, as: 'role' }] });
   if (!user || user.status !== USER_STATUS.ACTIVE) {
-    // A suspended or removed account still holding a live session token: the high-signal refusal.
     await audit.log({
       userId: user?.id ?? null, action: 'security.refresh_rejected', entityType: user ? 'User' : null, entityId: user?.id, req: meta.req,
       metadata: { reason: 'inactive', status: user?.status ?? 'missing', userAgent: meta.userAgent },
@@ -250,7 +221,6 @@ export const refresh = async (rawToken, meta) => {
   return sequelize.transaction(async (transaction) => {
     const tokens = await issueTokens(user, user.role.name, meta, transaction);
 
-    // Conditional update guards against two concurrent refreshes with the same token.
     const [revoked] = await RefreshToken.update(
       { revokedAt: new Date(), replacedByHash: hashToken(tokens.refreshToken) },
       { where: { id: stored.id, revokedAt: null }, transaction },
@@ -261,14 +231,8 @@ export const refresh = async (rawToken, meta) => {
   });
 };
 
-// Far more than one device rotates between two requests; only a guard against a malformed loop.
 const MAX_CHAIN = 50;
 
-/**
- * Revokes a refresh token and every token it was rotated into. A logout can race a refresh: the
- * browser sends the cookie it had while a refresh has already replaced it, and the replacement cookie
- * arrives after the logout. Following `replaced_by_hash` ends that device's session either way.
- */
 const revokeChain = async (token) => {
   const now = new Date();
   let current = token;
@@ -279,13 +243,8 @@ const revokeChain = async (token) => {
   }
 };
 
-/**
- * Revokes the refresh token from the cookie. The user comes from the (optional) Bearer token,
- * or else from the refresh token itself, so every logout is audited.
- */
 export const logout = async (rawToken, userId, req, accessAuth) => {
   let ownerId = userId;
-  // A valid Bearer token is cut off immediately rather than living out its remaining minutes.
   if (accessAuth?.jti && userId) await sessionService.revokeAccessToken({ ...accessAuth, userId });
   if (rawToken) {
     const stored = await RefreshToken.findOne({ where: { tokenHash: hashToken(rawToken) } });
@@ -297,7 +256,6 @@ export const logout = async (rawToken, userId, req, accessAuth) => {
   if (ownerId) await audit.log({ userId: ownerId, action: 'auth.logout', entityType: 'User', entityId: ownerId, req });
 };
 
-/** Logs the user out on every device: all refresh tokens and all access tokens stop working now. */
 export const logoutAll = async (userId, req) => {
   await sequelize.transaction(async (transaction) => {
     await sessionService.endAllSessions(userId, transaction);
@@ -307,13 +265,6 @@ export const logoutAll = async (userId, req) => {
 
 const loadWithRole = (userId) => User.findByPk(userId, { include: roleAndStudent });
 
-/**
- * Always resolves the same way whether or not the email exists, to avoid account enumeration.
- * ADMINs and not-yet-admitted students get a reset link straight away; REGISTRAR and LECTURER file a
- * request for an admin to approve. Admitted students have a PIN instead and recover it with
- * POST /auth/pin/forgot, so nothing happens for them here. Returns the raw token (direct resets only)
- * for internal use (tests).
- */
 export const forgotPassword = async (email) => {
   const user = await User.findOne({ where: { email }, include: roleAndStudent });
   if (!user || user.status !== USER_STATUS.ACTIVE || hasPin(user)) return null;
@@ -324,10 +275,6 @@ export const forgotPassword = async (email) => {
   return issuePasswordReset(user);
 };
 
-/**
- * The token is consumed atomically: a conditional UPDATE that only matches the unexpired, unused hash,
- * so two requests racing with the same link can't both succeed (the loser gets the same 400).
- */
 export const resetPassword = async ({ token, password }) => {
   const hash = hashToken(token);
   const user = await User.scope('withSecrets').findOne({
@@ -335,7 +282,6 @@ export const resetPassword = async ({ token, password }) => {
     include: roleAndStudent,
   });
   if (!user) {
-    // Nothing identifies who tried, and the token itself is never recorded.
     await audit.log({ action: 'security.token_invalid', metadata: { kind: 'password_reset', reason: 'invalid_or_expired' } });
     throw new BadRequestError('Reset token is invalid or has expired');
   }
@@ -369,7 +315,6 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
     throw new ForbiddenError("Password changes need an administrator's approval — request a password reset from your profile");
   }
   if (!(await comparePassword(currentPassword, user.passwordHash))) {
-    // Does not count toward the sign-in lockout, so it is the only trace of someone guessing it.
     await audit.log({ userId, action: 'security.credential_change_failed', entityType: 'User', entityId: userId, metadata: { kind: 'password' } });
     throw new BadRequestError('Current password is incorrect');
   }
@@ -390,7 +335,6 @@ export const me = async (userId) => {
   return user;
 };
 
-/** Self-service profile edit. Email changes are deliberately not supported here (they'd need re-verification). */
 export const updateProfile = async (userId, data, req) => {
   const user = await loadWithRole(userId);
   if (requiresApproval(user)) {
@@ -401,13 +345,10 @@ export const updateProfile = async (userId, data, req) => {
   return me(userId);
 };
 
-// ── profile picture ──────────────────────────────────────────────────────────
-
 const AVATAR_MAX_BYTES = 200 * 1024;
 const THUMB_MAX_BYTES = 10 * 1024;
 const AVATAR_PATTERN = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
 
-/** The real format from the file's leading bytes, so a renamed or spoofed upload can't pass on its declared type. */
 const sniffImage = (buf) => {
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
   if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
@@ -415,7 +356,6 @@ const sniffImage = (buf) => {
   return null;
 };
 
-/** Any role can set their own picture; it is not gated by the name-change approval flow. */
 export const setAvatar = async (userId, { image, thumb }, req) => {
   const match = AVATAR_PATTERN.exec(image);
   if (!match) throw new BadRequestError('Upload a JPG, PNG or WebP image');
@@ -423,7 +363,6 @@ export const setAvatar = async (userId, { image, thumb }, req) => {
   if (bytes.length > AVATAR_MAX_BYTES) throw new BadRequestError('That picture is too large — choose one under 200 KB');
   if (sniffImage(bytes) !== match[1]) throw new BadRequestError('That file is not a valid image');
 
-  // The thumbnail is optional (older clients don't send one); when present it gets the same scrutiny.
   let avatarThumb = null;
   if (thumb) {
     const thumbMatch = AVATAR_PATTERN.exec(thumb);
@@ -438,14 +377,12 @@ export const setAvatar = async (userId, { image, thumb }, req) => {
   return me(userId);
 };
 
-/** Any role can remove their own profile picture. It is not the official application photo, which this never touches. */
 export const removeAvatar = async (userId, req) => {
   await User.update({ avatar: null, avatarThumb: null, avatarUpdatedAt: null }, { where: { id: userId } });
   await audit.log({ userId, action: 'auth.remove_avatar', entityType: 'User', entityId: userId, req });
   return me(userId);
 };
 
-/** Consumed atomically (conditional UPDATE), so a link can't be used twice even by parallel requests. */
 export const verifyEmail = async ({ token }) => {
   const hash = hashToken(token);
   const user = await User.findOne({
@@ -477,8 +414,6 @@ export const resendVerification = async (userId) => {
   await audit.log({ userId, action: 'auth.resend_verification', entityType: 'User', entityId: userId });
 };
 
-// ── sessions (one per signed-in device: its active refresh token) ────────────
-
 export const listSessions = async (userId, rawToken) => {
   const currentHash = rawToken ? hashToken(rawToken) : null;
   const rows = await RefreshToken.findAll({
@@ -489,15 +424,12 @@ export const listSessions = async (userId, rawToken) => {
     id: t.id,
     userAgent: t.userAgent,
     ipAddress: t.ipAddress,
-    // Refresh tokens rotate, so the current row's creation time is the device's last activity.
     lastActiveAt: t.createdAt,
     expiresAt: t.expiresAt,
     current: t.tokenHash === currentHash,
   }));
 };
 
-/** Signs one other device out: its refresh token stops working and its current access token is revoked now. */
-/** `actor` is set when an admin signs a user's device out for them. */
 export const endSession = async (userId, sessionId, rawToken, req, actor) => {
   const session = await RefreshToken.findOne({ where: { id: sessionId, userId, revokedAt: null } });
   if (!session) throw new NotFoundError('Session');

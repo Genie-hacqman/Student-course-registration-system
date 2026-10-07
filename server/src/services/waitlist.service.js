@@ -17,7 +17,6 @@ export const join = async (userId, courseSectionId) => {
   const student = await studentService.getByUserId(userId);
 
   const entry = await sequelize.transaction(async (transaction) => {
-    // Locking the section serialises position assignment for concurrent joins.
     const section = await CourseSection.findByPk(courseSectionId, { transaction, lock: transaction.LOCK.UPDATE });
     if (!section) throw new NotFoundError('Section');
 
@@ -78,23 +77,17 @@ export const leave = async (userId, id) => {
   });
 };
 
-/** Marks the student's waitlist entry as converted once they get a seat in that section. */
 export const markConverted = async (studentId, courseSectionId, { transaction } = {}) => {
   const [converted] = await Waitlist.update(
     { status: WAITLIST_STATUS.CONVERTED },
     { where: { studentId, courseSectionId, status: ACTIVE }, transaction },
   );
-  // A system consequence of the registration that took the seat, so it is recorded with it (same transaction).
   if (converted > 0) {
     await audit.log({ action: 'waitlist.converted', entityType: 'CourseSection', entityId: courseSectionId, metadata: { studentId }, transaction });
   }
   return [converted];
 };
 
-/**
- * Called when seats free up. Notifies the next `count` waiting students (FIFO by position).
- * Seats are not reserved: notified students register through the normal flow, first come first served.
- */
 export const notifyNext = async (section, { transaction, count = 1 } = {}) => {
   if (count <= 0) return [];
 
@@ -113,7 +106,6 @@ export const notifyNext = async (section, { transaction, count = 1 } = {}) => {
     { where: { id: { [Op.in]: entries.map((e) => e.id) } }, transaction },
   );
 
-  // Who was told a seat opened: nothing else records it, and it decides who got a fair chance at the seat.
   await audit.log({
     action: 'waitlist.notified', entityType: 'CourseSection', entityId: section.id, transaction,
     metadata: { courseCode: course.code, ...summariseEntries(entries.map((e) => ({ studentId: e.student.id, position: e.position }))) },
