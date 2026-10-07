@@ -130,9 +130,11 @@ export function StatusBadge({ status, label, tone, className }) {
   )
 }
 
-export const Input = forwardRef(function Input({ label, error, hint, className, ...props }, ref) {
+export const Input = forwardRef(function Input({ label, error, hint, invalid, className, ...props }, ref) {
   // Ties the message to the field, so a screen reader announces it with the input instead of leaving it as loose text.
+  // `invalid` marks the field as wrong without a message of its own, for a message shown once beside a group of inputs.
   const messageId = useId()
+  const bad = Boolean(error) || Boolean(invalid)
   return (
     <label className={cx('block', className)}>
       {label && <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>}
@@ -140,9 +142,9 @@ export const Input = forwardRef(function Input({ label, error, hint, className, 
         ref={ref}
         className={cx(
           'block w-full rounded-lg border-0 px-3 py-2 text-sm shadow-sm ring-1 ring-inset transition-shadow placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:outline-none',
-          error ? 'ring-red-500 focus:ring-red-600' : 'ring-slate-300 hover:ring-slate-400 focus:ring-brand-500',
+          bad ? 'ring-red-500 focus:ring-red-600' : 'ring-slate-300 hover:ring-slate-400 focus:ring-brand-500',
         )}
-        aria-invalid={Boolean(error)}
+        aria-invalid={bad}
         aria-describedby={error || hint ? messageId : undefined}
         {...props}
       />

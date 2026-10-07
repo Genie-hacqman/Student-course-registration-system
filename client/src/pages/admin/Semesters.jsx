@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Pencil, Plus, Star } from 'lucide-react'
 import { z } from 'zod'
+import { Controller } from 'react-hook-form'
 import { http, useApi, useApiMutation } from '../../api/admin'
 import { Badge, Button, Card, CardHeader, Input, PageHeader, QueryState, Select } from '../../components/ui'
 import DataTable, { stop } from '../../components/admin/DataTable'
 import FormModal from '../../components/admin/FormModal'
+import DateTimeField from '../../components/DateTimeField'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import { formatDate, formatDateTime } from '../../lib/format'
 import { fromLocalInput, optionalNumber, requiredNumber, toLocalInput } from '../../lib/forms'
+import { localDateTime } from '../../lib/dateTime'
 
 const yearSchema = z.object({
   name: z.string().regex(/^\d{4}\/\d{4}$/, 'Use the form 2026/2027'),
@@ -23,9 +26,9 @@ const semesterSchema = z.object({
   term: optionalNumber(z.number().int().min(1).max(3)),
   startDate: z.string().min(1, 'Required'),
   endDate: z.string().min(1, 'Required'),
-  registrationStart: z.string().min(1, 'Required'),
-  registrationEnd: z.string().min(1, 'Required'),
-  addDropEnd: z.string().optional(),
+  registrationStart: localDateTime({ required: true }),
+  registrationEnd: localDateTime({ required: true }),
+  addDropEnd: localDateTime({ required: false }),
   minCredits: requiredNumber(z.number().int().min(0).max(60)),
   maxCredits: optionalNumber(z.number().int().min(1).max(60)),
   status: z.enum(['upcoming', 'active', 'completed']),
@@ -120,7 +123,7 @@ export function SemesterForm({ editing, onClose, onSaved }) {
         onSaved?.(saved)
       }}
     >
-      {({ register, formState: { errors } }) => (
+      {({ control, register, formState: { errors } }) => (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
             <Select label="Academic year" error={errors.academicYearId?.message} {...register('academicYearId')}>
@@ -138,11 +141,17 @@ export function SemesterForm({ editing, onClose, onSaved }) {
             <Input label="Classes start" type="date" error={errors.startDate?.message} {...register('startDate')} />
             <Input label="Classes end" type="date" error={errors.endDate?.message} {...register('endDate')} />
           </div>
-          <fieldset className="grid gap-4 rounded-lg bg-slate-50 p-4 sm:grid-cols-3">
+          <fieldset className="grid gap-4 rounded-lg bg-slate-50 p-4">
             <legend className="px-1 text-sm font-medium text-slate-700">Registration period (your local time)</legend>
-            <Input label="Opens" type="datetime-local" hint="Registration windows can open later" error={errors.registrationStart?.message} {...register('registrationStart')} />
-            <Input label="Closes" type="datetime-local" error={errors.registrationEnd?.message} {...register('registrationEnd')} />
-            <Input label="Add/drop ends (optional)" type="datetime-local" hint="Submitted students can still change until then" error={errors.addDropEnd?.message} {...register('addDropEnd')} />
+            <Controller name="registrationStart" control={control} render={({ field }) => (
+              <DateTimeField label="Opens" hint="Registration windows can open later" error={errors.registrationStart?.message} {...field} />
+            )} />
+            <Controller name="registrationEnd" control={control} render={({ field }) => (
+              <DateTimeField label="Closes" error={errors.registrationEnd?.message} {...field} />
+            )} />
+            <Controller name="addDropEnd" control={control} render={({ field }) => (
+              <DateTimeField label="Add/drop ends (optional)" hint="Submitted students can still change until then" error={errors.addDropEnd?.message} {...field} />
+            )} />
           </fieldset>
           <div className="grid gap-4 sm:grid-cols-3">
             <Input label="Min credits" type="number" error={errors.minCredits?.message} {...register('minCredits')} />
