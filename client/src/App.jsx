@@ -56,6 +56,8 @@ const SemesterDetail = lazy(() => import('./pages/admin/SemesterDetail'))
 const Sections = lazy(() => import('./pages/admin/Sections'))
 const SectionDetail = lazy(() => import('./pages/admin/SectionDetail'))
 const Students = lazy(() => import('./pages/admin/Students'))
+const StudentsDepartment = lazy(() => import('./pages/admin/StudentsDepartment'))
+const StudentsProgram = lazy(() => import('./pages/admin/StudentsProgram'))
 const StudentDetail = lazy(() => import('./pages/admin/StudentDetail'))
 const Users = lazy(() => import('./pages/admin/Users'))
 const UserDetail = lazy(() => import('./pages/admin/UserDetail'))
@@ -214,6 +216,8 @@ export default function App() {
               </Route>
               <Route element={<RequirePermission permission={PERMS.REGISTRATION_VIEW_ALL} />}>
                 <Route path="students" element={<Students />} />
+                <Route path="students/departments/:departmentId" element={<StudentsDepartment />} />
+                <Route path="students/programs/:programId" element={<StudentsProgram />} />
                 <Route path="students/:id" element={<StudentDetail />} />
               </Route>
               <Route element={<RequirePermission permission={PERMS.USER_MANAGE} />}>
