@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { m } from 'motion/react'
-import { BadgeCheck, GraduationCap, LayoutDashboard, Users } from 'lucide-react'
+import { BadgeCheck, LayoutDashboard, Users } from 'lucide-react'
 import campusPhoto from '../assets/UniReg.jpeg'
+import emblem from '../assets/unireg-emblem.jpeg'
 import SiteFooter from '../components/SiteFooter'
 import { EASE_OUT, SOFT_SPRING, fadeUp, pop, slideIn, stagger } from '../lib/motionPresets'
 
@@ -71,8 +72,8 @@ export default function AuthLayout() {
             animate="show"
             variants={stagger(0.08, 0.1)}
           >
-            <m.div variants={pop} className="flex size-14 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-950/40 ring-1 ring-white/20 lg:size-10 lg:rounded-xl">
-              <GraduationCap className="size-7 lg:size-5" />
+            <m.div variants={pop} className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg shadow-brand-950/40 ring-1 ring-white/40 lg:size-16">
+              <img src={emblem} alt="" width="80" height="80" className="size-full object-contain" />
             </m.div>
             <m.div variants={fadeUp} style={TEXT_SHADOW}>
               <p className="text-xl font-semibold tracking-tight text-white lg:text-base">UniReg</p>
