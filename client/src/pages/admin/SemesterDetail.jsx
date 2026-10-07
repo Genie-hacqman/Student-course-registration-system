@@ -8,21 +8,23 @@ import { Badge, Button, Card, CardHeader, ErrorState, Input, Loading, Select } f
 import DataTable from '../../components/admin/DataTable'
 import FormModal, { Textarea } from '../../components/admin/FormModal'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
+import DateTimeField from '../../components/DateTimeField'
 import { StudentPicker } from '../../components/admin/Pickers'
 import { formatDate, formatDateTime, fullName } from '../../lib/format'
 import { fromLocalInput, optionalNumber, requiredNumber, toLocalInput, toLocalInputCeil } from '../../lib/forms'
+import { localDateTime } from '../../lib/dateTime'
 import { MakeCurrentDialog, SemesterForm } from './Semesters'
 
 const windowSchema = z.object({
   name: z.string().trim().min(2, 'At least 2 characters').max(100),
   minLevel: optionalNumber(z.number().int().min(100).max(900)),
   programId: optionalNumber(z.number().int().positive()),
-  opensAt: z.string().min(1, 'Required'),
+  opensAt: localDateTime({ required: true }),
 })
 
 const overrideSchema = z.object({
   studentId: requiredNumber(z.number().int().positive('Choose a student'), 'Choose a student'),
-  opensAt: z.string().min(1, 'Required'),
+  opensAt: localDateTime({ required: true }),
   reason: z.string().trim().min(5, 'At least 5 characters').max(500),
 })
 
@@ -77,7 +79,7 @@ function Windows({ semester }) {
         defaultValues={{ name: editing?.name ?? '', minLevel: editing?.minLevel ?? '', programId: editing?.programId ?? '', opensAt: toLocalInput(editing?.opensAt) }}
         onSubmit={(v) => save.mutateAsync({ id: editing?.id, ...toBody(v) })}
       >
-        {({ register, formState: { errors } }) => (
+        {({ control, register, formState: { errors } }) => (
           <>
             <Input label="Name" placeholder="e.g. Final-year students" error={errors.name?.message} {...register('name')} />
             <div className="grid gap-4 sm:grid-cols-2">
@@ -87,12 +89,17 @@ function Windows({ semester }) {
                 {programs.data?.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
               </Select>
             </div>
-            <Input
-              label="Opens at (your local time)"
-              type="datetime-local"
-              hint={`Must be between ${formatDateTime(semester.registrationStart)} and ${formatDateTime(semester.registrationEnd)}`}
-              error={errors.opensAt?.message}
-              {...register('opensAt')}
+            <Controller
+              name="opensAt"
+              control={control}
+              render={({ field }) => (
+                <DateTimeField
+                  label="Opens at (your local time)"
+                  hint={`Must be between ${formatDateTime(semester.registrationStart)} and ${formatDateTime(semester.registrationEnd)}`}
+                  error={errors.opensAt?.message}
+                  {...field}
+                />
+              )}
             />
           </>
         )}
@@ -145,7 +152,11 @@ function EarlyAccess({ semester }) {
               control={control}
               render={({ field }) => <StudentPicker label="Student" value={field.value} onChange={(v) => field.onChange(v ?? '')} error={errors.studentId?.message} />}
             />
-            <Input label="May register from (your local time)" type="datetime-local" error={errors.opensAt?.message} {...register('opensAt')} />
+            <Controller
+              name="opensAt"
+              control={control}
+              render={({ field }) => <DateTimeField label="May register from (your local time)" error={errors.opensAt?.message} {...field} />}
+            />
             <Textarea label="Reason" error={errors.reason?.message} {...register('reason')} />
             <p className="text-xs text-slate-500">If the student already has an exception this semester, it's replaced.</p>
           </>
