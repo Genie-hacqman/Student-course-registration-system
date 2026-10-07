@@ -1,9 +1,10 @@
 import { forwardRef, useEffect, useId, useRef, useState } from 'react'
 import {
-  AlertCircle, AlertTriangle, CheckCircle2, CircleDashed, Clock, GraduationCap, Inbox, Info, Loader2, MinusCircle, Search, X, XCircle,
+  AlertCircle, AlertTriangle, CheckCircle2, CircleDashed, Clock, Inbox, Info, Loader2, MinusCircle, Search, X, XCircle,
 } from 'lucide-react'
 import { AnimatePresence, m } from 'motion/react'
 import { EASE_OUT, SPRING } from '../lib/motionPresets'
+import BrandMark from './BrandMark'
 
 const cx = (...c) => c.filter(Boolean).join(' ')
 
@@ -206,12 +207,12 @@ export function FullPageSpinner() {
           />
         ))}
         <m.span
-          className="relative flex size-16 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30"
+          className="relative block"
           initial={{ scale: 0.5, rotate: -12, opacity: 0 }}
           animate={{ scale: 1, rotate: 0, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.15 }}
         >
-          <GraduationCap className="size-8" aria-hidden="true" />
+          <BrandMark className="size-16 rounded-2xl shadow-lg shadow-brand-600/30 ring-1 ring-slate-200" />
         </m.span>
       </div>
       <m.div

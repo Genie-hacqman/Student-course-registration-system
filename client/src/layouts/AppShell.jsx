@@ -1,12 +1,13 @@
 import { Fragment, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, CornerDownLeft, GraduationCap, KeyRound, LogOut, Menu, Search,
+  ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, CornerDownLeft, KeyRound, LogOut, Menu, Search,
   UserRound, X,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthProvider'
 import { AnimatePresence, m } from 'motion/react'
 import { Avatar, Loading, cx, useFocusTrap } from '../components/ui'
+import BrandMark from '../components/BrandMark'
 import { EASE_OUT, SOFT_SPRING, pageEnter, popover, slideIn, stagger } from '../lib/motionPresets'
 import { NotificationCenter } from '../components/dashboard/NotificationItems'
 import { fullName } from '../lib/format'
@@ -124,9 +125,7 @@ function NavTree({ nav, rail, onNavigate }) {
 function Brand({ home, role, rail }) {
   return (
     <Link to={home} className={cx('flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-brand-600', rail ? 'justify-center' : 'px-2')}>
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-600/25">
-        <GraduationCap className="size-5" aria-hidden />
-      </span>
+      <BrandMark className="size-9 rounded-xl shadow-sm ring-1 ring-slate-200" />
       {!rail && (
         <span className="min-w-0 leading-tight">
           <span className="block font-semibold tracking-tight">UniReg</span>
