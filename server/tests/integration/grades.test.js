@@ -17,7 +17,6 @@ before(async () => {
   studentId = (await query("SELECT id FROM students WHERE student_number = 'STU2025001'"))[0].id;
   cs201Section = await sectionIdFor('CS201');
 
-  // An approved registration: CS201 (taught by the seeded lecturer) + CS203.
   for (const code of ['CS201', 'CS203']) {
     const res = await api().post('/api/registrations/items').set(auth(student.token)).send({ courseSectionId: await sectionIdFor(code) });
     assert.equal(res.status, 201);
@@ -78,7 +77,6 @@ describe('grade entry', () => {
     const mine = await api().get('/api/students/me/results').set(auth(student.token));
     const cs201 = mine.body.data.results.find((r) => r.course.code === 'CS201');
     assert.equal(cs201.grade, 'D');
-    // CS101 A(4.0) + MATH101 B(3.0) + CS201 D(1.0), all 3 credits
     assert.deepEqual(mine.body.data.summary, { gpa: 2.67, creditsAttempted: 9, creditsEarned: 9 });
 
     const notes = await api().get('/api/notifications').set(auth(student.token));

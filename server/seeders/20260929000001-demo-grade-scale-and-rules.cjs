@@ -1,10 +1,5 @@
 'use strict';
 
-/**
- * Demo-only — never run this in production:
- * - CS202 now needs CS201 with at least a C
- * - CS301L lab, a corequisite of CS301 (and vice versa), on the BSC-CS curriculum with a section
- */
 module.exports = {
   async up(queryInterface) {
     if (process.env.NODE_ENV === 'production') {
@@ -17,7 +12,7 @@ module.exports = {
 
     const [courses] = await q.query("SELECT id, code FROM courses WHERE code IN ('CS201', 'CS202', 'CS301')");
     const c = Object.fromEntries(courses.map((r) => [r.code, r.id]));
-    if (!c.CS301) return; // demo academic data not seeded
+    if (!c.CS301) return;
 
     await q.query(
       "UPDATE course_prerequisites SET min_grade = 'C' WHERE course_id = :cs202 AND prerequisite_course_id = :cs201",

@@ -52,15 +52,12 @@ const activeItemsInclude = {
   include: [sectionDetail],
 };
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
 const requireCurrentSemester = async (transaction) => {
   const semester = await semesterService.findCurrent({ transaction });
   if (!semester) throw new NotFoundError('Current semester');
   return semester;
 };
 
-/** Semester limit, then program limit, then the system default. */
 const resolveMaxCredits = async (semester, student, transaction) => {
   if (semester.maxCredits) return semester.maxCredits;
   const program = await Program.findByPk(student.programId, { attributes: ['maxCredits'], transaction });
@@ -68,16 +65,11 @@ const resolveMaxCredits = async (semester, student, transaction) => {
   return settingService.get('registration.defaultMaxCredits', { transaction });
 };
 
-/** When this student may start registering (priority window / individual override), for the window rule. */
 const priorityContext = async (student, semester, transaction) => {
   const priority = await priorityService.resolveOpensAt(student, semester, { transaction });
   return { opensAt: priority.opensAt, priority };
 };
 
-/**
- * The course's entry on the student's curriculum, shaped for the semesterEligibility rule, or null when
- * it isn't on the programme. `notYetInEffect`: the entry's academic year starts after this semester's.
- */
 const toCurriculum = (entry, entryYear, semesterYear) => ({
   semester: entry.semester ?? null,
   effectiveYear: entryYear?.name ?? null,
@@ -100,15 +92,9 @@ const curriculumFor = async (student, courseId, semester, transaction) => {
   return toCurriculum(entry, entryYear, semesterYear);
 };
 
-/** A full section offers a waitlist only if waitlists are enabled globally AND for that section. */
 const isWaitlistOffered = async (section, transaction) =>
   Boolean(section.waitlistEnabled) && Boolean(await settingService.get('registration.waitlistEnabled', { transaction }));
 
-/**
- * Gets the student's registration for the semester, creating a draft if needed, and locks it.
- * Every mutation locks the registration first and the section second, in that order,
- * so concurrent requests from the same student are serialised and can't deadlock each other.
- */
 const lockRegistration = async (studentId, semesterId, transaction) => {
   const [, created] = await Registration.findOrCreate({
     where: { studentId, semesterId },
@@ -126,7 +112,6 @@ const lockRegistration = async (studentId, semesterId, transaction) => {
 const loadActiveItems = (registrationId, transaction) =>
   RegistrationItem.findAll({ where: { registrationId, status: REGISTERED }, include: [sectionDetail], transaction });
 
-/** Section row locked FOR UPDATE, with course and schedules loaded separately (locks and outer joins don't mix). */
 const lockSection = async (sectionId, transaction) => {
   const section = await CourseSection.findByPk(sectionId, { lock: transaction.LOCK.UPDATE, transaction });
   if (!section) throw new NotFoundError('Section');
@@ -135,7 +120,6 @@ const lockSection = async (sectionId, transaction) => {
   return section;
 };
 
-/** Changing a registration after review sends it back through the approval flow. */
 const statusAfterChange = (status) => {
   if (status === REGISTRATION_STATUS.APPROVED) return REGISTRATION_STATUS.SUBMITTED;
   if (status === REGISTRATION_STATUS.REJECTED || status === REGISTRATION_STATUS.CANCELLED) return REGISTRATION_STATUS.DRAFT;
@@ -147,7 +131,6 @@ const recalcCredits = async (registration, transaction) => {
   registration.totalCredits = total ?? 0;
 };
 
-/** Printed on the registration slip, e.g. REG-2026-02-000014. Assigned on first submit and never changed. */
 const buildReferenceNumber = (registration, now) =>
   `REG-${now.getUTCFullYear()}-${String(registration.semesterId).padStart(2, '0')}-${String(registration.id).padStart(6, '0')}`;
 
@@ -158,8 +141,6 @@ export const getRegistrationDetail = (id) =>
       activeItemsInclude,
     ],
   });
-
-// ── student-facing ────────────────────────────────────────────────────────────
 
 export const getCurrent = async (userId) => {
   const student = await studentService.getByUserId(userId);
@@ -187,11 +168,6 @@ export const getCurrent = async (userId) => {
   };
 };
 
-/**
- * Sections the student can register for this semester: only courses on their program's curriculum.
- * Each section is annotated by running the same ADD_RULES that addItem enforces (without locks),
- * so what the student sees always matches what registration will accept or reject, and why.
- */
 export const getAvailableCourses = async (userId, query = {}) => {
   const student = await studentService.getByUserId(userId);
   const semester = await requireCurrentSemester();
@@ -292,7 +268,6 @@ export const getAvailableCourses = async (userId, query = {}) => {
       waitlistOffered,
       status,
       reasons: failures.map(({ rule, message, details }) => ({ rule, message, ...(details ? { details } : {}) })),
-      // Non-blocking: corequisites are enforced on submit, not on add.
       notes: registered ? [] : corequisiteWarnings(section, requirements.get(section.courseId))
         .map((message) => ({ rule: 'COREQUISITE', message })),
       schedules: section.schedules,
@@ -316,11 +291,6 @@ export const getAvailableCourses = async (userId, query = {}) => {
   };
 };
 
-/**
- * Adds a section to the student's current-semester registration. `actor` is set when staff act for the student:
- * the registration-window rule is skipped, checks in STAFF_OVERRIDABLE_RULES may be overridden with a reason
- * (recorded on the item so submit honours them), and an approved registration is not sent back for approval.
- */
 const addSection = async (student, courseSectionId, { actor, override = false, reason, req } = {}) => {
   const byStaff = Boolean(actor);
 
@@ -355,7 +325,6 @@ const addSection = async (student, courseSectionId, { actor, override = false, r
     if (failures.length) {
       const blocking = byStaff && override ? failures.filter((f) => !STAFF_OVERRIDABLE_RULES.includes(f.rule)) : failures;
       if (blocking.length) {
-        // Staff see which failures they could override, so the UI can offer it.
         throw new RegistrationRuleError(byStaff
           ? failures.map((f) => ({ ...f, overridable: STAFF_OVERRIDABLE_RULES.includes(f.rule) }))
           : failures);
@@ -363,7 +332,6 @@ const addSection = async (student, courseSectionId, { actor, override = false, r
       overridden = failures.map((f) => f.rule);
     }
 
-    // Row is locked, but keep the guard in SQL too so overselling is impossible even if the lock is removed later.
     const [affected] = await CourseSection.update(
       { seatsTaken: sequelize.literal('seats_taken + 1') },
       { where: { id: lockedSection.id, seatsTaken: { [Op.lt]: sequelize.col('capacity') } }, transaction },
@@ -391,7 +359,6 @@ const addSection = async (student, courseSectionId, { actor, override = false, r
     await recalcCredits(registration, transaction);
     if (!byStaff) {
       registration.status = statusAfterChange(registration.status);
-      // A changed course list must be re-confirmed when it is approved again.
       if (registration.status !== REGISTRATION_STATUS.APPROVED) registration.timetableConfirmedAt = null;
     }
     await registration.save({ transaction });
@@ -446,10 +413,6 @@ const addSection = async (student, courseSectionId, { actor, override = false, r
 export const addItem = async (userId, courseSectionId, req) =>
   addSection(await studentService.getByUserId(userId), courseSectionId, { req });
 
-/**
- * Drops one registered item. With `actor` (staff) the window rule is skipped and the registration keeps
- * its status; the student is told, since they didn't do it themselves.
- */
 const removeItem = async (student, itemWhere, { actor, reason, req } = {}) => {
   const byStaff = Boolean(actor);
 
@@ -486,7 +449,6 @@ const removeItem = async (student, itemWhere, { actor, reason, req } = {}) => {
     await recalcCredits(registration, transaction);
     if (!byStaff) {
       registration.status = statusAfterChange(registration.status);
-      // A changed course list must be re-confirmed when it is approved again.
       if (registration.status !== REGISTRATION_STATUS.APPROVED) registration.timetableConfirmedAt = null;
     }
     await registration.save({ transaction });
@@ -524,19 +486,12 @@ const removeItem = async (student, itemWhere, { actor, reason, req } = {}) => {
 export const dropItem = async (userId, itemId, req) =>
   removeItem(await studentService.getByUserId(userId), { id: itemId }, { req });
 
-// ── staff enrolment (registration:manage) ─────────────────────────────────────
-
 export const staffAddStudent = async (sectionId, { studentId, override, reason }, actor, req) =>
   addSection(await studentService.getById(studentId), sectionId, { actor, override, reason, req });
 
 export const staffRemoveStudent = async (sectionId, studentId, { reason }, actor, req) =>
   removeItem(await studentService.getById(studentId), { courseSectionId: sectionId }, { actor, reason, req });
 
-/**
- * The writes that approve a registration whose timetable has just been checked clean, shared by a registrar's
- * approval and by auto-approval so the two can't drift. `actor` is null for the system (auto-approval), which
- * leaves `reviewed_by` empty. Returns how many open timetable issues it closed.
- */
 const confirmApproval = async (reg, { actor, remarks = null }, transaction) => {
   const now = new Date();
   await reg.update({
@@ -545,11 +500,6 @@ const confirmApproval = async (reg, { actor, remarks = null }, transaction) => {
   return timetableService.closeIssues(reg.id, { id: actor?.id ?? null }, transaction);
 };
 
-/**
- * Re-runs every rule against the whole selection, then submits it. It is approved on the spot when approval
- * is switched off globally or the student's programme has `autoApprove` and the timetable is clash-free;
- * otherwise it waits for the registrar.
- */
 export const submit = async (userId, req) => {
   const student = await studentService.getByUserId(userId);
 
@@ -561,10 +511,8 @@ export const submit = async (userId, req) => {
       transaction,
     });
     if (!reg) throw new BadRequestError('Add at least one course before submitting');
-    // Auto-approval: the global switch off approves everyone; otherwise the student's programme decides.
     const requireApproval = await settingService.get('registration.requireApproval', { transaction });
     const wantsAutoApproval = !requireApproval || Boolean(student.program?.autoApprove);
-    // A registration an edit sent back to `submitted` can be submitted again, but only where that can approve it on the spot.
     if (reg.status === REGISTRATION_STATUS.APPROVED || (reg.status === REGISTRATION_STATUS.SUBMITTED && !wantsAutoApproval)) {
       throw new ConflictError(`Registration is already ${reg.status}`);
     }
@@ -598,7 +546,6 @@ export const submit = async (userId, req) => {
         semester,
         student,
         section: item.section,
-        // Only compare with later items so each clashing pair is reported once.
         otherItems: items.slice(index + 1),
         requirements: requirements.get(item.courseId),
         programName: student.program?.name,
@@ -606,7 +553,6 @@ export const submit = async (userId, req) => {
       context.curriculum = await curriculumFor(student, item.courseId, semester, transaction);
       context.inProgram = Boolean(context.curriculum);
       for (const failure of runRules(SUBMIT_ITEM_RULES, context)) {
-        // A check staff overrode when adding this course (on either side of a clash) doesn't block submit.
         const clashOverridden = failure.rule === 'TIMETABLE_CONFLICT' && (failure.details?.conflictingCourses ?? [])
           .some((c) => items.some((i) => i.courseSectionId === c.courseSectionId && overrode(i, 'TIMETABLE_CONFLICT')));
         if (overrode(item, failure.rule) || clashOverridden) continue;
@@ -615,7 +561,6 @@ export const submit = async (userId, req) => {
     }
     if (failures.length) throw new RegistrationRuleError(failures);
 
-    // Auto-approval needs the same clean timetable a registrar's approval does, else it waits for the registrar.
     const issues = wantsAutoApproval ? await timetableService.findAllocationIssues(reg.id, transaction) : [];
     const autoApproved = wantsAutoApproval && !issues.length;
 
@@ -649,7 +594,6 @@ export const submit = async (userId, req) => {
         message: issues.length
           ? `Your ${semester.name} registration (${totalCredits} credits) was submitted. It could not be approved automatically because of a timetable clash, so the registrar will review it.`
           : `Your ${semester.name} registration (${totalCredits} credits) was submitted and is awaiting approval.`,
-        // Also what the confirmation email shows; `submittedAt` keys it, so a resubmission emails again.
         data: { ...reference, needsApproval: true, submittedAt: now.toISOString() },
       }, { transaction });
     }
@@ -658,7 +602,6 @@ export const submit = async (userId, req) => {
   });
 
   const { reg: registration, issues, autoApproved } = outcome;
-  // The clash is recorded after commit, in its own transaction (as `review` does), so the registrar sees it.
   if (issues.length) await timetableService.recordIssues(registration.id, issues, { id: userId });
   emitRegistrationStatusChanged(userId, { registrationId: registration.id, status: registration.status });
   if (autoApproved) emitTimetableUpdated(userId, { registrationId: registration.id });
@@ -676,8 +619,6 @@ export const history = async (userId) => {
     order: [['createdAt', 'DESC']],
   });
 };
-
-// ── staff-facing ──────────────────────────────────────────────────────────────
 
 export const listAll = async (query) => {
   const { page, limit, offset, order } = buildPagination(query, ['createdAt', 'submittedAt', 'totalCredits'], ['submittedAt', 'DESC']);
@@ -722,12 +663,6 @@ export const getById = async (id) => {
   return registration;
 };
 
-/**
- * Approving also confirms the student's timetable: `findAllocationIssues` re-checks their sections for
- * student, lecturer and room clashes (and missing class times/rooms) under the registration row lock.
- * Any issue refuses the approval — nothing is written to the registration — and the issues are recorded
- * for staff (GET /admin/timetable-issues), then returned as a 409 TIMETABLE_CONFLICT.
- */
 const review = async (id, decision, remarks, actor, req) => {
   const approved = decision === REGISTRATION_STATUS.APPROVED;
   const outcome = await sequelize.transaction(async (transaction) => {

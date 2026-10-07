@@ -60,8 +60,8 @@ describe('slotsOverlap', () => {
 
 describe('wouldCreateCycle', () => {
   const edges = [
-    { courseId: 2, prerequisiteCourseId: 1 }, // 2 requires 1
-    { courseId: 3, prerequisiteCourseId: 2 }, // 3 requires 2
+    { courseId: 2, prerequisiteCourseId: 1 },
+    { courseId: 3, prerequisiteCourseId: 2 },
   ];
   test('self reference is a cycle', () => assert.equal(wouldCreateCycle(edges, 1, 1), true));
   test('direct back-edge is a cycle', () => assert.equal(wouldCreateCycle(edges, 1, 2), true));

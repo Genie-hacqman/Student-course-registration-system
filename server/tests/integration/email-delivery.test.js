@@ -1,8 +1,3 @@
-/**
- * Email through the provider seam with Resend mocked (no network): delivery log, retry dedupe,
- * failures that never undo business actions, security alerts, token single-use and expiry, the signed
- * delivery webhook, the admin email log and announcement emails.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Webhook } from 'standardwebhooks';
@@ -14,7 +9,6 @@ import { hashToken } from '../../src/utils/jwt.js';
 import { sendMail, setEmailProviderForTests } from '../../src/services/email.service.js';
 import { emailAnnouncement } from '../../src/services/announcement.service.js';
 
-/** The mocked provider: records every email; `mode = 'fail'` makes it fail like a Resend API error. */
 const outbox = [];
 let mode = 'ok';
 let n = 0;
@@ -29,7 +23,6 @@ const provider = {
 };
 
 const deliveries = (where = '1=1', replacements = {}) => query(`SELECT * FROM email_deliveries WHERE ${where} ORDER BY id`, replacements);
-/** Notification emails go out after commit, asynchronously: poll briefly for the row. */
 const waitFor = async (fn, ms = 3000) => {
   const until = Date.now() + ms;
   for (;;) {
@@ -97,7 +90,6 @@ describe('account emails and tokens', () => {
     const mail = outbox.findLast((m) => m.to === email);
     assert.match(mail.html, /Confirm email address/);
 
-    // The raw token only exists in the email; plant a known one the same way to exercise the endpoint.
     const raw = 'planted-verification-token-'.padEnd(48, 'v');
     await query('UPDATE users SET email_verification_hash = :h, email_verification_expires = NOW() + INTERVAL 1 HOUR WHERE email = :email', { h: hashToken(raw), email });
     const [a, b] = await Promise.all([
@@ -147,7 +139,7 @@ describe('account emails and tokens', () => {
   });
 
   test('replacing a temporary PIN sends no alert; a later PIN change does', async () => {
-    const s = await createStudent(31); // admitted, temporary PIN replaced
+    const s = await createStudent(31);
     assert.equal((await deliveries("template = 'pinChanged' AND user_id = :id", { id: s.userId })).length, 0);
     const session = await login(s.studentNumber, STUDENT_PIN);
     const changed = await api().patch('/api/auth/pin').set(auth(session.token)).set('Cookie', session.cookie)

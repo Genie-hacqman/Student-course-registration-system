@@ -12,7 +12,6 @@ const TABS = [
   { value: '', label: 'All' },
 ]
 
-/** Online admission applications (drafts stay private to the applicant until submitted). */
 export default function Applications() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()

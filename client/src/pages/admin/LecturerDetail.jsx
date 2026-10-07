@@ -12,7 +12,6 @@ import { DAY_NAMES, DAY_ORDER, formatDate, formatTime, fullName } from '../../li
 import { can, PERMS } from '../../lib/roles'
 import { LecturerFields, lecturerSchema, lecturerStatus } from './Lecturers'
 
-// Editing uses the same fields minus the school email (the account's sign-in address).
 const editSchema = lecturerSchema.omit({ schoolEmail: true })
 
 function Field({ label, children }) {
@@ -24,7 +23,6 @@ function Field({ label, children }) {
   )
 }
 
-/** Their timetable this term: every class time of the offerings they currently teach. */
 function TeachingSchedule({ sections }) {
   const slots = sections
     .flatMap((section) => (section.schedules ?? []).map((s) => ({ ...s, course: section.course, sectionCode: section.sectionCode })))
@@ -53,11 +51,9 @@ function TeachingSchedule({ sections }) {
 
 const departmentsSchema = z.object({ departmentIds: z.array(z.coerce.number().int().positive()) })
 
-/** Additional departments (joint appointments). The home department is changed through Edit. */
 function ManageDepartments({ open, onClose, lecturer, departments }) {
   const save = useApiMutation((departmentIds) => http.put(`/lecturers/${lecturer.id}/departments`, { departmentIds }), { success: 'Departments updated' })
   const current = lecturer.additionalDepartments?.map((d) => d.id) ?? []
-  // Open departments, plus any archived one they already belong to (archived ones take no new members).
   const choices = (departments ?? []).filter((d) => d.id !== lecturer.departmentId && (d.status !== 'archived' || current.includes(d.id)))
   return (
     <FormModal
@@ -83,7 +79,6 @@ function ManageDepartments({ open, onClose, lecturer, departments }) {
   )
 }
 
-/** Assign this lecturer to an open offering this term, in one of their departments, that has no lecturer yet. */
 function AssignToOffering({ open, onClose, lecturer }) {
   const current = useApi(open ? '/semesters/current' : null)
   const sections = useApi(open && current.data ? '/sections' : null, { semesterId: current.data?.id, unassigned: true, limit: 100 })
@@ -116,7 +111,6 @@ function AssignToOffering({ open, onClose, lecturer }) {
   )
 }
 
-/** One lecturer's profile: departments, account status, this term's timetable and their course assignments. */
 export default function LecturerDetail() {
   const { id } = useParams()
   const { user } = useAuth()

@@ -11,10 +11,6 @@ import * as audit from './audit.service.js';
 import { safeLoginIdentifier } from '../utils/redact.js';
 import { issueTokens, loadProfile } from './auth.service.js';
 
-/**
- * PIN-change alert to the school email and, when the student applied online, their personal email too
- * (they may not use the school mailbox yet). After commit; keyed on token_version (one per change).
- */
 const sendPinAlert = async (userId, { recovered }) => {
   const user = await User.findByPk(userId, { attributes: ['id', 'email', 'firstName', 'tokenVersion'] });
   const application = await AdmissionApplication.findOne({ where: { userId }, attributes: ['personalEmail'] });
@@ -24,17 +20,10 @@ const sendPinAlert = async (userId, { recovered }) => {
   });
 };
 
-/*
- * Student PINs. Students change and recover their own PIN without an admin's approval
- * (staff passwords still need it): the PIN was issued by the school, and recovery goes through
- * the school email, which only the student can read.
- */
-
 export const OTP_TTL_MS = 10 * 60 * 1000;
 export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_RESEND_MS = 60 * 1000;
 
-// Keyed, so a leaked database alone can't be brute-forced back to live codes (10^6 possibilities).
 const hashOtp = (userId, otp) => createHmac('sha256', env.JWT_ACCESS_SECRET).update(`pin-otp:${userId}:${otp}`).digest('hex');
 
 const assertPin = (pin, studentNumber) => {
@@ -46,7 +35,6 @@ const findStudentUser = (studentNumber) => User.scope('withSecrets').findOne({
   include: [{ model: Student, as: 'student', where: { studentNumber }, attributes: ['id', 'studentNumber'] }],
 });
 
-/** Stores a new PIN and ends every session. `mustChange` marks it temporary (staff-issued). */
 const setPin = async (user, pin, { mustChange, action, actorId, transaction }) => {
   await user.update({
     passwordHash: await (mustChange ? hashTemporaryPin(pin) : hashPassword(pin)),
@@ -61,10 +49,6 @@ const setPin = async (user, pin, { mustChange, action, actorId, transaction }) =
   await audit.log({ userId: actorId ?? user.id, action, entityType: 'User', entityId: user.id, transaction });
 };
 
-/**
- * The signed-in student replaces their PIN (always required after admission or a staff reset).
- * Every session ends, then this device gets fresh tokens, so the student carries straight on.
- */
 export const changePin = async (userId, { currentPin, newPin }, meta) => {
   const user = await User.scope('withSecrets').findByPk(userId, {
     include: [{ model: Student, as: 'student', attributes: ['studentNumber'] }, { model: Role, as: 'role' }],
@@ -74,7 +58,6 @@ export const changePin = async (userId, { currentPin, newPin }, meta) => {
     throw new ForbiddenError('Only admitted students have a PIN; everyone else changes their password instead');
   }
   if (!(await comparePassword(currentPin, user.passwordHash))) {
-    // Does not count toward the sign-in lockout, so this is the only trace of someone guessing the PIN.
     await audit.log({ userId, action: 'security.credential_change_failed', entityType: 'User', entityId: userId, metadata: { kind: 'pin' } });
     throw new BadRequestError('Current PIN is incorrect');
   }
@@ -84,19 +67,13 @@ export const changePin = async (userId, { currentPin, newPin }, meta) => {
   const wasTemporary = user.mustChangePassword;
   const tokens = await sequelize.transaction(async (transaction) => {
     await setPin(user, newPin, { mustChange: false, action: 'auth.change_pin', transaction });
-    await user.reload({ transaction }); // endAllSessions bumped token_version; the new tokens must carry it
+    await user.reload({ transaction });
     return issueTokens(user, user.role.name, meta, transaction);
   });
-  // Replacing a temporary PIN is the expected first step, not a security event worth an alert.
   if (!wasTemporary) await sendPinAlert(user.id, { recovered: false });
   return { user: await loadProfile(user.id), ...tokens };
 };
 
-/**
- * Step 1 of "forgot PIN". Always resolves the same way, so it never reveals whether a student
- * exists or which email they have. Acts only when the email is that student's school email.
- * Returns the raw OTP for internal use (tests) only.
- */
 export const forgotPin = async ({ studentNumber, email }) => {
   const user = await findStudentUser(studentNumber);
   if (!user || user.status !== USER_STATUS.ACTIVE || user.email !== email) return null;
@@ -110,7 +87,6 @@ export const forgotPin = async ({ studentNumber, email }) => {
     pinOtpSentAt: new Date(),
   });
 
-  // Keyed on the send time (one code per minute at most), so a retried request can't mail a second code.
   await sendTemplate('pinResetCode', { studentNumber: user.student.studentNumber, code: otp, minutes: OTP_TTL_MS / 60000 }, {
     to: user.email, idempotencyKey: `pinResetCode:${user.id}:${user.pinOtpSentAt.getTime()}`, userId: user.id, entityType: 'User', entityId: user.id,
   });
@@ -118,21 +94,13 @@ export const forgotPin = async ({ studentNumber, email }) => {
   return otp;
 };
 
-/**
- * Step 2 of "forgot PIN": the emailed code sets a new PIN and ends every session.
- * A wrong code counts against the OTP (committed, not rolled back); the OTP_MAX_ATTEMPTS-th kills it.
- */
 export const resetPinWithOtp = async ({ studentNumber, otp, newPin }) => {
-  assertPin(newPin, studentNumber); // before touching the code, so a weak PIN doesn't burn an attempt
+  assertPin(newPin, studentNumber);
 
   const outcome = await sequelize.transaction(async (transaction) => {
     const student = await Student.findOne({ where: { studentNumber }, attributes: ['userId'], transaction });
-    // Row lock: parallel guesses are counted one at a time.
     const user = student && await User.scope('withSecrets').findByPk(student.userId, { transaction, lock: transaction.LOCK.UPDATE });
 
-    // Written with the same transaction, which commits even though the request fails: the row lock on the user
-    // is held here, and a separate connection inserting an audit row for that user would wait on it forever.
-    // Never the code that was typed, the stored hash, or the new PIN.
     const rejected = async (reason, extra = {}) => {
       await audit.log({
         userId: user?.id ?? null, action: 'security.pin_otp_failed', entityType: user ? 'User' : null, entityId: user?.id, transaction,
@@ -158,10 +126,6 @@ export const resetPinWithOtp = async ({ studentNumber, otp, newPin }) => {
   await sendPinAlert(student.userId, { recovered: true });
 };
 
-/**
- * Staff issue a new temporary PIN (the student lost it and can't use their school email).
- * The student must change it on next sign-in. Returns the PIN once; it is never stored in clear.
- */
 export const issueTemporaryPin = async (studentId, actor) => {
   const student = await Student.findByPk(studentId, { attributes: ['id', 'userId', 'studentNumber'] });
   if (!student) throw new NotFoundError('Student');

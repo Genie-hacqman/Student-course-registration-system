@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import { Mail, MapPin, Phone } from 'lucide-react'
 import { SITE, hasContact, telHref } from '../lib/site'
 
-/** Who to contact: only what is configured is shown (see lib/site.js). Renders nothing when nothing is set. */
 export function ContactDetails({ className = '', linkClassName = 'underline underline-offset-2 hover:text-white' }) {
   if (!hasContact) return null
   return (
@@ -29,7 +28,6 @@ export function ContactDetails({ className = '', linkClassName = 'underline unde
   )
 }
 
-/** Legal links and the registry's contact details, for the bottom of the public pages. */
 export default function SiteFooter({ className = '' }) {
   return (
     <footer className={`text-xs text-white/80 ${className}`}>

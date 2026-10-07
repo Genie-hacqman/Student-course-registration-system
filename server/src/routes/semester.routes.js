@@ -27,7 +27,6 @@ semesterRouter.get('/:id', validate({ params: idParam }), ctrl.getById);
 semesterRouter.post('/', manage, validate({ body: createSemesterSchema }), ctrl.create);
 semesterRouter.patch('/:id', manage, validate({ params: idParam, body: updateSemesterSchema }), ctrl.update);
 
-// Registration priority (staggered opening) and individual registration times
 semesterRouter.get('/:id/priority-windows', manage, validate({ params: idParam }), priority.listWindows);
 semesterRouter.post('/:id/priority-windows', manage, validate({ params: idParam, body: priorityWindowSchema }), priority.createWindow);
 semesterRouter.patch('/:id/priority-windows/:windowId', manage, validate({ params: windowParams, body: updatePriorityWindowSchema }), priority.updateWindow);

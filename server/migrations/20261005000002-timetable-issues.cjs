@@ -1,10 +1,5 @@
 'use strict';
 
-/**
- * Timetable confirmation on registration approval: when it succeeds the registration records when;
- * when it finds a clash (student, lecturer, room) or an unscheduled section, the approval is refused
- * and one issue row per (registration, section, type) is kept open for staff to resolve.
- */
 module.exports = {
   async up(queryInterface, Sequelize) {
     const now = { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') };
@@ -37,7 +32,6 @@ module.exports = {
       created_at: now,
       updated_at: now,
     });
-    // A retried approval updates the existing row instead of adding a duplicate.
     await queryInterface.addIndex('timetable_issues', ['registration_id', 'course_section_id', 'type'], {
       unique: true, name: 'timetable_issues_registration_section_type',
     });

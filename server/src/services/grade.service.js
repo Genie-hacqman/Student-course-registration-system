@@ -25,7 +25,6 @@ const gradeFields = async (grade, transaction) => {
   return { grade: letter, gradePoint: gradePoint(letter), passed: isPassing(letter, await passingGrade(transaction)) };
 };
 
-/** Lecturers may only grade sections they teach; registrar/admin (GRADE_MANAGE) may grade any. */
 const assertCanGrade = async (section, actor) => {
   if (hasPermission(actor.role, PERMISSIONS.GRADE_MANAGE)) return;
   if (actor.role === ROLES.LECTURER) {
@@ -45,7 +44,6 @@ const loadSection = async (sectionId, transaction, lock = false) => {
   return section;
 };
 
-/** Students with a registered item in this section whose registration is approved. */
 const loadRoster = (sectionId, transaction) =>
   RegistrationItem.findAll({
     where: { courseSectionId: sectionId, status: REGISTRATION_ITEM_STATUS.REGISTERED },
@@ -98,7 +96,6 @@ export const getSectionGrades = async (sectionId, actor) => {
   };
 };
 
-/** Saves provisional grades. Can be called repeatedly until the section is finalised. */
 export const enterGrades = async (sectionId, grades, actor, req) => {
   await sequelize.transaction(async (transaction) => {
     const section = await loadSection(sectionId, transaction, true);
@@ -137,7 +134,6 @@ export const enterGrades = async (sectionId, grades, actor, req) => {
   return getSectionGrades(sectionId, actor);
 };
 
-/** Publishes the section's grades. Every rostered student must have a grade first. */
 export const finalizeGrades = async (sectionId, actor, req) => {
   await sequelize.transaction(async (transaction) => {
     const section = await loadSection(sectionId, transaction, true);
@@ -179,7 +175,6 @@ export const finalizeGrades = async (sectionId, actor, req) => {
   return getSectionGrades(sectionId, actor);
 };
 
-/** Registrar correction of any result, with a mandatory reason kept in the audit log. */
 export const amendResult = async (resultId, { grade, reason }, actor, req) => {
   return sequelize.transaction(async (transaction) => {
     const result = await Result.findByPk(resultId, { transaction, lock: transaction.LOCK.UPDATE });
@@ -207,10 +202,6 @@ export const amendResult = async (resultId, { grade, reason }, actor, req) => {
   });
 };
 
-/**
- * Bulk import of official (final) results — history from a previous system or transfer credit.
- * Each row is processed independently; bad rows are reported, good rows are saved.
- */
 export const importResults = async (rows, actor, req) => {
   const errors = [];
   const overwritten = [];
@@ -235,7 +226,6 @@ export const importResults = async (rows, actor, req) => {
         };
         const where = { studentId: student.id, courseId: course.id, semesterId: row.semesterId ?? null };
         const existing = await Result.findOne({ where, transaction });
-        // Read before the update below overwrites it.
         const previousGrade = existing?.grade;
         if (existing) await existing.update(fields, { transaction });
         else await Result.create({ ...where, ...fields }, { transaction });
@@ -249,7 +239,6 @@ export const importResults = async (rows, actor, req) => {
 
   await audit.log({
     userId: actor.id, action: 'results.import', entityType: 'Result', req,
-    // Importing silently replaces an existing result, so each replaced grade is recorded (first 50).
     metadata: { imported, failed: errors.length, overwritten: summariseEntries(overwritten), errors: summariseEntries(errors.map(({ row, studentNumber, courseCode }) => ({ row, studentNumber, courseCode }))) },
   });
   return { imported, failed: errors.length, errors };

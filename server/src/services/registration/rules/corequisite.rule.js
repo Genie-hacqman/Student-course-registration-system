@@ -1,10 +1,5 @@
 import { describeGroup } from '../../prerequisite.service.js';
 
-/**
- * Corequisites (e.g. a lecture and its lab) must be taken together or already passed.
- * Checked on submit only: the two sections are added one at a time, so blocking the first add
- * would make the pair impossible to register. At add time the service returns a warning instead.
- */
 export const corequisite = ({ section, requirements }) => {
   const rule = 'COREQUISITE';
   const groups = requirements?.corequisitesMissing ?? [];

@@ -34,7 +34,6 @@ const start = async () => {
   try {
     await permissionService.reload();
   } catch (err) {
-    // Most likely migrations haven't been run yet; the code defaults still apply.
     logger.warn('Could not load role permission overrides, using defaults:', err.message);
   }
 
@@ -44,7 +43,6 @@ const start = async () => {
   cleanupTokens();
   const cleanupTimer = setInterval(cleanupTokens, TOKEN_CLEANUP_INTERVAL_MS);
   cleanupTimer.unref();
-  // Seals new audit rows into the hash chain and archives/purges expired ones (see audit-maintenance.service.js).
   runAuditMaintenance();
   const auditTimer = setInterval(runAuditMaintenance, AUDIT_MAINTENANCE_INTERVAL_MS);
   auditTimer.unref();
@@ -70,17 +68,11 @@ const start = async () => {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-  // A rejected promise nobody awaited — logged and reported, but not fatal: Node's own default
-  // here is non-fatal too, and every fire-and-forget call in this codebase (notification/email
-  // sending) already catches its own errors internally, so this is a safety net, not the norm.
   process.on('unhandledRejection', (reason) => {
     logger.error('Unhandled rejection:', reason);
     captureException(reason instanceof Error ? reason : new Error(String(reason)));
   });
 
-  // A genuinely unexpected synchronous throw escaped everything. The process may be in a broken
-  // state at this point — Node's own guidance is to report and exit, not to keep running, and let
-  // the process manager (systemd, Docker, the host's own restart policy) bring up a fresh one.
   process.on('uncaughtException', (err) => {
     logger.error('Uncaught exception, shutting down:', err);
     captureException(err);

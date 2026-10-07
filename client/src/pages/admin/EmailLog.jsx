@@ -4,7 +4,6 @@ import { Badge, Card, PageHeader, QueryState, SearchInput, Tabs } from '../../co
 import DataTable from '../../components/admin/DataTable'
 import { formatDateTime } from '../../lib/format'
 
-// "Accepted" is the provider taking the email; "Delivered" is confirmed by the Resend webhook.
 const STATUS = {
   sent: { label: 'Accepted', tone: 'blue' },
   delivered: { label: 'Delivered', tone: 'green' },
@@ -23,7 +22,6 @@ const TABS = [
   { value: 'delivered', label: 'Delivered' },
 ]
 
-/** Admin: every email the system tried to send and what happened to it. Message bodies are never stored. */
 export default function EmailLog() {
   const [params, setParams] = useSearchParams()
   const status = params.get('status') ?? ''

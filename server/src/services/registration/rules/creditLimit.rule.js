@@ -1,4 +1,3 @@
-/** Total credits of the other active items plus this section must stay within the limit. */
 export const creditLimit = ({ section, otherItems, maxCredits }) => {
   const rule = 'CREDIT_LIMIT';
   const current = otherItems.reduce((sum, item) => sum + item.credits, 0);

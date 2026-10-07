@@ -19,7 +19,6 @@ Registration.init(
     submittedAt: { type: DataTypes.DATE },
     reviewedAt: { type: DataTypes.DATE },
     reviewedBy: { type: DataTypes.INTEGER },
-    // Set when approval confirmed the timetable free of clashes (timetable.service.checkAllocation).
     timetableConfirmedAt: { type: DataTypes.DATE },
     remarks: { type: DataTypes.STRING(500) },
   },

@@ -7,11 +7,9 @@ import { Button, Card, CardHeader, Input, PageHeader, QueryState, Select } from 
 import { Checkbox } from '../../components/admin/FormModal'
 import { applyServerErrors, requiredNumber } from '../../lib/forms'
 
-// Mirrors SETTING_VALUES in SCRS-backend src/validators/registration.validator.js.
 const PASSING_GRADES = ['A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E', 'F']
 const schema = z.object({
   'institution.name': z.string().trim().min(2, 'At least 2 characters').max(150),
-  // Empty until the institution sets it; admission refuses to run without it. Once set it can't be cleared.
   'institution.studentEmailDomain': z.union([
     z.literal(''),
     z.string().trim().toLowerCase().regex(/^(?=.{3,120}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/, 'A domain such as school.edu.gh'),
@@ -27,10 +25,8 @@ const schema = z.object({
   'grades.passingGrade': z.enum(PASSING_GRADES),
 })
 const KEYS = Object.keys(schema.shape)
-// react-hook-form treats dots as nesting, so field names use `__` in the form and map back to keys.
 const field = (key) => key.replaceAll('.', '__')
 
-// setting.service DEFAULTS — what the backend uses when a key has no row.
 const DEFAULTS = {
   'institution.name': 'Student Course Registration System',
   'institution.studentEmailDomain': '',

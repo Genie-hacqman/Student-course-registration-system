@@ -10,7 +10,6 @@ export const dropItem = async (req, res) => ok(res, await registrationService.dr
 export const submit = async (req, res) => ok(res, await registrationService.submit(req.user.id, req));
 export const history = async (req, res) => ok(res, await registrationService.history(req.user.id));
 
-// Staff
 export const list = async (req, res) => {
   const { result, page, limit } = await registrationService.listAll(req.validated.query);
   return paginated(res, result, { page, limit });

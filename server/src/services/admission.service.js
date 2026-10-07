@@ -10,19 +10,7 @@ import { runImport } from './import.service.js';
 import * as settingService from './setting.service.js';
 import * as audit from './audit.service.js';
 
-/*
- * Staff admission (direct and bulk). Online applications (application.service) are the other way in and
- * share `assignStudentIdentity`. Here the school creates the account
- * with a generated Student ID (STU + session year + id, e.g. STU202600123), a school email derived
- * from it, and a random temporary PIN that the student must change at first sign-in.
- *
- * The PIN is returned exactly once, in the response, for the admission letter. It is never stored
- * in clear, emailed, or written to the audit log.
- */
-
-/** The institution's student email domain; admission refuses to run without it. */
 export const studentEmailDomain = async (transaction) => {
-  // The setting (Staff → System settings) wins; SCHOOL_EMAIL_DOMAIN in the environment is the fallback.
   const domain = await settingService.get('institution.studentEmailDomain', { transaction }) || env.SCHOOL_EMAIL_DOMAIN;
   if (!domain) {
     throw new BadRequestError('Set the student email domain first (setting institution.studentEmailDomain, e.g. school.edu.gh, or SCHOOL_EMAIL_DOMAIN)');
@@ -49,11 +37,6 @@ export const findProgram = async ({ programId, programCode }, transaction) => {
   return program;
 };
 
-/**
- * Makes an existing user a student: inserts the student row (generated Student ID unless one is given)
- * and gives the user their school email, all in the caller's transaction. Shared by staff admission and
- * online applications (application.service), so both assign identifiers exactly the same way.
- */
 export const assignStudentIdentity = async (user, row, program, ctx, transaction) => {
   const student = await createStudentRecord({
     userId: user.id,
@@ -72,11 +55,6 @@ export const assignStudentIdentity = async (user, row, program, ctx, transaction
   return { student, email };
 };
 
-/**
- * Creates the user + student in the caller's transaction and returns the one-time credentials.
- * The school email depends on the Student ID, which depends on the new row's id, so the user is
- * created with a throwaway placeholder address and given the real one in the same transaction.
- */
 const createAdmission = async (row, program, ctx, transaction, { via = 'single' } = {}) => {
   if (row.admissionNumber && await Student.findOne({ where: { admissionNumber: row.admissionNumber }, transaction })) {
     throw new ConflictError(`Admission number ${row.admissionNumber} has already been admitted`);
@@ -87,10 +65,9 @@ const createAdmission = async (row, program, ctx, transaction, { via = 'single' 
     firstName: row.firstName,
     lastName: row.lastName,
     email: `pending-${randomBytes(8).toString('hex')}@admission.invalid`,
-    passwordHash: '!', // replaced below, before commit
+    passwordHash: '!',
     status: USER_STATUS.ACTIVE,
     mustChangePassword: true,
-    // The school owns the mailbox, so there is nothing for the student to verify.
     emailVerifiedAt: new Date(),
   }, { transaction });
 
@@ -98,8 +75,6 @@ const createAdmission = async (row, program, ctx, transaction, { via = 'single' 
   const pin = generatePin({ studentNumber: student.studentNumber });
   await user.update({ email, passwordHash: await hashTemporaryPin(pin) }, { transaction });
 
-  // Inside the row's transaction, so the admission and its record stand or fall together (and a dry run rolls
-  // both back). Never the PIN: only who was admitted and how.
   await audit.log({
     userId: ctx.actor?.id, action: 'student.admit', entityType: 'Student', entityId: student.id, transaction,
     metadata: { studentNumber: student.studentNumber, admissionNumber: row.admissionNumber ?? null, via },
@@ -108,7 +83,6 @@ const createAdmission = async (row, program, ctx, transaction, { via = 'single' 
   return { student, credentials: { studentNumber: student.studentNumber, schoolEmail: email, pin } };
 };
 
-/** Admits one student. Returns the student profile and the one-time credentials. */
 export const admit = async (data, actor) => {
   const { student, credentials } = await sequelize.transaction(async (transaction) => {
     const ctx = { domain: await studentEmailDomain(transaction), actor };
@@ -118,11 +92,6 @@ export const admit = async (data, actor) => {
   return { student: await getStudent(student.id), credentials };
 };
 
-/**
- * Bulk admission, with the same per-row transactions and dry run as the other imports.
- * A row whose studentNumber or admissionNumber is already known updates that student (name,
- * programme, level, session) and never issues a new PIN; only new admissions get credentials.
- */
 export const admitMany = async (body, actor) => {
   const domain = await studentEmailDomain();
   return runImport(body, async (row, transaction, ctx) => {

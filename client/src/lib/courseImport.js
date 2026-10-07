@@ -1,15 +1,8 @@
 import { readSheet } from 'read-excel-file/universal'
 import { parseCsv, toCsv } from './csv.js'
 
-/*
- * Course-catalogue import (SCRS-backend POST /api/admin/import/course-catalog). The file is read here
- * (CSV, or .xlsx via read-excel-file) into rows; the server validates every row against the database
- * and imports only on request. Pure helpers, unit-tested in courseImport.test.js.
- */
-
 export const MAX_ROWS = 5000
 
-/** Template columns: [header, API field, required, hint]. */
 export const COLUMNS = [
   ['course_code', 'courseCode', true, 'Letters, numbers and dashes, e.g. CS205'],
   ['course_title', 'courseTitle', true, 'e.g. Database Systems II'],
@@ -37,7 +30,6 @@ export const TEMPLATE_ROWS = [
 
 export const templateCsv = () => toCsv(HEADERS, TEMPLATE_ROWS)
 
-/** "Course Code" / "course-code" / " COURSE_CODE " → "course_code". */
 export const normalizeHeader = (h) => String(h ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_')
 
 const cellText = (v) => {
@@ -46,7 +38,6 @@ const cellText = (v) => {
   return String(v).trim()
 }
 
-/** Rows from an .xlsx sheet (arrays of cells) → the same `{ headers, records }` shape as parseCsv. */
 export const sheetToRecords = (data) => {
   const rows = data.map((cells, i) => ({ line: i + 1, cells: cells.map(cellText) })).filter((r) => r.cells.some((c) => c !== ''))
   const [head, ...body] = rows
@@ -57,7 +48,6 @@ export const sheetToRecords = (data) => {
   }
 }
 
-/** Reads a chosen File (CSV or XLSX). Throws an Error with a user-facing message for anything else. */
 export const readSpreadsheet = async (file) => {
   const name = file.name.toLowerCase()
   if (name.endsWith('.csv')) return parseCsv(await file.text())
@@ -66,7 +56,6 @@ export const readSpreadsheet = async (file) => {
   throw new Error('Choose a .csv or .xlsx file.')
 }
 
-/** Missing required columns (blocking) and columns that will be ignored. */
 export const checkHeaders = (headers) => {
   const present = new Set(headers.map(normalizeHeader))
   return {
@@ -75,7 +64,6 @@ export const checkHeaders = (headers) => {
   }
 }
 
-/** Records → API rows, keeping each record's spreadsheet line for error messages. */
 export const toApiRows = (records) => records.map(({ line, values }) => {
   const byHeader = Object.fromEntries(Object.entries(values).map(([h, v]) => [normalizeHeader(h), v]))
   return Object.fromEntries([['line', line], ...COLUMNS.map(([h, field]) => [field, byHeader[h] ?? ''])])
@@ -89,7 +77,6 @@ export const STATUS = {
   failed: { label: 'Failed', tone: 'red' },
 }
 
-/** A downloadable report: every row with its outcome and reasons. */
 export const reportCsv = (rows) => toCsv(
   ['line', 'course_code', 'programme', 'status', 'errors'],
   rows.map((r) => ({ line: r.line, course_code: r.courseCode, programme: r.programme, status: r.status, errors: r.errors.join('; ') })),

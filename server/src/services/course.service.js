@@ -14,10 +14,6 @@ const isAdmin = (actor) => ADMIN_ROLES.includes(actor?.role);
 
 const departmentInclude = { model: Department, as: 'department', attributes: ['id', 'name', 'code'] };
 
-/**
- * Search/filter/sort/paginate courses.
- * Non-admin users only ever see active courses and non-cancelled sections, whatever they ask for.
- */
 export const list = async (query, actor) => {
   const { page, limit, offset, order } = buildPagination(query, COURSE_SORT_FIELDS, ['code', 'ASC']);
   const where = {};
@@ -42,7 +38,6 @@ export const list = async (query, actor) => {
       `(SELECT course_id FROM course_sections WHERE semester_id = ${sequelize.escape(query.semesterId)}${statusFilter})`,
     ) } });
   }
-  // Courses on a programme's curriculum.
   if (query.programId) {
     idFilters.push({ id: { [Op.in]: sequelize.literal(
       `(SELECT course_id FROM program_courses WHERE program_id = ${sequelize.escape(query.programId)})`,
@@ -122,7 +117,6 @@ export const update = async (id, data, actor) => {
   return getById(course.id, actor);
 };
 
-/** Soft delete: registrations and results keep referencing the course, so it is deactivated instead. */
 export const remove = async (id, actor) => {
   const course = await Course.findByPk(id);
   if (!course) throw new NotFoundError('Course');

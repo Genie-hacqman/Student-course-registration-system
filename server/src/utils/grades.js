@@ -1,7 +1,3 @@
-/**
- * Letter-grade scale. `rank` orders grades for comparisons ("C or better");
- * W (withdrawn) and I (incomplete) carry no points and never count as a pass or toward GPA.
- */
 export const GRADE_SCALE = Object.freeze({
   A: { points: 4.0, rank: 9 },
   'B+': { points: 3.5, rank: 8 },
@@ -24,20 +20,14 @@ export const normalizeGrade = (grade) => String(grade ?? '').trim().toUpperCase(
 
 export const isValidGrade = (grade) => normalizeGrade(grade) in GRADE_SCALE;
 
-/** Points for GPA, or null for W / I. */
 export const gradePoint = (grade) => GRADE_SCALE[normalizeGrade(grade)]?.points ?? null;
 
 const rank = (grade) => GRADE_SCALE[normalizeGrade(grade)]?.rank ?? 0;
 
-/** True if `grade` is a real (point-bearing) grade at least as good as `minGrade`. */
 export const meetsGrade = (grade, minGrade) => gradePoint(grade) !== null && rank(grade) >= rank(minGrade);
 
 export const isPassing = (grade, passingGrade = DEFAULT_PASSING_GRADE) => meetsGrade(grade, passingGrade);
 
-/**
- * Credit-weighted GPA. When a course was attempted more than once, only the best attempt counts.
- * `results` items: { courseId, grade, credits }.
- */
 export const computeGpa = (results, passingGrade = DEFAULT_PASSING_GRADE) => {
   const best = new Map();
   for (const r of results) {

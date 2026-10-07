@@ -12,11 +12,9 @@ const TABS = [
   { value: 'sessions', label: 'Sessions' },
 ]
 
-/** Account settings for everyone: staff and lecturers' Profile/Settings, and the student Settings page. */
 export default function Account() {
   const { user } = useAuth()
-  const isStudent = user?.role?.name === 'STUDENT' // applicants and students share this page
-  // The tab lives in the URL so "Settings" links can open Security directly.
+  const isStudent = user?.role?.name === 'STUDENT'
   const [params, setParams] = useSearchParams()
   const tab = TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'profile'
   const setTab = (value) => setParams(value === 'profile' ? {} : { tab: value }, { replace: true })

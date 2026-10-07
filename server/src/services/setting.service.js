@@ -28,12 +28,10 @@ export const upsertMany = async (settings, actor) => {
         defaults: { key, value, description },
         transaction,
       });
-      // `from` is what the system was using: the stored value, or the built-in default for a first write.
       const from = created ? DEFAULTS[key] ?? null : setting.value;
       if (!created) await setting.update({ value, ...(description ? { description } : {}) }, { transaction });
       if (JSON.stringify(from ?? null) !== JSON.stringify(value ?? null)) changes[key] = { from: from ?? null, to: value };
     }
-    // None of the settings holds a secret (see SETTING_VALUES), so values are recorded as they are.
     await audit.log({
       userId: actor.id, action: 'settings.update', entityType: 'Setting', transaction,
       metadata: { keys: settings.map((s) => s.key), changes },

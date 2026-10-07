@@ -15,16 +15,11 @@ before(async () => {
 });
 after(() => sequelize.close());
 
-// Either ADMIN or REGISTRAR may run the departments→sections pipeline (see import.routes.js's
-// `academic` guard) — people (lecturers/students/invites) stay ADMIN-only, and `course-catalog` (the
-// separate one-row-per-course×programme tool) stays REGISTRAR-only. This just picks a sensible
-// default actor per path for tests that don't care which of the two valid roles is used.
 const REGISTRY_IMPORTS = ['courses', 'program-courses', 'prerequisites', 'sections', 'course-catalog'];
 const post = (path, body, who = REGISTRY_IMPORTS.includes(path) ? registrar : admin) =>
   api().post(`/api/admin/import/${path}`).set(auth(who.token)).send(body);
 const count = async (sql, replacements) => Number((await query(sql, replacements))[0].n);
 
-// A small but complete institution, in dependency order. Codes avoid the demo seed's.
 const files = {
   departments: [{ code: 'eng', name: 'Engineering' }],
   programs: [{ code: 'BENG', name: 'BEng Engineering', departmentCode: 'ENG', maxCredits: 21 }],
@@ -92,7 +87,7 @@ describe('bulk import', () => {
       assert.equal(res.body.data.created, rows.length, path);
     }
     const [program] = await query("SELECT max_credits, duration_years FROM programs WHERE code = 'BENG'");
-    assert.deepEqual(program, { max_credits: 21, duration_years: 4 }); // omitted durationYears gets the default
+    assert.deepEqual(program, { max_credits: 21, duration_years: 4 });
     assert.equal(await count("SELECT COUNT(*) n FROM course_prerequisites p JOIN courses c ON c.id = p.course_id WHERE c.code = 'ENG201' AND p.group_no = 1"), 2);
     const [ada] = await query("SELECT l.staff_number, u.password_hash FROM lecturers l JOIN users u ON u.id = l.user_id WHERE u.email = 'ada.eng@test.local'");
     assert.deepEqual(ada, { staff_number: 'ENG-001', password_hash: '!invite-pending' });
@@ -130,7 +125,6 @@ describe('bulk import', () => {
     assert.match(res.body.data.errors[0].message, /Unknown department code NOPE/);
     assert.match(res.body.data.errors[1].message, /already belongs to a STUDENT account/);
     assert.match(res.body.data.errors[2].message, /Duplicate value/);
-    // The failed lecturer profile left no orphan account behind.
     assert.equal(await count("SELECT COUNT(*) n FROM users WHERE email = 'dup.number@test.local'"), 0);
   });
 
@@ -179,7 +173,6 @@ describe('invites', () => {
     assert.equal(reset.status, 200, JSON.stringify(reset.body));
 
     const ada = await login('ada.eng@test.local', 'Imported@12345');
-    // Having set a password, they drop out of the pending-invite pool.
     assert.equal((await api().post(`/api/users/${ada.user.id}/invite`).set(auth(admin.token))).status, 409);
   });
 

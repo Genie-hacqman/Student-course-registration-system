@@ -8,8 +8,6 @@ import {
 
 const AuthContext = createContext(null)
 
-// Restores the session from the refresh cookie once per page load. Memoised at module level so
-// StrictMode's double effect can't issue two rotating refreshes.
 let bootstrapPromise = null
 const bootstrap = () => {
   bootstrapPromise ??= refreshAccessToken()
@@ -28,7 +26,6 @@ export function AuthProvider({ children }) {
     setUser(null)
     setStatus('anonymous')
     qc.clear()
-    // A later mount (e.g. hot reload) must ask the server again, not reuse the signed-in result.
     bootstrapPromise = null
     setSigningOut(false)
   }, [qc])
@@ -47,7 +44,6 @@ export function AuthProvider({ children }) {
     }
   }, [clearSession])
 
-  // Error reports say which account hit them, by id and role only.
   useEffect(() => { setMonitoringUser(user) }, [user])
 
   const establish = useCallback((data) => {
@@ -61,11 +57,8 @@ export function AuthProvider({ children }) {
     user,
     status,
     login: async (credentials) => establish(await authApi.login(credentials)),
-    /** The server ends every session on a PIN change and returns fresh tokens for this device. */
     changePin: async (body) => establish(await authApi.changePin(body)),
     logout: async ({ everywhere = false } = {}) => {
-      // Let any refresh in flight finish first, so the logout carries the newest cookie and revokes it.
-      // logout-all needs a valid access token and revokes every token anyway, so it may still refresh.
       setSigningOut(!everywhere)
       try {
         await waitForRefresh()
@@ -74,11 +67,8 @@ export function AuthProvider({ children }) {
         clearSession()
       }
     },
-    /** For flows where the server already ended the session (password change). */
     endSession: clearSession,
-    /** Re-reads the profile after it changed on the server (name edit, email verified). */
     refreshUser: async () => setUser(await authApi.me()),
-    /** Swaps in a profile the server just returned (e.g. after a picture change). */
     setProfile: setUser,
   }), [user, status, establish, clearSession])
 

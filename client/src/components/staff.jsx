@@ -2,7 +2,6 @@ import { useSearchParams } from 'react-router-dom'
 import { useSemesters } from '../api/staff'
 import { Select } from './ui'
 
-/** Semester id from `?semester=`, defaulting to the current semester once the list loads. */
 export function useSemesterParam() {
   const [params, setParams] = useSearchParams()
   const semesters = useSemesters()
@@ -29,6 +28,5 @@ export function SemesterSelect({ value, onChange, semesters }) {
   )
 }
 
-/** Kept for existing imports; new code uses StatCard and the charts module directly. */
 export { StatCard as Stat } from './dashboard/StatCard'
 export { StatusChart, FillRateChart } from './charts/Charts'

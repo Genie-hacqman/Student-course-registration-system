@@ -19,7 +19,6 @@ export const EVENTS = {
 let socket = null
 export const getSocket = () => socket
 
-/** Keeps the cached catalog's seat counts live without refetching it. */
 const patchSeats = (qc, { sectionId, seatsTaken, seatsAvailable }) => {
   qc.setQueryData(keys.available, (data) => data && ({
     ...data,
@@ -30,18 +29,15 @@ const patchSeats = (qc, { sectionId, seatsTaken, seatsAvailable }) => {
   }))
 }
 
-/** One socket per signed-in session; server events become cache updates and toasts. */
 export function SocketBridge() {
   const { user, refreshUser } = useAuth()
   const qc = useQueryClient()
 
   useEffect(() => {
     if (!user) return undefined
-    // `auth` as a function is re-read on every (re)connect, so it always sends the newest token.
     socket = io(API_ORIGIN || undefined, { auth: (cb) => cb({ token: getToken() }), transports: ['websocket'] })
     socket.on('connect', joinWanted)
 
-    // One refresh-and-retry per failure streak; a token the server still rejects must not loop.
     let retried = false
     socket.on('connect', () => { retried = false })
     socket.on('connect_error', async (err) => {
@@ -50,14 +46,11 @@ export function SocketBridge() {
       try {
         await refreshAccessToken()
         socket?.connect()
-      } catch {
-        // Session is gone; AuthProvider handles the redirect on the next API call.
-      }
+      } catch {}
     })
     socket.on(EVENTS.NOTIFICATION, (n) => {
       toast(n.title, { description: n.message })
       qc.invalidateQueries({ queryKey: ['notifications'] })
-      // An approved name change renames the user; any decision updates their request list and the admin queue.
       if (n.type?.startsWith('ACCOUNT_REQUEST')) {
         qc.invalidateQueries({ queryKey: ['change-requests'] })
         qc.invalidateQueries({ queryKey: ['api', '/admin/account-requests'] })
@@ -65,8 +58,6 @@ export function SocketBridge() {
       }
       if (n.type?.endsWith('_BY_STAFF')) invalidateRegistration(qc)
     })
-    // Staff sockets are in the admin:dashboard room and receive every student's events;
-    // debounce so a burst of registrations refetches the staff views once, not per event.
     let staffTimer = null
     const refreshStaff = () => {
       clearTimeout(staffTimer)
@@ -77,7 +68,6 @@ export function SocketBridge() {
     socket.on(EVENTS.REGISTRATION_CREATED, () => !isStudent && refreshStaff())
     socket.on(EVENTS.REGISTRATION_STATUS, () => (isStudent ? invalidateRegistration(qc) : refreshStaff()))
     socket.on(EVENTS.TIMETABLE, () => invalidateRegistration(qc))
-    // The seat-available notification arrives via NOTIFICATION; here we only refresh the data.
     socket.on(EVENTS.WAITLIST_SEAT, () => invalidateRegistration(qc))
     socket.on(EVENTS.CAPACITY, (payload) => (isStudent ? patchSeats(qc, payload) : refreshStaff()))
 
@@ -86,20 +76,17 @@ export function SocketBridge() {
       socket?.disconnect()
       socket = null
     }
-  // Reconnect only when the signed-in person changes, not when their profile is re-read.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, qc])
 
   return null
 }
 
-// Section rooms wanted by mounted components (refcounted), re-joined on every (re)connect.
 const wantedRooms = new Map()
 const joinWanted = () => {
   if (socket?.connected && wantedRooms.size) socket.emit('section:join', [...wantedRooms.keys()])
 }
 
-/** Subscribes to live capacity updates for the given sections while mounted. */
 export function useSectionRooms(sectionIds) {
   const key = [...sectionIds].sort((a, b) => a - b).join(',')
   useEffect(() => {

@@ -2,7 +2,6 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Access tokens revoked before they expire (logout). Rows can be purged once expires_at has passed.
     await queryInterface.createTable('revoked_access_tokens', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       jti: { type: Sequelize.CHAR(36), allowNull: false, unique: true },
@@ -19,7 +18,6 @@ module.exports = {
     await queryInterface.addIndex('revoked_access_tokens', ['expires_at']);
     await queryInterface.addIndex('refresh_tokens', ['expires_at']);
 
-    // Bumping this invalidates every access token the user holds ("log out everywhere").
     await queryInterface.addColumn('users', 'token_version', {
       type: Sequelize.INTEGER,
       allowNull: false,

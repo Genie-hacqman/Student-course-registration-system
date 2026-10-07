@@ -7,7 +7,6 @@ import AvatarUploader from './AvatarUploader'
 
 const auth = vi.hoisted(() => ({ user: null, setProfile: vi.fn() }))
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => auth }))
-// jsdom has no canvas, so cropping is faked; the file-type and size checks stay real.
 vi.mock('../../lib/image', async (importOriginal) => ({
   ...(await importOriginal()),
   fileToAvatarImages: vi.fn().mockResolvedValue({ image: 'data:image/jpeg;base64,FULL', thumb: 'data:image/jpeg;base64,THUMB' }),

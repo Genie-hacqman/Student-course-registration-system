@@ -2,17 +2,14 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Who acted (as they were at the time), the browser, and the row's integrity signature.
     await queryInterface.addColumn('audit_logs', 'user_agent', { type: Sequelize.STRING(255) });
     await queryInterface.addColumn('audit_logs', 'actor_email', { type: Sequelize.STRING(255) });
     await queryInterface.addColumn('audit_logs', 'actor_role', { type: Sequelize.STRING(30) });
     await queryInterface.addColumn('audit_logs', 'row_hmac', { type: Sequelize.CHAR(64) });
 
-    // The list is ordered and filtered by time; the sign-in view filters on action plus time.
     await queryInterface.addIndex('audit_logs', ['created_at'], { name: 'audit_logs_created_at' });
     await queryInterface.addIndex('audit_logs', ['action', 'created_at'], { name: 'audit_logs_action_created_at' });
 
-    // One row per sealed batch; the seals form a hash chain per stream. Never deleted by the app.
     await queryInterface.createTable('audit_seals', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
       stream: { type: Sequelize.STRING(10), allowNull: false },
@@ -26,7 +23,6 @@ module.exports = {
       purged_at: { type: Sequelize.DATE },
       created_at: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') },
     });
-    // Two servers sealing at once cannot both claim the same starting row.
     await queryInterface.addIndex('audit_seals', ['stream', 'from_id'], { unique: true, name: 'audit_seals_stream_from' });
   },
 

@@ -155,7 +155,6 @@ describe('concurrency', () => {
     const sectionId = await sectionIdFor('CS202');
     await query('UPDATE course_sections SET capacity = 1, seats_taken = 0 WHERE id = :id', { id: sectionId });
     const students = await Promise.all([1, 2, 3, 4, 5].map((n) => createStudent(n)));
-    // CS202 needs CS201 as well.
     await query(
       `INSERT INTO results (student_id, course_id, grade, grade_point, passed, created_at, updated_at)
        SELECT s.id, c.id, 'A', 4.0, true, NOW(), NOW() FROM students s, courses c

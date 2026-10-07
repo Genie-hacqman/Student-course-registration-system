@@ -2,7 +2,6 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Existing rows (seeded / imported history) are already official, so they default to 'final'.
     await queryInterface.addColumn('results', 'course_section_id', {
       type: Sequelize.INTEGER,
       references: { model: 'course_sections', key: 'id' },

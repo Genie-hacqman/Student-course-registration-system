@@ -8,17 +8,6 @@ import * as audit from './audit.service.js';
 import { summariseEntries } from '../utils/audit-diff.js';
 import { validateCatalog, importOrder, summarize, parseCodes } from './course-import/validate.js';
 
-/*
- * Course-catalogue import (POST /api/admin/import/course-catalog, course:catalog).
- *
- * `dryRun: true` is the preview: every row is validated against the database and reported as valid,
- * invalid or duplicate; nothing is written. A real run validates again (the database may have changed
- * since the preview) and imports the valid courses one transaction per course: the course, its
- * curriculum entries (programme, type, level, semester, academic year) and its prerequisites. A course
- * that fails rolls back alone; courses that depend on it are reported as failed too. Existing courses
- * are never modified, and no sections or timetable slots are created: scheduling stays separate.
- */
-
 const loadLookups = async (rows) => {
   const codes = new Set();
   for (const r of rows) {
@@ -65,7 +54,6 @@ const importCourse = async ({ code, rows }, courseIds, actor) => sequelize.trans
       academicYearId: row.academicYear?.id ?? null,
     }, { transaction });
   }
-  // Each listed prerequisite is required (its own group), like adding them one by one.
   for (const pre of first.prerequisites) {
     await addGroup(course.id, { courseIds: [courseIds.get(pre)] }, actor, transaction);
   }
@@ -99,7 +87,6 @@ export const importCatalog = async ({ rows, dryRun }, actor, req) => {
       mark(group, 'imported');
     } catch (err) {
       failedCodes.add(group.code);
-      // Someone created the same code since validation: still never overwrite it.
       if (err instanceof UniqueConstraintError) mark(group, 'duplicate', `Course ${group.code} already exists — it was not changed`);
       else mark(group, 'failed', `Not imported: ${err.message}`);
     }
@@ -112,7 +99,6 @@ export const importCatalog = async ({ rows, dryRun }, actor, req) => {
     entityType: 'Course',
     metadata: {
       total: report.total, imported: report.imported, failed: report.failed, invalid: report.invalid, duplicates: report.duplicates,
-      // Which courses were actually created (or failed), capped; rows that were only checked are not listed.
       rows: summariseEntries(results
         .filter((r) => r.status === 'imported' || r.status === 'failed')
         .map((r) => ({ courseCode: r.courseCode, programme: r.programme, status: r.status }))),

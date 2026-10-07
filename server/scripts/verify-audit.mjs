@@ -1,6 +1,3 @@
-// Checks the audit log for tampering: recomputes every row signature and seal.
-//   npm run audit:verify          exits 0 when intact, 1 when a problem is found
-// Needs the same .env as the server (AUDIT_HMAC_SECRET must be the key the rows were signed with).
 import { sequelize } from '../src/models/index.js';
 import { verify } from '../src/services/audit-maintenance.service.js';
 

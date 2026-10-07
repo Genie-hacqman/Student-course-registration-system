@@ -29,7 +29,6 @@ describe('the action catalogue', () => {
   });
 
   test('every action written anywhere in the code is in the catalogue (no drift)', () => {
-    // Each `action: ...` expression: quoted literals inside it are actions (covers ternaries and option objects).
     const missing = [];
     for (const file of [...sourceFiles(path.join(root, 'src')), ...sourceFiles(path.join(root, 'scripts'))]) {
       if (file.endsWith('audit-actions.js')) continue;
@@ -78,8 +77,6 @@ describe('retention streams follow the catalogue', () => {
   });
 
   test('actions already written before this catalogue stay in the stream they were sealed in', () => {
-    // Moving an action between streams would break existing seals. These were all 'main' (or the three sign-in
-    // actions) when the first seals were written, so they must not be short-retention.
     for (const e of AUDIT_CATALOGUE.filter((x) => !x.action.startsWith('security.') && !x.action.startsWith('auth.login'))) {
       assert.ok(!e.shortRetention, `${e.action} must not be short-retention`);
     }

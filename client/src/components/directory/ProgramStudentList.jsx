@@ -3,10 +3,6 @@ import { useApi } from '../../api/admin'
 import { SearchInput, Tabs } from '../ui'
 import StudentTable from './StudentTable'
 
-/**
- * A programme's students, by level: level tabs with counts, a search box, then the student list.
- * `levels` is `[{ level, students }]` from the server (the caller already has it); `?level`, `?search` and `?page` live in the URL.
- */
 export default function ProgramStudentList({ programId, levels, countsReady = true }) {
   const [params, setParams] = useSearchParams()
   const level = params.get('level') ?? ''

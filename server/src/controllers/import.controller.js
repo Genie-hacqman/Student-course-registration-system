@@ -15,7 +15,6 @@ export const sections = handle(importService.importSections);
 export const invites = handle(importService.sendPendingInvites);
 export const courseCatalog = async (req, res) => ok(res, await courseImportService.importCatalog(req.validated.body, req.user, req));
 
-/** Students are admitted by the school now, with a Student ID and PIN rather than an emailed invite. */
 export const studentsMoved = () => {
   throw new AppError('Students are imported through admission now: POST /api/admissions/bulk', 410, 'GONE');
 };

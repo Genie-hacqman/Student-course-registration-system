@@ -1,7 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/** An individual student's registration start time for a semester; beats any priority window. */
 class RegistrationTimeOverride extends Model {}
 
 RegistrationTimeOverride.init(

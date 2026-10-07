@@ -5,8 +5,6 @@ import { renderWithProviders } from '../../test/render'
 import { authApi } from '../../api/auth'
 import ForgotPassword from './ForgotPassword'
 
-// The page's own copy is the enumeration-safety guarantee made visible: it must never let the
-// existence of an account be inferred from what's shown, so this locks that message in place.
 const GENERIC_MESSAGE = 'If an account exists for that email, your request has been received. You will get an email with a reset link once it is approved by the administrator.'
 
 describe('ForgotPassword', () => {
@@ -19,7 +17,6 @@ describe('ForgotPassword', () => {
     await user.click(screen.getByRole('button', { name: /request password reset/i }))
 
     await waitFor(() => expect(screen.getByText(GENERIC_MESSAGE)).toBeInTheDocument())
-    // React Query's mutationFn also receives a context object (client, meta, mutationKey) as a 2nd arg.
     expect(authApi.forgotPassword).toHaveBeenCalledWith({ email: 'someone@example.com' }, expect.anything())
   })
 

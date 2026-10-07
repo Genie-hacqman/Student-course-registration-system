@@ -4,18 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Button, Modal, cx } from '../ui'
 import { applyServerErrors } from '../../lib/forms'
 
-/**
- * A modal form. `onSubmit(values)` returns a promise; server field errors (422 / duplicate 409)
- * are shown on the matching inputs and anything else is toasted. Closes on success.
- * `children` is a render function receiving the react-hook-form API.
- */
 export default function FormModal({ open, onClose, title, schema, defaultValues, onSubmit, submitLabel = 'Save', children, wide, onError }) {
   const form = useForm({ resolver: zodResolver(schema), defaultValues })
   const { handleSubmit, reset, setError, formState: { isSubmitting } } = form
 
   useEffect(() => {
     if (open) reset(defaultValues)
-    // Reset only when the dialog opens, not on every parent render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
@@ -24,7 +18,6 @@ export default function FormModal({ open, onClose, title, schema, defaultValues,
       await onSubmit(values)
       onClose()
     } catch (err) {
-      // A page can show some errors itself (e.g. a timetable clash list); it returns true when it did.
       if (onError?.(err)) return
       applyServerErrors(err, setError, schema.shape ? Object.keys(schema.shape) : undefined)
     }

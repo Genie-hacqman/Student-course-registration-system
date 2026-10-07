@@ -5,7 +5,6 @@ import { renderWithProviders } from '../../test/render'
 import { applicationsApi } from '../../api/applications'
 import ApplicationPhoto from './ApplicationPhoto'
 
-// jsdom has no canvas, so cropping is faked; the file-type checks stay real.
 vi.mock('../../lib/image', async (importOriginal) => ({
   ...(await importOriginal()),
   fileToOfficialPhoto: vi.fn().mockResolvedValue(new Blob(['jpeg'], { type: 'image/jpeg' })),

@@ -42,7 +42,6 @@ function Windows({ semester }) {
   const toBody = (v) => ({
     name: v.name,
     opensAt: fromLocalInput(v.opensAt),
-    // null clears a condition on update; omitted fields would keep the old value.
     minLevel: v.minLevel ?? (editing?.id ? null : undefined),
     programId: v.programId ?? (editing?.id ? null : undefined),
   })

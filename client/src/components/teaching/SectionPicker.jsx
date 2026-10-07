@@ -3,10 +3,6 @@ import { BookOpen } from 'lucide-react'
 import { currentSections, useMySections } from '../../api/lecturer'
 import { Card, EmptyState, ErrorState, Select, Skeleton } from '../ui'
 
-/**
- * The lecturer's current sections as a picker, with the choice kept in `?section=`.
- * Renders `children(section)` for the chosen one.
- */
 export function WithSection({ children, label = 'Course' }) {
   const sections = useMySections()
   const [params, setParams] = useSearchParams()

@@ -11,14 +11,12 @@ import { initMonitoring } from './lib/monitoring'
 import { MotionProvider } from './lib/motionPresets'
 import './index.css'
 
-// Error tracking first, so a crash during start-up is reported too (a no-op without VITE_SENTRY_DSN).
 initMonitoring()
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      // Don't retry client errors (403/404/422…) — they won't change on their own.
       retry: (count, err) => (err?.status === 0 || err?.status >= 500) && count < 2,
       refetchOnWindowFocus: true,
     },

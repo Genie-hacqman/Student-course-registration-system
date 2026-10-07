@@ -1,9 +1,3 @@
-/**
- * The last gaps in the audit log: edits that are written atomically with their record (so a failed audit write
- * rolls the change back), system consequences that used to leave no trace (waitlist notified/converted, timetable
- * issues closed on approval, section cancelled vs deleted), one row for one lecturer activation, and no personal
- * data in the record of a deleted applicant.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -19,7 +13,6 @@ let math201;
 const rows = (action, where = '') => query(`SELECT * FROM audit_logs WHERE action = :action ${where} ORDER BY id`, { action });
 const last = async (action) => (await rows(action)).at(-1);
 
-/** Makes every audit write fail, runs `fn`, and always puts the real writer back. */
 const withBrokenAudit = async (fn) => {
   const real = AuditLog.create;
   AuditLog.create = async () => { throw new Error('audit store unavailable'); };
@@ -65,7 +58,6 @@ describe('an edit and its audit row commit or fail together', () => {
     assert.equal((await query("SELECT COUNT(*) n FROM programs WHERE code = 'NOPE-P'"))[0].n, 0);
     assert.equal((await query("SELECT COUNT(*) n FROM users WHERE email = 'nobody@test.local'"))[0].n, 0);
 
-    // The same requests succeed, with their rows, once the audit store is back.
     assert.equal((await api().post('/api/courses').set(auth(registrar.token)).send({ departmentId, code: 'YES101', title: 'Yes', credits: 3, level: 100 })).status, 201);
     assert.ok(await last('course.create'));
   });
@@ -158,7 +150,6 @@ describe('system consequences are recorded', () => {
     assert.equal(deleted.entity_id, fresh.body.data.id);
     assert.equal((await query('SELECT COUNT(*) n FROM course_sections WHERE id = :id', { id: fresh.body.data.id }))[0].n, 0);
 
-    // CS203 was registered and dropped by someone: it has history, so it can only be cancelled.
     const cs203 = await sectionIdFor('CS203');
     const student = await createStudent(5);
     const added = await api().post('/api/registrations/items').set(auth(student.token)).send({ courseSectionId: cs203 });
@@ -197,7 +188,6 @@ describe('one action, one row', () => {
       assert.equal((await api().post(`/api/lecturers/${lecturerId}/deactivate`).set(auth(admin.token))).status, 500);
     });
     assert.equal((await query('SELECT status FROM users WHERE id = :userId', { userId }))[0].status, 'active', 'rolled back with the audit row');
-    // Still able to sign in: nothing about the account changed.
     assert.equal((await login('lecturer@scrs.local', 'Lecturer@12345')).user.email, 'lecturer@scrs.local');
   });
 });

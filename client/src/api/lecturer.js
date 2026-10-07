@@ -24,7 +24,6 @@ export const useRoster = (sectionId) =>
     enabled: Boolean(sectionId),
   })
 
-/** Rosters for several sections at once (the lecturer's Students page). */
 export const useRosters = (sectionIds) =>
   useQueries({
     queries: sectionIds.map((id) => ({
@@ -33,7 +32,6 @@ export const useRosters = (sectionIds) =>
     })),
   })
 
-/** Current-semester sections, falling back to the latest semester if none is marked current. */
 export const currentSections = (sections = []) => {
   const current = sections.filter((s) => s.semester?.isCurrent)
   if (current.length) return current

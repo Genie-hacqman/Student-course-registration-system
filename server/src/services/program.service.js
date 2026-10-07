@@ -8,7 +8,6 @@ import { assertDepartmentOpen } from './org-status.service.js';
 
 const include = [{ model: Department, as: 'department', attributes: ['id', 'name', 'code', 'status'] }];
 
-/** Programmes with their department; `status` and `search` narrow it (e.g. `status=active` for pickers). */
 export const list = ({ departmentId, status, search } = {}) => {
   const where = {};
   if (departmentId) where.departmentId = departmentId;
@@ -50,7 +49,6 @@ export const update = async (id, data, actor, req) => {
   return getById(id);
 };
 
-/** Archived = closed to new applications and admissions; activating needs its department to be open. */
 export const setStatus = async (id, status, actor, req) => {
   const program = await getById(id);
   if (program.status === status) throw new ConflictError(`${program.name} is already ${status}`);
@@ -75,8 +73,6 @@ export const remove = async (id, actor, req) => {
     await audit.log({ userId: actor.id, action: 'program.delete', entityType: 'Program', entityId: id, metadata: { code: program.code }, req, transaction });
   });
 };
-
-// ── Curriculum: which courses the program's students may register for ─────────
 
 export const listCourses = async (programId) => {
   const program = await getById(programId);

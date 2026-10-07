@@ -2,10 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from './client'
 
-/** Plain array for unpaginated endpoints; `{ items, meta }` for paginated ones. */
 const read = (res) => (res.data.meta ? { items: res.data.data, meta: res.data.meta } : res.data.data)
 
-/** GET with the path + params as the cache key. Pass `path = null` to disable. */
 export const useApi = (path, params, options = {}) =>
   useQuery({
     queryKey: ['api', path, params ?? {}],
@@ -15,10 +13,6 @@ export const useApi = (path, params, options = {}) =>
     ...options,
   })
 
-/**
- * A write. After success every cached query is marked stale: catalog changes ripple into the
- * student catalog, pickers, sections and reports, and refetching only what's on screen is cheap.
- */
 export const useApiMutation = (fn, { success } = {}) => {
   const qc = useQueryClient()
   return useMutation({

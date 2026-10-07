@@ -4,7 +4,6 @@ import { useMySections } from '../../api/lecturer'
 import { Badge, Card, CardHeader, EmptyState, PageHeader, ProgressBar, QueryState, SkeletonTable } from '../../components/ui'
 import { DAY_NAMES, formatTime } from '../../lib/format'
 
-/** Sections grouped by semester, current semester first. */
 const bySemester = (sections) => {
   const groups = new Map()
   sections.forEach((s) => {

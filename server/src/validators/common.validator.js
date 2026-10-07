@@ -9,7 +9,6 @@ export const paginationQuery = {
   sort: z.string().max(50).optional(),
 };
 
-/** "HH:MM" or "HH:MM:SS", normalised to "HH:MM:SS". */
 export const time = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'Must be a time in HH:MM format')

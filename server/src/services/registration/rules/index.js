@@ -16,7 +16,6 @@ export {
   prerequisite, corequisite, corequisiteWarnings, levelEligibility, capacity, creditLimit, timetableConflict, semesterEligibility,
 };
 
-/** Rules run when adding a section. Order is the order failures are reported in. */
 export const ADD_RULES = [
   registrationWindow,
   studentEligibility,
@@ -31,12 +30,7 @@ export const ADD_RULES = [
   timetableConflict,
 ];
 
-/**
- * Per-item rules re-checked on submit (the seat is already held, so capacity is not re-checked).
- * Corequisites are only enforced here — see corequisite.rule.js.
- */
 export const SUBMIT_ITEM_RULES = [sectionAvailability, programEligibility, semesterEligibility, prerequisite, corequisite, levelEligibility, timetableConflict];
 
-/** Runs every rule and returns all failures (not just the first) so the client can show them together. */
 export const runRules = (rules, context) =>
   rules.map((rule) => rule(context)).filter((result) => !result.passed);

@@ -14,10 +14,6 @@ const schema = z
 
 const pinInput = { type: 'password', inputMode: 'numeric', maxLength: 6, autoComplete: 'off' }
 
-/**
- * Landing page for the admission email's link: `${FRONTEND_URL}/activate?token=…`. The newly admitted
- * student chooses their PIN here; the link works once. Afterwards they sign in with Student ID + PIN.
- */
 export default function Activate() {
   const [params] = useSearchParams()
   const token = params.get('token')

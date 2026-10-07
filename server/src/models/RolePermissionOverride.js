@@ -1,7 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/** An admin's change to a role's default permissions: granted = true adds one, false removes one. */
 class RolePermissionOverride extends Model {}
 
 RolePermissionOverride.init(

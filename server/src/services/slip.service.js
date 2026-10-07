@@ -14,10 +14,6 @@ import * as settingService from './setting.service.js';
 
 const SLIP_KEY = crypto.createHash('sha256').update(`slip:${env.JWT_ACCESS_SECRET}`).digest();
 
-/**
- * Code printed on the slip. It covers the reference, the status and the exact sections held,
- * so a printout stops verifying as soon as the student adds/drops a course or the status changes.
- */
 export const verificationCode = ({ referenceNumber, status, sectionIds }) =>
   crypto
     .createHmac('sha256', SLIP_KEY)
@@ -30,11 +26,6 @@ const formatSlot = (s) => `${s.day} ${s.startTime.slice(0, 5)}–${s.endTime.sli
 
 const PRINTABLE = [REGISTRATION_STATUS.SUBMITTED, REGISTRATION_STATUS.APPROVED];
 
-/**
- * The photo submitted with the student's admission application, as a JPEG data URL for the PDF; null when there is
- * none. Deliberately NOT the profile picture: this is a registry document, and a student admitted by staff (no
- * application) simply has no official photo. Best effort: a slip must never fail because of a picture.
- */
 const officialPhotoOf = async (userId) => {
   try {
     const application = await AdmissionApplication.findOne({ where: { userId }, attributes: ['photoKey'] });
@@ -47,11 +38,6 @@ const officialPhotoOf = async (userId) => {
   }
 };
 
-/**
- * Everything printed on the slip, straight from the database. The student's OFFICIAL application photo
- * (`student.photo`) is only loaded for the PDF (`withPhoto`): it is tens of KB, and neither the JSON slip nor the public
- * verify endpoint should carry it.
- */
 export const buildSlip = async (registrationId, { withPhoto = false } = {}) => {
   const registration = await Registration.findByPk(registrationId, {
     include: [
@@ -128,7 +114,6 @@ export const buildSlip = async (registrationId, { withPhoto = false } = {}) => {
   };
 };
 
-/** Students may only print their own registration (someone else's is reported as not found). */
 export const getSlipForStudent = async (userId, registrationId, options) => {
   const student = await studentService.getByUserId(userId);
   const owned = await Registration.count({ where: { id: registrationId, studentId: student.id } });
@@ -140,10 +125,6 @@ export const getSlipForStaff = (registrationId, options) => buildSlip(registrati
 
 const maskStudentNumber = (n) => (n.length <= 4 ? '****' : `${n.slice(0, 3)}${'*'.repeat(n.length - 5)}${n.slice(-2)}`);
 
-/**
- * Checks a printed slip against the live registration. Returns details only when the code matches,
- * so the endpoint can't be used to look up other students' registrations.
- */
 export const verify = async (referenceNumber, code) => {
   const registration = await Registration.findOne({ where: { referenceNumber } });
   if (!registration || !code) return { valid: false };

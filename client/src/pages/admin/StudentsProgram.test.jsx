@@ -36,7 +36,6 @@ describe('Students by department: one programme', () => {
     expect(screen.getByRole('tab', { name: /Level 100/ })).toHaveTextContent('1')
     expect(screen.getByRole('tab', { name: /Level 200/ })).toHaveTextContent('2')
     expect(screen.getByRole('link', { name: 'Computer Science' })).toHaveAttribute('href', '/staff/students/departments/1')
-    // The programme and department are already in the page header, so the table leaves those columns out.
     expect(screen.queryByRole('columnheader', { name: 'Programme' })).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: 'Department' })).not.toBeInTheDocument()
   })

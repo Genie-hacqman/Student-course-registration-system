@@ -37,7 +37,6 @@ const activeUsersWithRoles = async (roles, transaction) => (await User.findAll({
   transaction,
 })).map((u) => u.id);
 
-/** User ids an announcement reaches. */
 const recipients = async ({ audience, courseSectionId, programId }, transaction) => {
   switch (audience) {
     case A.SECTION: {
@@ -58,7 +57,6 @@ const recipients = async ({ audience, courseSectionId, programId }, transaction)
         include: [{ model: User, as: 'user', where: { status: USER_STATUS.ACTIVE }, attributes: [] }],
         transaction,
       })).map((s) => s.userId);
-    // Admitted students only (a student record): applicants are STUDENTs too, but not yet enrolled.
     case A.ALL_STUDENTS:
       return (await Student.findAll({
         attributes: ['userId'],
@@ -71,7 +69,6 @@ const recipients = async ({ audience, courseSectionId, programId }, transaction)
   }
 };
 
-/** Lecturers post only to sections they teach; other roles with the permission may post to any audience. */
 const assertCanTarget = async (data, actor) => {
   if (actor.role === ROLES.LECTURER) {
     if (data.audience !== A.SECTION) throw new ForbiddenError('Lecturers can only post to their own sections');
@@ -95,11 +92,6 @@ const getById = async (id) => {
   return announcement;
 };
 
-/**
- * Emails an announcement to its recipients, at most once per announcement (claimed by setting
- * `emailed_at` conditionally) and once per recipient (idempotency key). Runs after the response, paced
- * for the provider's rate limit; failures are recorded per recipient in email_deliveries, never thrown.
- */
 export const emailAnnouncement = async (announcementId, userIds) => {
   const [claimed] = await Announcement.update({ emailedAt: new Date() }, { where: { id: announcementId, emailedAt: null } });
   if (!claimed) return { sent: 0, skipped: true };
@@ -118,7 +110,7 @@ export const emailAnnouncement = async (announcementId, userIds) => {
       entityId: announcement.id,
     });
     if (result.sent) sent += 1;
-    if (!env.isTest) await new Promise((resolve) => { setTimeout(resolve, 550); }); // Resend's default limit is 2 requests/second
+    if (!env.isTest) await new Promise((resolve) => { setTimeout(resolve, 550); });
   }
   return { sent, total: users.length };
 };
@@ -154,14 +146,12 @@ export const create = async (data, actor, req) => {
     });
     return announcement.id;
   });
-  // After commit and after the response: a large audience must not hold the request open.
   if (emailTo?.length) {
     emailAnnouncement(id, emailTo).catch((err) => logger.error(`Announcement ${id} email fan-out failed: ${err.message}`));
   }
   return getById(id);
 };
 
-/** Which announcements a user should see: their audiences, their program and sections, and their own posts. */
 const feedWhere = async (user) => {
   const or = [{ audience: A.EVERYONE }, { authorId: user.id }];
   if (user.role === ROLES.STUDENT) {
@@ -201,7 +191,6 @@ const list = async (where, query) => {
 export const feed = async (user, query) => list(await feedWhere(user), query);
 export const mine = async (user, query) => list({ authorId: user.id }, query);
 
-/** The author may edit or delete; so may any non-lecturer who can post announcements (moderation). */
 const loadEditable = async (id, actor) => {
   const announcement = await getById(id);
   const moderator = actor.role !== ROLES.LECTURER && hasPermission(actor.role, PERMISSIONS.ANNOUNCEMENT_CREATE);

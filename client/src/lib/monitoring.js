@@ -1,12 +1,6 @@
 import * as Sentry from '@sentry/react'
 import { scrubUrl } from './scrub'
 
-/*
- * Browser error tracking (Sentry). Off unless VITE_SENTRY_DSN is set at build time, so development and tests never
- * report anything. Errors only: no performance tracing and no session replay. No personal data: Sentry's default PII
- * is off, secret link tokens are redacted from every URL, and the user is identified by id and role only.
- */
-
 const scrubBreadcrumb = (crumb) => {
   if (!crumb) return crumb
   const data = crumb.data && Object.fromEntries(Object.entries(crumb.data).map(([k, v]) => [k, scrubUrl(v)]))
@@ -34,13 +28,11 @@ export function initMonitoring() {
     sendDefaultPii: false,
     beforeSend: scrubBrowserEvent,
     beforeBreadcrumb: scrubBreadcrumb,
-    // Harmless browser noise that would otherwise fill the inbox.
     ignoreErrors: ['ResizeObserver loop limit exceeded', 'ResizeObserver loop completed with undelivered notifications'],
   })
   enabled = true
 }
 
-/** Tags reports with who hit the error, by id and role only (never name or email). `null` on sign-out. */
 export function setMonitoringUser(user) {
   if (!enabled) return
   Sentry.setUser(user ? { id: String(user.id), segment: user.role?.name } : null)

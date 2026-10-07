@@ -8,11 +8,6 @@ const COOKIE_PATH = '/api/auth';
 
 const meta = (req) => ({ req, ip: req.ip, userAgent: req.get('user-agent') });
 
-/**
- * The refresh token lives only in an HTTP-only cookie; frontend JavaScript never sees it. It is a
- * browser-session cookie (no Expires), so fully closing the browser signs the user out; the token's
- * own expiry (refresh_tokens.expires_at) still bounds a browser that stays open.
- */
 const setRefreshCookie = (res, token) => {
   res.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
@@ -58,7 +53,6 @@ export const logoutAll = async (req, res) => {
 
 export const forgotPassword = async (req, res) => {
   await authService.forgotPassword(req.validated.body.email);
-  // Same answer whatever happened (link sent, request filed for approval, or no such account).
   return ok(res, { message: 'If an account exists for that email, your request has been received. You will get an email with a reset link once it is approved by the administrator.' });
 };
 
@@ -99,14 +93,10 @@ export const changePassword = async (req, res) => {
   return ok(res, { message: 'Password changed. Please log in again.' });
 };
 
-// ── student PINs ──────────────────────────────────────────────────────────────
-
-/** Every session ends on a PIN change; this device gets fresh tokens straight away. */
 export const changePin = async (req, res) => authResponse(res, await pinService.changePin(req.user.id, req.validated.body, meta(req)));
 
 export const forgotPin = async (req, res) => {
   await pinService.forgotPin(req.validated.body);
-  // Same answer whether or not the student ID and email matched.
   return ok(res, { message: 'If the student ID and school email match, a 6-digit code has been sent to that email. It expires in 10 minutes.' });
 };
 

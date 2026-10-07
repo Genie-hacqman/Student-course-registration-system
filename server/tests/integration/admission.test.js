@@ -20,7 +20,6 @@ before(async () => {
 });
 after(() => sequelize.close());
 
-// Admission (direct and bulk) is the ADMIN's (student:admit).
 const admit = (body, who = admin) => api().post('/api/admissions').set(auth(who.token)).send(body);
 const newStudent = async (extra = {}) => {
   const res = await admit({ firstName: 'John', lastName: 'Mensah', programId: await programId(), admissionSession: '2026/2027', ...extra });
@@ -77,7 +76,7 @@ const newStudentRaw = async (extra = {}) =>
 describe('first sign-in', () => {
   test('Student ID + temporary PIN signs in, but nothing works until the PIN is changed', async () => {
     const { credentials } = await newStudent();
-    const first = await login(credentials.studentNumber.toLowerCase(), credentials.pin); // the ID is not case-sensitive
+    const first = await login(credentials.studentNumber.toLowerCase(), credentials.pin);
     assert.equal(first.user.mustChangePassword, true);
 
     const blocked = await api().get('/api/registrations/current').set(auth(first.token));
@@ -85,7 +84,6 @@ describe('first sign-in', () => {
     assert.equal(blocked.body.error.code, 'PIN_CHANGE_REQUIRED');
     assert.equal((await api().get('/api/auth/me').set(auth(first.token))).status, 200, 'the profile still loads');
 
-    // No live updates either.
     const server = http.createServer(app);
     const io = initSocketServer(server);
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

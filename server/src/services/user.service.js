@@ -20,18 +20,12 @@ const findRole = async (name) => {
   return role;
 };
 
-// Administrators and registrars run the institution: only an ADMIN may create, change or suspend those accounts,
-// even if `user:manage` has been granted to another role through the roles editor.
 const PRIVILEGED_ROLES = [ROLES.ADMIN, ROLES.REGISTRAR];
 const assertAdminActor = (actor, what) => {
   if (actor?.role !== ROLES.ADMIN) throw new ForbiddenError(`Only an administrator can ${what}`, 'PRIVILEGED_ACCOUNT');
 };
 
 const U = '`User`.`id`';
-/**
- * The user directory. `role` may be several roles; `departmentId` matches students through their programme and
- * lecturers through their home or additional departments; `programId` matches students on that programme.
- */
 export const list = async (query) => {
   const { page, limit, offset, order } = buildPagination(query, ['email', 'firstName', 'lastName', 'createdAt', 'lastLoginAt']);
   const where = {};
@@ -69,7 +63,6 @@ export const list = async (query) => {
   return { result, page, limit };
 };
 
-/** What administrators and registrars may do: each role's effective permissions in plain language. */
 export const roleResponsibilities = () => PRIVILEGED_ROLES.map((role) => ({
   role,
   permissions: permissionsFor(role).map((name) => {
@@ -103,10 +96,8 @@ export const create = async (data, actor, req) => {
       firstName: data.firstName,
       lastName: data.lastName,
       email: data.email,
-      // Without a password the person gets an invite link and chooses their own.
       passwordHash,
       status: data.status,
-      // Staff create accounts for real people they know, so no verification email is needed.
       emailVerifiedAt: new Date(),
     }, { transaction });
     await audit.log({
@@ -114,12 +105,10 @@ export const create = async (data, actor, req) => {
     });
     return created;
   });
-  // After commit: the invite email must never be sent for an account that was rolled back.
   if (!data.password) await issueInvite(user, { actor });
   return getById(user.id);
 };
 
-/** Re-sends the set-your-password invite, e.g. after the first link expired. */
 export const invite = async (id, actor) => {
   const user = await User.scope('withSecrets').findByPk(id, { include: [roleInclude] });
   if (!user) throw new NotFoundError('User');
@@ -131,14 +120,9 @@ export const invite = async (id, actor) => {
   await issueInvite(user, { actor });
 };
 
-/**
- * Account edits. Guards: only an ADMIN may touch administrator or registrar accounts or give anyone those roles;
- * nobody may change their own role or status; the last active administrator can't be demoted or suspended.
- */
 export const update = async (id, data, actor, req, { transaction: outer, audit: writeAudit = true } = {}) => {
   const user = await getById(id);
   const currentRole = user.role?.name;
-  // Read before the write below: `user.update` overwrites the loaded values.
   const previousStatus = user.status;
   const nameKeys = ['firstName', 'lastName'].filter((k) => k in data);
   const nameBefore = snapshot(user, nameKeys);
@@ -162,11 +146,8 @@ export const update = async (id, data, actor, req, { transaction: outer, audit: 
   delete changes.role;
   if (data.role) changes.roleId = (await findRole(data.role)).id;
 
-  // A caller that audits the change itself (lecturer activate/deactivate) passes its own transaction and
-  // `audit: false`, so one action is one row and the write commits or rolls back with that row.
   const apply = async (transaction) => {
     await user.update(changes, { transaction });
-    // Suspending an account or changing its role ends its existing sessions.
     if ((data.status && data.status !== USER_STATUS.ACTIVE) || data.role) {
       await sessionService.endAllSessions(id, transaction);
     }
@@ -185,7 +166,6 @@ export const update = async (id, data, actor, req, { transaction: outer, audit: 
   return outer ? user : getById(id);
 };
 
-/** Soft delete: accounts are suspended rather than removed so registration history stays intact. */
 export const deactivate = async (id, actor, req) => {
   if (Number(id) === actor.id) throw new BadRequestError('You cannot deactivate your own account');
   return update(id, { status: USER_STATUS.SUSPENDED }, actor, req);

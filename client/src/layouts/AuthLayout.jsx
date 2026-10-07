@@ -14,13 +14,8 @@ const FEATURES = [
 ]
 const HEADLINE = 'Your whole semester, one login away.'
 
-// Soft shadow under light text, so it stays readable over the brighter parts of the photo.
 const TEXT_SHADOW = { textShadow: '0 1px 12px rgb(2 6 23 / 0.55)' }
 
-/**
- * Animates its own height to fit its content, so the card glides to a new size (Sign in → Apply, or when an error
- * message appears) instead of jumping. Measures with ResizeObserver; with none available it simply sizes naturally.
- */
 function AutoHeight({ children }) {
   const inner = useRef(null)
   const [height, setHeight] = useState('auto')
@@ -31,8 +26,6 @@ function AutoHeight({ children }) {
     return () => observer.disconnect()
   }, [])
   return (
-    // content-box: the measured height is the content's own, so the 4px halo (padding, cancelled by the negative margin,
-    // which keeps focus rings and shadows from being clipped) must sit outside it, not eat into it.
     <m.div animate={{ height }} initial={false} transition={{ duration: 0.35, ease: EASE_OUT }} style={{ boxSizing: 'content-box', overflow: 'hidden', margin: -4, padding: 4 }}>
       <div ref={inner}>{children}</div>
     </m.div>
@@ -43,11 +36,6 @@ export default function AuthLayout() {
   const { pathname } = useLocation()
   return (
     <div className="relative isolate flex min-h-full flex-col overflow-hidden bg-slate-900 lg:flex-row">
-      {/* The campus photo behind every sign-in page, on every screen size. It is low resolution, so it is softened
-          slightly (reads as depth of field), and it settles from a slight zoom to rest on load. It stays scaled up so
-          the film date stamp in its corner is cropped away. Layered overlays keep all text above WCAG AA contrast.
-          This layer clips its own overflow: the scaled-up photo would otherwise make the page scrollable by a few
-          dozen pixels (even though it is hidden), and focusing or clicking a control would shift the whole layout. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <m.img
           src={campusPhoto}
@@ -63,7 +51,6 @@ export default function AuthLayout() {
         <div className="absolute inset-0 bg-brand-900/20 mix-blend-multiply" />
       </div>
 
-      {/* On /login the mobile Apply bar is fixed to the bottom, so that page needs room under the footer for it. */}
       <div className={`relative flex flex-1 flex-col items-center justify-center px-4 py-12 lg:max-w-xl lg:px-16 xl:max-w-2xl ${pathname === '/login' ? 'pb-28 lg:pb-12' : ''}`}>
         <div className="w-full max-w-md">
           <m.div
@@ -85,8 +72,6 @@ export default function AuthLayout() {
               Register for courses, track approvals, and see your timetable and results.
             </p>
           )}
-          {/* The glass card rises in on a spring, then smoothly resizes (instead of jumping) when you move between
-              Sign in, Apply and the other forms, while the form inside crossfades. */}
           <m.div
             className="auth-glass bg-white/90 p-6 shadow-[0_25px_50px_-12px_rgb(2_6_23/0.55),inset_0_1px_0_rgb(255_255_255/0.7)] ring-1 ring-white/50 backdrop-blur-2xl backdrop-saturate-150 sm:p-8"
             style={{ borderRadius: 16 }}
@@ -117,7 +102,6 @@ export default function AuthLayout() {
           animate="show"
           variants={stagger(0.05, 0.35)}
         >
-          {/* The headline reveals word by word; screen readers get it whole. */}
           <h2 className="text-4xl font-semibold tracking-tight text-white" aria-label={HEADLINE}>
             {HEADLINE.split(' ').map((word, i) => (
               <m.span key={i} variants={fadeUp} aria-hidden="true" className="mr-[0.25em] inline-block last:mr-0">{word}</m.span>

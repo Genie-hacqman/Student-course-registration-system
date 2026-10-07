@@ -6,7 +6,6 @@ import { validate } from '../middleware/validation.middleware.js';
 import { admitSchema, bulkAdmitSchema } from '../validators/admission.validator.js';
 import { PERMISSIONS } from '../utils/constants.js';
 
-/** Student accounts are created here, by the school, and nowhere else (there is no self sign-up). */
 const router = Router();
 router.use(authenticate, requirePermission(PERMISSIONS.STUDENT_ADMIT));
 

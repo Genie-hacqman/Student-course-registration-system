@@ -1,7 +1,6 @@
 import { AlertTriangle } from 'lucide-react'
 import { DAY_NAMES, formatTime } from '../../lib/format'
 
-/** A 409 whose details list clashing classes: `[{ type: 'ROOM' | 'LECTURER', day, startTime, endTime, room, course }]`. */
 export const isClash = (err) => err?.status === 409 && Array.isArray(err.details) && err.details.some((d) => d?.day)
 
 export default function ClashList({ error }) {

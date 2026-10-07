@@ -26,7 +26,6 @@ sectionRouter.post('/', manage, validate({ body: createSectionSchema }), section
 sectionRouter.patch('/:id', manage, validate({ params: idParam, body: updateSectionSchema }), sections.update);
 sectionRouter.delete('/:id', manage, validate({ params: idParam }), sections.remove);
 
-// Lecturer assignment: the registry (lecturer:assign). Section managers may view the history.
 const assignLecturers = requirePermission(PERMISSIONS.LECTURER_ASSIGN);
 sectionRouter.put('/:id/lecturer', assignLecturers, validate({ params: idParam, body: assignLecturerSchema }), sections.assignLecturer);
 sectionRouter.delete('/:id/lecturer', assignLecturers, validate({ params: idParam, body: unassignLecturerSchema }), sections.unassignLecturer);
@@ -37,13 +36,11 @@ sectionRouter.get(
   sections.lecturerHistory,
 );
 
-// Grades: lecturers for their own sections (checked in the service), registrar/admin for any.
 const grading = requireAnyPermission(PERMISSIONS.GRADE_ENTER, PERMISSIONS.GRADE_MANAGE);
 sectionRouter.get('/:id/grades', grading, validate({ params: idParam }), grades.sectionGrades);
 sectionRouter.put('/:id/grades', grading, validate({ params: idParam, body: enterGradesSchema }), grades.enter);
 sectionRouter.post('/:id/grades/finalize', grading, validate({ params: idParam }), grades.finalize);
 
-// Attendance and assessments: the section's own lecturer, or any other role holding the permission.
 const recordAttendance = requirePermission(PERMISSIONS.ATTENDANCE_RECORD);
 const manageAssessments = requirePermission(PERMISSIONS.ASSESSMENT_MANAGE);
 sectionRouter.get('/:id/attendance', recordAttendance, validate({ params: idParam }), attendance.listForSection);

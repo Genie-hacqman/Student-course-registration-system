@@ -21,7 +21,6 @@ const requirementSchema = z.object({
   minGrade: z.string().optional(),
 }).refine((d) => !(d.type === 'corequisite' && d.minGrade), { message: 'Corequisites cannot have a minimum grade', path: ['minGrade'] })
 
-/** Rows sharing a groupNo are alternatives ("one of"); every group is required. */
 const toGroups = (rows) => {
   const groups = new Map()
   rows.forEach((r) => {
@@ -110,7 +109,6 @@ export default function CourseDetail() {
   const [removing, setRemoving] = useState(null)
   const [toggling, setToggling] = useState(false)
   const { user } = useAuth()
-  // Viewing is open to course:manage (admins); changing the catalogue is the registry's (course:catalog).
   const canEdit = can(user, PERMS.COURSE_CATALOG)
 
   const removeReq = useApiMutation((courseId) => http.delete(`/courses/${id}/prerequisites/${courseId}`), { success: 'Requirement removed' })

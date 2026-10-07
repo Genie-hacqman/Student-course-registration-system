@@ -2,7 +2,6 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 import { ANNOUNCEMENT_AUDIENCE } from '../utils/constants.js';
 
-/** A message to a group of users. Each recipient also gets an ANNOUNCEMENT notification. */
 class Announcement extends Model {}
 
 Announcement.init(
@@ -15,7 +14,7 @@ Announcement.init(
     courseSectionId: { type: DataTypes.INTEGER },
     programId: { type: DataTypes.INTEGER },
     pinned: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-    emailedAt: { type: DataTypes.DATE }, // set once, when the announcement's email fan-out starts
+    emailedAt: { type: DataTypes.DATE },
     recipientCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   },
   { sequelize, modelName: 'Announcement', tableName: 'announcements' },

@@ -3,13 +3,11 @@ import { id, paginationQuery } from './common.validator.js';
 import { password } from './auth.validator.js';
 import { ROLES, USER_STATUS, STUDENT_STATUS, ORG_STATUS, REGISTRATION_STATUS } from '../utils/constants.js';
 
-/** "true"/"false" in a query string, as a boolean (anything else is rejected). */
 const queryBoolean = z.enum(['true', 'false']).transform((v) => v === 'true');
 
 export const listUsersQuery = z.object({
   ...paginationQuery,
   search: z.string().trim().max(100).optional(),
-  // One role, or several separated by commas (e.g. ADMIN,REGISTRAR); each must be a real role.
   role: z.string().trim().max(100)
     .transform((v) => v.split(',').map((r) => r.trim().toUpperCase()).filter(Boolean))
     .pipe(z.array(z.enum(Object.values(ROLES))).min(1))
@@ -19,14 +17,12 @@ export const listUsersQuery = z.object({
   programId: id.optional(),
 });
 
-// Exactly the four roles; anything else (including removed legacy names) is rejected.
 const assignableRole = z.enum(Object.values(ROLES));
 
 export const createUserSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   email: z.email().max(191).transform((v) => v.toLowerCase()),
-  // Omit it to email the person an invite link instead, so staff never know their password.
   password: password.optional(),
   role: assignableRole,
   status: z.enum(Object.values(USER_STATUS)).default(USER_STATUS.ACTIVE),
@@ -45,7 +41,6 @@ export const updateUserSchema = z
 export const createStudentSchema = z.object({
   userId: id,
   programId: id,
-  // Optional: omit it and a number is generated, the same way as for self sign-ups.
   studentNumber: z.string().trim().min(3).max(30).optional(),
   level: z.coerce.number().int().min(100).max(900).default(100),
   admissionYear: z.coerce.number().int().min(1950).max(2100).optional(),
@@ -69,11 +64,9 @@ export const listStudentsQuery = z.object({
   level: z.coerce.number().int().min(100).max(900).optional(),
   status: z.enum(Object.values(STUDENT_STATUS)).optional(),
   academicHold: queryBoolean.optional(),
-  // Registration status in one term (default: the current semester). `none` = not registered at all.
   semesterId: id.optional(),
   registrationStatus: z.enum(['none', ...Object.values(REGISTRATION_STATUS)]).optional(),
 });
-// The same list, scoped by the route to one department or programme.
 export const departmentStudentsQuery = listStudentsQuery.omit({ departmentId: true });
 export const programStudentsQuery = listStudentsQuery.omit({ departmentId: true, programId: true });
 export const studentSummaryQuery = z.object({ status: z.enum(Object.values(STUDENT_STATUS)).optional() });
@@ -87,11 +80,6 @@ const lecturerProfile = {
   personalEmail: optionalEmail,
 };
 
-/**
- * Two shapes: `{ userId, … }` attaches a lecturer profile to an existing account (older flow);
- * otherwise the account is created too, and the lecturer is emailed a set-your-password link.
- * `schoolEmail` may be omitted when institution.staffEmailDomain is set (it's then generated).
- */
 export const createLecturerSchema = z.union([
   z.object({
     userId: id,
@@ -112,7 +100,6 @@ export const createLecturerSchema = z.union([
   }),
 ]);
 
-// No defaults: zod applies them even inside .partial(), which would reset fields on every PATCH.
 export const updateLecturerSchema = z
   .object({
     firstName: z.string().trim().min(1).max(100),
@@ -168,7 +155,6 @@ export const programCourseSchema = z.object({
   courseId: id,
   type: z.enum(['core', 'elective']).default('core'),
   recommendedLevel: z.coerce.number().int().min(100).max(900).optional(),
-  // Term (1-3) the course is taught in, and the academic year the entry applies from; omit for "any".
   semester: z.coerce.number().int().min(1).max(3).optional(),
   academicYearId: id.optional(),
 });
@@ -190,7 +176,6 @@ export const departmentLecturersQuery = z.object({
   search: z.string().trim().max(100).optional(),
   status: z.enum(Object.values(USER_STATUS)).optional(),
 });
-// A lecturer's additional departments (the home department is set on the profile itself).
 export const lecturerDepartmentsSchema = z.object({ departmentIds: z.array(id).max(20) });
 export const semesterFilterQuery = z.object({ semesterId: id.optional() });
 

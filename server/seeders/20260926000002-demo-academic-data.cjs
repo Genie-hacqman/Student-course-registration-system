@@ -1,14 +1,5 @@
 'use strict';
 
-/**
- * Demo data so the API can be exercised end to end right after seeding.
- * The current semester's registration window is computed relative to "now", so it is always open.
- *
- * Accounts:
- *   student@scrs.local  / Student@12345   (level 200, has passed CS101 and MATH101)
- *   lecturer@scrs.local / Lecturer@12345
- *   registrar@scrs.local / Registrar@12345
- */
 const bcrypt = require('bcryptjs');
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -28,7 +19,6 @@ module.exports = {
     const ts = { created_at: now, updated_at: now };
     const idOf = async (sql) => (await q.query(sql))[0][0].id;
 
-    // Departments & programs
     await queryInterface.bulkInsert('departments', [
       { name: 'Computer Science', code: 'CS', ...ts },
       { name: 'Mathematics', code: 'MATH', ...ts },
@@ -41,7 +31,6 @@ module.exports = {
     ]);
     const program = await idOf("SELECT id FROM programs WHERE code = 'BSC-CS'");
 
-    // Users
     const roleId = async (name) => idOf(`SELECT id FROM roles WHERE name = '${name}'`);
     await queryInterface.bulkInsert('users', [
       { role_id: await roleId('STUDENT'), first_name: 'Ama', last_name: 'Mensah', email: 'student@scrs.local', password_hash: await bcrypt.hash('Student@12345', 12), status: 'active', email_verified_at: ts.created_at, ...ts },
@@ -60,7 +49,6 @@ module.exports = {
     const student = await idOf(`SELECT id FROM students WHERE user_id = ${studentUser}`);
     const lecturer = await idOf(`SELECT id FROM lecturers WHERE user_id = ${lecturerUser}`);
 
-    // Academic year & semesters
     const year = now.getUTCFullYear();
     await queryInterface.bulkInsert('academic_years', [
       { name: `${year}/${year + 1}`, start_date: `${year}-01-01`, end_date: `${year + 1}-12-31`, ...ts },
@@ -86,7 +74,6 @@ module.exports = {
     const prevSemester = await idOf("SELECT id FROM semesters WHERE name = 'Previous Semester'");
     const semester = await idOf("SELECT id FROM semesters WHERE is_current = 1");
 
-    // Courses
     const courses = [
       [csDept, 'CS101', 'Introduction to Programming', 3, 100],
       [mathDept, 'MATH101', 'Calculus I', 3, 100],
@@ -112,18 +99,14 @@ module.exports = {
       { course_id: c.CS301, prerequisite_course_id: c.CS201, ...ts },
     ]);
 
-    // Past results: the demo student has passed CS101 and MATH101
     await queryInterface.bulkInsert('results', [
       { student_id: student, course_id: c.CS101, semester_id: prevSemester, grade: 'A', grade_point: 4.0, passed: true, ...ts },
       { student_id: student, course_id: c.MATH101, semester_id: prevSemester, grade: 'B', grade_point: 3.0, passed: true, ...ts },
     ]);
 
-    // Sections for the current semester
     const sections = [
       ['CS201', 40], ['CS202', 40], ['CS203', 35], ['CS204', 30], ['MATH201', 50], ['CS301', 25],
     ];
-    // CS204 is left unassigned: it overlaps CS203 on Wednesday (a student clash, on purpose), and one
-    // lecturer teaching both would be a double booking that approval's timetable check refuses.
     await queryInterface.bulkInsert('course_sections', sections.map(([code, capacity]) => ({
       course_id: c[code], semester_id: semester, lecturer_id: code.startsWith('CS') && code !== 'CS204' ? lecturer : null,
       section_code: 'A', capacity, seats_taken: 0, status: 'open', ...ts,
@@ -133,7 +116,6 @@ module.exports = {
     );
     const s = Object.fromEntries(sectionRows.map((r) => [r.code, r.id]));
 
-    // CS203 and CS204 deliberately clash on Wednesday to demo conflict detection.
     await queryInterface.bulkInsert('schedules', [
       { course_section_id: s.CS201, day: 'MON', start_time: '08:00', end_time: '10:00', room: 'LT-1', ...ts },
       { course_section_id: s.CS201, day: 'THU', start_time: '08:00', end_time: '09:00', room: 'LT-1', ...ts },

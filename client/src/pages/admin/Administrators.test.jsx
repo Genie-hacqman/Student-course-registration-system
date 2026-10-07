@@ -31,7 +31,6 @@ describe('Administrators & Registrars', () => {
     await waitFor(() => expect(get.mock.calls.find(([p]) => p === '/users')?.[1]?.params?.role).toBe('ADMIN,REGISTRAR'))
     expect(await screen.findByText('Manage course sections and timetables')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /invite staff member/i })).toBeInTheDocument()
-    // You can't suspend yourself; others can be.
     expect(screen.getAllByRole('button', { name: 'Suspend' })).toHaveLength(1)
   })
 

@@ -1,11 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/**
- * A sealed batch of audit rows in one stream ('main' or 'signin'). seal_hash covers the previous seal's hash
- * and every row's HMAC in the batch, so the seals form a chain. Seals are never deleted; when the rows are
- * archived and purged by the retention job the seal stays, marked with purged_at and the archive key.
- */
 class AuditSeal extends Model {}
 
 AuditSeal.init(

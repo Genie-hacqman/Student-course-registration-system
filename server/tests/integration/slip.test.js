@@ -81,19 +81,15 @@ describe('registration slip', () => {
   });
 
   test('the PDF carries the OFFICIAL application photo, not the profile picture; JSON and verify never carry any photo', async () => {
-    // Whether a picture is printed is read from the PDF's image objects, not its size: the printed time is compressed
-    // into the page, so two otherwise identical slips can differ by a byte when the minute rolls over between them.
     const hasPhoto = (pdf) => pdf.body.includes('/Subtype /Image');
     const plain = await slip(student, registrationId);
     assert.equal(plain.status, 200);
     assert.equal(hasPhoto(plain), false);
 
-    // A profile picture alone changes nothing on the slip: it is not the official photo.
     assert.equal((await uploadAvatar(student)).status, 200);
     const withProfilePicture = await slip(student, registrationId);
     assert.equal(hasPhoto(withProfilePicture), false, 'a profile picture is not printed');
 
-    // The photo submitted with the student's admission application is.
     const [{ id: userId }] = await query("SELECT id FROM users WHERE email = 'student@scrs.local'");
     const photo = await makePhoto({ r: 40, g: 120, b: 200 });
     const key = 'applications/2026/9999/official-photo/slip-test.jpg';
@@ -114,14 +110,12 @@ describe('registration slip', () => {
     const verified = await api().get(`/api/registrations/verify/${json.referenceNumber}?code=${json.verificationCode}`);
     assert.equal(JSON.stringify(verified.body).includes('/9j/'), false, 'no image data on the public verify');
 
-    // A slip never fails because of its picture: if the stored photo cannot be read, it prints without one.
     await storage.remove(key);
     const missing = await slip(student, registrationId);
     assert.equal(missing.status, 200);
     assert.equal(missing.body.subarray(0, 5).toString(), '%PDF-');
     assert.equal(hasPhoto(missing), false);
 
-    // ...and the same when the storage service itself errors.
     await storage.put(key, photo, 'image/jpeg');
     storage.useDriverForTests({ name: 'broken', get: async () => { throw new Error('storage is down'); }, put: async () => {}, remove: async () => {} });
     try {
@@ -162,7 +156,6 @@ describe('registration slip', () => {
 
     const added = await add(student, 'MATH201');
     assert.equal(added.status, 201);
-    // Changing an approved registration sends it back for approval but keeps its reference number.
     assert.equal(added.body.data.registration.status, 'submitted');
     assert.equal(added.body.data.registration.referenceNumber, before.referenceNumber);
 

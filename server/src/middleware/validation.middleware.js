@@ -7,10 +7,6 @@ const formatIssues = (issues, location) =>
     message: issue.message,
   }));
 
-/**
- * Validates req.body / req.query / req.params against zod schemas.
- * Parsed (coerced) values are stored on req.validated so controllers never read raw input.
- */
 export const validate = (schemas) => (req, res, next) => {
   const errors = [];
   req.validated = {};

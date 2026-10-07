@@ -94,7 +94,6 @@ describe('streamOf', () => {
   });
 });
 
-// Builds a chain of seals over the given batches of rows, the way sealNextBatch does.
 const chain = (batches) => {
   let prev = GENESIS_HASH;
   return batches.map((rows, i) => {

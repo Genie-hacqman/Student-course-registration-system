@@ -4,7 +4,6 @@ import * as t from '../../src/services/email/templates.js';
 
 const ctx = { school: 'Sample <University>', frontendUrl: 'https://app.example.edu' };
 
-// Representative inputs for every template.
 const samples = {
   accountActivation: { name: 'Ama', studentNumber: 'STU202600001', programName: 'CS', departmentName: 'Computing', level: 100, schoolEmail: 's@x.edu', activationUrl: 'https://app.example.edu/activate-account?token=abc', hours: 72 },
   applicationDecision: { name: 'Ama', reason: 'Incomplete results' },
@@ -56,7 +55,6 @@ describe('email templates', () => {
   test('no template carries a PIN or password; only the one-time PIN reset code has a 6-digit number', () => {
     for (const [name, data] of Object.entries(samples)) {
       const { text, html } = t[name](data, ctx);
-      // A "password: <value>" or "PIN: 123456" — link labels like "Set your password: https://…" are fine.
       assert.doesNotMatch(`${text} ${html}`, /password\s*:\s*(?!https?:\/\/)\S|PIN\s*:\s*\d/i, name);
       if (name !== 'pinResetCode') assert.doesNotMatch(text, /(?<![\w-])\d{6}(?![\w-])/, `${name} has no standalone 6-digit value`);
     }

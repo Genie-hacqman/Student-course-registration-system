@@ -23,7 +23,6 @@ const addSchema = z.object({
   recommendedLevel: optionalNumber(z.number().int().min(100).max(900)),
 })
 
-/** The programme's students, by level: level counts come from the department overview, the list from the shared component. */
 function StudentsByLevel({ program }) {
   const overview = useApi(`/departments/${program.departmentId}/overview`)
   const levels = overview.data?.programs.find((p) => p.id === program.id)?.levels ?? []
@@ -46,13 +45,11 @@ export default function ProgramDetail() {
 
   const add = useApiMutation((body) => http.post(`/programs/${id}/courses`, body), { success: 'Course added to the curriculum' })
   const remove = useApiMutation((courseId) => http.delete(`/programs/${id}/courses/${courseId}`), { success: 'Course removed from the curriculum' })
-  // No PATCH exists for a curriculum entry, so switching core/elective is remove + re-add.
   const retype = useApiMutation(async (c) => {
     await http.delete(`/programs/${id}/courses/${c.id}`)
     return http.post(`/programs/${id}/courses`, {
       courseId: c.id,
       type: c.entry.type === 'core' ? 'elective' : 'core',
-      // Keep the rest of the entry (level, term, effective year) as it was.
       ...(c.entry.recommendedLevel ? { recommendedLevel: c.entry.recommendedLevel } : {}),
       ...(c.entry.semester ? { semester: c.entry.semester } : {}),
       ...(c.entry.academicYearId ? { academicYearId: c.entry.academicYearId } : {}),

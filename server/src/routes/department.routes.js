@@ -13,9 +13,7 @@ import {
 import { PERMISSIONS } from '../utils/constants.js';
 
 const manage = requirePermission(PERMISSIONS.COURSE_MANAGE);
-// A programme's curriculum decides which courses its students may take: the registry's (course:catalog).
 const curriculum = requirePermission(PERMISSIONS.COURSE_CATALOG);
-// The read-only directory (counts, drill-down): admins and registrars. Student lists keep their own gate.
 const directory = requirePermission(PERMISSIONS.DIRECTORY_VIEW);
 const studentsView = requirePermission(PERMISSIONS.REGISTRATION_VIEW_ALL);
 
@@ -33,7 +31,6 @@ departmentRouter.post('/', manage, validate({ body: departmentSchema }), departm
 departmentRouter.patch('/:id', manage, validate({ params: idParam, body: updateDepartmentSchema }), departments.update);
 departmentRouter.delete('/:id', manage, validate({ params: idParam }), departments.remove);
 
-// Programs are public so the sign-up form can list them.
 export const programRouter = Router();
 programRouter.get('/', validate({ query: listProgramsQuery }), programs.list);
 programRouter.get('/:id', validate({ params: idParam }), programs.getById);

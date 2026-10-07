@@ -12,7 +12,7 @@ Student.init(
     studentNumber: { type: DataTypes.STRING(30), allowNull: false, unique: true },
     level: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 100 },
     admissionYear: { type: DataTypes.INTEGER },
-    admissionSession: { type: DataTypes.STRING(9) }, // e.g. "2026/2027"
+    admissionSession: { type: DataTypes.STRING(9) },
     admissionNumber: { type: DataTypes.STRING(30), unique: true },
     status: {
       type: DataTypes.ENUM(...Object.values(STUDENT_STATUS)),

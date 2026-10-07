@@ -20,25 +20,17 @@ app.disable('x-powered-by');
 app.use(requestId);
 app.use(helmet());
 app.use(cors({ origin: env.corsOrigins, credentials: true }));
-// Bulk imports carry up to 5000 rows; everything else keeps the small default. A body parsed here is
-// skipped by the general parser below.
-// Signed provider webhooks need the raw body (the signature covers the exact bytes), so they are
-// parsed before express.json and mounted outside /api's JSON routes.
 app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '256kb' }), webhookRoutes);
 app.use(['/api/admin/import', '/api/results/import', '/api/admissions/bulk'], express.json({ limit: '5mb' }));
-// The official application photo is the raw image as the request body. Parsed here (and checked again in
-// utils/image.js), so the JSON parser below never sees it; any other content type falls through and is refused.
 app.use('/api/applications/me/photo', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '2mb' }));
-// Profile pictures arrive as a small (client-compressed) data URL.
 app.use('/api/auth/me/avatar', express.json({ limit: '400kb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 if (!env.isTest) {
   app.use(pinoHttp({
     logger: pinoInstance,
-    genReqId: (req) => req.id, // reuse request-id.middleware's id instead of pino-http minting its own
+    genReqId: (req) => req.id,
     customProps: (req) => ({ requestId: req.id }),
-    // /health is polled constantly by uptime monitors/load balancers — logging every hit is pure noise.
     autoLogging: { ignore: (req) => req.originalUrl === '/api/health' },
     customLogLevel: (req, res, err) => {
       if (err || res.statusCode >= 500) return 'error';
@@ -48,7 +40,6 @@ if (!env.isTest) {
   }));
 }
 
-// After the body parsers (see request-context.middleware.js): lets audit.log find the request's IP, actor, etc.
 app.use(requestContext);
 app.use('/api', apiLimiter, routes);
 

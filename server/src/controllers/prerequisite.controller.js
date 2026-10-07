@@ -18,7 +18,6 @@ export const check = async (req, res) => {
   return ok(res, await prerequisiteService.check(student.id, req.validated.params.courseId));
 };
 
-// Overrides: waive a course's requirements for one student.
 export const listOverrides = async (req, res) => ok(res, await prerequisiteService.listOverrides(req.validated.params.id));
 export const grantOverride = async (req, res) =>
   created(res, await prerequisiteService.grantOverride(req.validated.params.id, req.validated.body, req.user, req));

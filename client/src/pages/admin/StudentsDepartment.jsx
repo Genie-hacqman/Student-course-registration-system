@@ -7,7 +7,6 @@ import BackLink from '../../components/directory/BackLink'
 import { plural, useStudentSummary } from '../../lib/studentSummary'
 import { can, PERMS } from '../../lib/roles'
 
-/** One department of the Students section: its programmes with student counts. Each opens the programme's students. */
 export default function StudentsDepartment() {
   const { departmentId } = useParams()
   const { user } = useAuth()

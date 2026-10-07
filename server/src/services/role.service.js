@@ -26,10 +26,6 @@ export const list = async () => {
   return roles.map((r) => describe(r, counts.get(r.id) ?? 0));
 };
 
-/**
- * Replaces a role's permissions. Only the differences from the code defaults are stored, so
- * saving exactly the defaults clears every override ("reset to defaults").
- */
 export const setPermissions = async (roleId, permissions, actor, req) => {
   const role = await Role.findByPk(roleId);
   if (!role) throw new NotFoundError('Role');

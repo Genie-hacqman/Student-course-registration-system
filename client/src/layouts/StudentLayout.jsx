@@ -3,7 +3,6 @@ import { useAuth } from '../auth/AuthProvider'
 import { STUDENT_APPLYING_NAV, STUDENT_NAV } from '../lib/nav'
 import { isAdmitted } from '../lib/roles'
 
-/** All STUDENTs: the full menu once admitted, otherwise just their admission status and settings. */
 export default function StudentLayout() {
   const { user } = useAuth()
   const admitted = isAdmitted(user)

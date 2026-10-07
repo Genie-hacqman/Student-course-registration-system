@@ -6,7 +6,6 @@ import { ORG_STATUS } from '../utils/constants.js';
 import * as audit from './audit.service.js';
 import { snapshot, diffFields } from '../utils/audit-diff.js';
 
-/** All departments (pickers, filters). `status` narrows it, e.g. `active` for forms that create new records. */
 export const list = ({ status } = {}) => Department.findAll({ where: status ? { status } : {}, order: [['code', 'ASC']] });
 
 export const getById = async (id) => {
@@ -15,8 +14,6 @@ export const getById = async (id) => {
   return department;
 };
 
-// Counts computed from the actual rows. Students belong to a department through their programme; lecturers through
-// their home department or an additional one (lecturer_departments).
 const D = '`Department`.`id`';
 const countAttributes = [
   [sequelize.literal(`(SELECT COUNT(*) FROM programs p WHERE p.department_id = ${D})`), 'programCount'],
@@ -39,7 +36,6 @@ const toCounts = (row) => {
   };
 };
 
-/** Departments with their counts; searchable by name or code, filterable by status, paginated. */
 export const summary = async (query) => {
   const { page, limit, offset, order } = buildPagination(query, ['code', 'name', 'createdAt'], ['code', 'ASC']);
   const where = {};
@@ -51,7 +47,6 @@ export const summary = async (query) => {
   return { result: { count, rows: rows.map(toCounts) }, page, limit };
 };
 
-/** One department: its counts, and its programmes with how many students are at each level (for drill-down). */
 export const overview = async (id) => {
   const department = await Department.findByPk(id, { attributes: { include: countAttributes } });
   if (!department) throw new NotFoundError('Department');
@@ -104,10 +99,6 @@ export const update = async (id, data, actor, req) => {
   return department;
 };
 
-/**
- * Archived = closed to new intake (no new programmes, courses, lecturers, applications or admissions under it).
- * Its programmes, students and lecturers stay as they are and remain visible; activating reverses it.
- */
 export const setStatus = async (id, status, actor, req) => {
   const department = await getById(id);
   if (department.status === status) throw new ConflictError(`${department.name} is already ${status}`);
@@ -122,7 +113,6 @@ export const setStatus = async (id, status, actor, req) => {
   return department;
 };
 
-/** Fails with 409 (FK constraint) while programs, courses or lecturers still reference it. */
 export const remove = async (id, actor, req) => {
   const department = await getById(id);
   await sequelize.transaction(async (transaction) => {

@@ -1,7 +1,3 @@
-/**
- * The OFFICIAL application photo: stored per application in private storage, editable only while the
- * application is a draft, locked for good at submit, and entirely separate from the profile picture.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -48,7 +44,6 @@ describe('draft: upload, replace, remove', () => {
     assert.equal(application.photo.present, true);
     assert.equal(application.photo.locked, false);
     assert.ok(application.photo.uploadedAt);
-    // The storage key and fingerprint never leave the server.
     assert.equal(JSON.stringify(res.body).includes('photoKey'), false);
     assert.equal(JSON.stringify(res.body).includes('photo_key'), false);
 
@@ -57,7 +52,6 @@ describe('draft: upload, replace, remove', () => {
     assert.match(stored.photo_sha256, /^[0-9a-f]{64}$/);
     assert.equal(stored.photo_locked_at, null);
 
-    // It is served back to its owner as a JPEG, byte-identical to what was fingerprinted.
     const img = await getPhoto(applicant);
     assert.equal(img.status, 200);
     assert.equal(img.headers['content-type'], 'image/jpeg');
@@ -103,7 +97,6 @@ describe('draft: upload, replace, remove', () => {
     const stored = await row(await userIdOf(applicant));
     assert.equal(stored.status, 'draft');
     assert.equal(stored.photo_locked_at, null);
-    // Reviewers never see drafts, photo included.
     assert.equal((await api().get(`/api/applications/${stored.id}/photo`).set(auth(admin.token))).status, 404);
   });
 });
@@ -115,7 +108,6 @@ describe('submit locks the photo', () => {
     const res = await submit(applicant);
     assert.equal(res.status, 400);
     assert.deepEqual(res.body.error.details.missing, ['official application photo']);
-    // A profile picture is a different thing and does not satisfy it.
     await uploadAvatar(applicant);
     assert.equal((await submit(applicant)).status, 400);
   });
@@ -145,15 +137,12 @@ describe('submit locks the photo', () => {
   test('the lock lives in the database row, so it holds even if the status check were bypassed', async () => {
     const applicant = await createApplicant(112);
     const application = await submitApplication(applicant);
-    // Simulate a status that looks editable but a recorded lock: still refused.
     await query("UPDATE admission_applications SET status = 'draft' WHERE id = :id", { id: application.id });
     assert.equal((await uploadApplicationPhoto(applicant)).status, 409);
     await query("UPDATE admission_applications SET status = 'submitted' WHERE id = :id", { id: application.id });
   });
 
   test('an upload racing the submit can never land after the lock, and never deadlocks', async () => {
-    // Repeated, because the bad interleavings are timing-dependent: a lock-order mistake here once deadlocked
-    // (upload held the user row while submit's audit insert needed it), failing one request with a 500.
     const replacement = await makePhoto({ r: 9, g: 99, b: 199 });
     for (let round = 0; round < 8; round += 1) {
       const applicant = await createApplicant(160 + round);
@@ -177,14 +166,11 @@ describe('ownership and authorisation', () => {
     await uploadApplicationPhoto(alice, await makePhoto({ r: 255, g: 0, b: 0 }));
     const aliceRow = await row(await userIdOf(alice));
 
-    // Bob has no photo of his own; he never sees Alice's.
     assert.equal((await getPhoto(bob)).status, 404);
-    // Trying to aim at Alice's application id: the applicant routes ignore it, and the reviewer route is not his.
     assert.equal((await api().get(`/api/applications/${aliceRow.id}/photo`).set(auth(bob.token))).status, 403);
     assert.equal((await api().put(`/api/applications/${aliceRow.id}/photo`).set(auth(bob.token)).set('Content-Type', 'image/jpeg').send(TEST_PHOTO)).status, 404);
     assert.equal((await api().delete(`/api/applications/${aliceRow.id}/photo`).set(auth(bob.token))).status, 404);
 
-    // Bob's own upload lands on Bob's application and leaves Alice's alone.
     await uploadApplicationPhoto(bob);
     assert.equal((await row(await userIdOf(alice))).photo_key, aliceRow.photo_key);
   });
@@ -213,7 +199,6 @@ describe('ownership and authorisation', () => {
     const detail = await api().get(`/api/applications/${application.id}`).set(auth(admin.token));
     assert.equal(detail.body.data.photo.present, true);
     assert.equal(detail.body.data.photo.locked, true);
-    // No admin write route exists for it.
     assert.equal((await api().put(`/api/applications/${application.id}/photo`).set(auth(admin.token)).set('Content-Type', 'image/jpeg').send(TEST_PHOTO)).status, 404);
     assert.equal((await api().delete(`/api/applications/${application.id}/photo`).set(auth(admin.token))).status, 404);
   });
@@ -280,7 +265,6 @@ describe('profile picture and official photo are independent', () => {
     const userId = await userIdOf(applicant);
     const draft = await row(userId);
 
-    // Draft stage: profile picture set, then removed.
     assert.equal((await uploadAvatar(applicant)).status, 200);
     assert.equal((await row(userId)).photo_sha256, draft.photo_sha256);
     assert.equal((await api().delete('/api/auth/me/avatar').set(auth(applicant.token))).status, 200);
@@ -290,7 +274,6 @@ describe('profile picture and official photo are independent', () => {
     assert.equal((await submit(applicant)).status, 200);
     const locked = await row(userId);
 
-    // After submit: profile picture can still be changed and removed freely.
     assert.equal((await uploadAvatar(applicant, TEST_AVATAR, TEST_AVATAR)).status, 200);
     assert.equal((await api().get('/api/auth/me').set(auth(applicant.token))).body.data.avatar, TEST_AVATAR);
     assert.equal((await api().delete('/api/auth/me/avatar').set(auth(applicant.token))).status, 200);
@@ -327,7 +310,6 @@ describe('admission: the official photo stays with the application', () => {
     assert.match(copied.avatar_thumb, /^data:image\/jpeg;base64,/);
     assert.equal((await sharp(Buffer.from(copied.avatar.split(',')[1], 'base64')).metadata()).width, 256);
 
-    // The student later changes and removes their profile picture: the application record is untouched.
     const token = await plantActivationToken(application.userId);
     await api().post('/api/applications/activate').send({ token, pin: '482915', confirmPin: '482915' });
     const [{ student_number: number }] = await query('SELECT student_number FROM students WHERE user_id = :id', { id: application.userId });
@@ -382,7 +364,6 @@ describe('admission: the official photo stays with the application', () => {
     await api().post('/api/applications/activate').send({ token, pin: '482915', confirmPin: '482915' });
     const student = await (await import('./helpers.js')).login(number, '482915');
 
-    // Their profile picture is the copy made at admission; they remove it.
     assert.ok((await api().get('/api/auth/me').set(auth(student.token))).body.data.avatar);
     assert.equal((await api().delete('/api/auth/me/avatar').set(auth(student.token))).status, 200);
     assert.equal((await api().get('/api/auth/me').set(auth(student.token))).body.data.avatar, null);
@@ -423,7 +404,6 @@ describe('admission: the official photo stays with the application', () => {
       assert.equal((await api().get(path).set(auth(seeded.token))).status, 403, path);
     }
     assert.equal(applicant.token.length > 0, true);
-    // The list thumbnail on the applications route stays admin-only (application:review).
     const registrar = await loginAs('registrar');
     assert.equal((await api().get(`/api/applications/${(await row(application.userId)).id}/photo?size=thumb`).set(auth(registrar.token))).status, 403);
 
@@ -443,7 +423,6 @@ describe('admission: the official photo stays with the application', () => {
       const res = await api().get(`/api/students/${studentId}/application/photo`).set(auth(admin.token));
       assert.equal(res.status, 503);
       assert.equal(res.body.error.code, 'PHOTO_UNAVAILABLE');
-      // The details still load, and still say a photo exists.
       const details = await api().get(`/api/students/${studentId}/application`).set(auth(admin.token));
       assert.equal(details.body.data.photo.present, true);
     } finally {

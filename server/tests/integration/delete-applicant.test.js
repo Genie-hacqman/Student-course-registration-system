@@ -1,7 +1,3 @@
-/**
- * `npm run applicant:delete`: removes TEST applicants only, never staff or students with academic records,
- * and is a dry run unless asked.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -64,12 +60,10 @@ describe('deleting', () => {
     assert.equal((await query('SELECT COUNT(*) AS n FROM notifications WHERE user_id = :id', { id: application.userId }))[0].n, 0);
     assert.equal(await storage.get(key), null, 'the photo object is gone from storage');
 
-    // History is kept (unlinked), and the deletion itself is recorded.
     const [entry] = await query("SELECT metadata FROM audit_logs WHERE action = 'applicant.delete' AND entity_id = :id", { id: application.userId });
     const metadata = typeof entry.metadata === 'string' ? JSON.parse(entry.metadata) : entry.metadata;
     assert.equal(metadata.via, 'applicant:delete');
     assert.equal(metadata.applicationNumber, `APP${String(application.id).padStart(6, '0')}`);
-    // No personal data stays in a log that is kept for years: no name, no address.
     assert.equal(metadata.name, undefined);
     assert.equal(metadata.email, undefined);
     assert.equal(metadata.personalEmail, undefined);
@@ -78,7 +72,6 @@ describe('deleting', () => {
     const kept = (await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'application.submit' AND entity_id = :id", { id: application.id }))[0].n;
     assert.equal(Number(kept), 1);
 
-    // The address is free again: the same person could apply afresh.
     await refused(deleteApplicant({ email: applicant.email }), /No account or application found/);
   });
 

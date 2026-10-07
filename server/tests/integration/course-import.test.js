@@ -1,7 +1,3 @@
-/**
- * Course management permissions and the course-catalogue import: preview, validation against the
- * database, duplicate protection, per-course commits, failure reporting and student eligibility.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -62,9 +58,9 @@ describe('preview (dry run)', () => {
     const before = await count('SELECT COUNT(*) AS n FROM courses');
     const res = await importCatalog(registrar, [
       row(),
-      row({ courseCode: 'CS101', courseTitle: 'Renamed!', level: '100', prerequisiteCourseCodes: '' }), // exists
+      row({ courseCode: 'CS101', courseTitle: 'Renamed!', level: '100', prerequisiteCourseCodes: '' }),
       row({ courseCode: 'CS251', department: 'PHYS', creditHours: '20' }),
-      row(), // same course + programme again
+      row(),
     ], true);
     assert.equal(res.status, 200);
     const d = res.body.data;
@@ -118,7 +114,6 @@ describe('import', () => {
     assert.equal((await query("SELECT title FROM courses WHERE code = 'CS101'"))[0].title, cs101Title, 'existing course untouched');
     assert.equal(await count('SELECT COUNT(*) AS n FROM course_sections'), sectionsBefore, 'scheduling is separate');
 
-    // Re-importing the same file adds nothing.
     const again = await importCatalog(registrar, [row()], false);
     assert.equal(again.body.data.rows[0].status, 'duplicate');
     assert.equal(await count("SELECT COUNT(*) AS n FROM courses WHERE code = 'CS250'"), 1);
@@ -179,7 +174,7 @@ describe('student eligibility for imported courses', () => {
   test('an imported course reaches students only with a section, on their programme, level, term and year', async () => {
     const res = await importCatalog(registrar, [row({ courseCode: 'CS255', semester: '2', prerequisiteCourseCodes: '' })], false);
     assert.equal(res.body.data.imported, 1);
-    const me = await createStudent(1); // level 200 on BSC-CS
+    const me = await createStudent(1);
     const find = async () => {
       const courses = (await api().get('/api/registrations/available-courses').set(auth(me.token))).body.data.courses;
       return courses.find((c) => c.code === 'CS255')?.sections[0];
@@ -203,7 +198,6 @@ describe('student eligibility for imported courses', () => {
     s = await find();
     assert.ok(!s.reasons.some((r) => r.rule === 'SEMESTER_ELIGIBILITY'), JSON.stringify(s.reasons));
 
-    // A curriculum entry that only takes effect in a later academic year.
     await query("INSERT INTO academic_years (name, start_date, end_date, created_at, updated_at) VALUES ('2099/2100', '2099-01-01', '2100-12-31', NOW(), NOW())");
     await query(
       "UPDATE program_courses SET academic_year_id = (SELECT id FROM academic_years WHERE name = '2099/2100') WHERE course_id = :courseId",

@@ -14,7 +14,6 @@ import { RuleList } from '../../components/RegistrationActions'
 import { ScheduleList } from '../../components/SectionCard'
 import { formatDate, formatDateTime, lecturerName, windowState } from '../../lib/format'
 
-/** Attendance and published coursework for one registered section. */
 function CourseInsights({ sectionId, attendance, assessments }) {
   const att = attendance.data?.find((a) => a.section.id === sectionId)
   const work = assessments.data?.find((a) => a.section.id === sectionId)?.assessments ?? []

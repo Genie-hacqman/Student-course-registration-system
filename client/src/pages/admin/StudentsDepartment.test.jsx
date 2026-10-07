@@ -31,7 +31,7 @@ describe('Students by department: one department', () => {
     expect(row).toHaveTextContent('BSc Computer Science')
     expect(row).toHaveTextContent('3 students')
     expect(row).toHaveTextContent('L100: 1 · L200: 2')
-    expect(screen.queryByRole('table')).not.toBeInTheDocument() // no students on this page
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
   it('links back to the Students page', async () => {

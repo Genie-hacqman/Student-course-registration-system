@@ -8,7 +8,6 @@ export const useNotifications = ({ page = 1, limit = 20, unread } = {}) =>
     placeholderData: (prev) => prev,
   })
 
-/** Cheap query used only for the header badge; the server returns unreadCount in `meta`. */
 export const useUnreadCount = () => {
   const { data } = useNotifications({ page: 1, limit: 5 })
   return data?.meta?.unreadCount ?? 0

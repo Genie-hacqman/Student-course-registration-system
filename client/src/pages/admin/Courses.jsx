@@ -10,7 +10,6 @@ import { requiredNumber } from '../../lib/forms'
 import { useAuth } from '../../auth/AuthProvider'
 import { PERMS, can } from '../../lib/roles'
 
-// Mirrors createCourseSchema in SCRS-backend src/validators/course.validator.js.
 export const courseSchema = z.object({
   code: z.string().trim().min(2, 'At least 2 characters').max(20).regex(/^[A-Za-z0-9-]+$/, 'Letters, numbers and dashes only').transform((v) => v.toUpperCase()),
   title: z.string().trim().min(2, 'At least 2 characters').max(200),

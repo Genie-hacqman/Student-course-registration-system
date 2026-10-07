@@ -73,9 +73,7 @@ describe('course import validation', () => {
     assert.match(errorsOf([row({ prerequisiteCourseCodes: 'CS999' })]).join(), /CS999 does not exist/);
     assert.match(errorsOf([row({ prerequisiteCourseCodes: 'CS401' })]).join(), /CS401 is a level 400 course, above this level 200/);
 
-    // Prerequisites may be new courses in the same file…
     assert.deepEqual(statusOf([row({ prerequisiteCourseCodes: 'CS150' }), row({ courseCode: 'CS150', level: '100', prerequisiteCourseCodes: '' })]), ['valid', 'valid']);
-    // …but not an invalid one, which invalidates the course that needs it.
     assert.deepEqual(statusOf([row({ prerequisiteCourseCodes: 'CS150' }), row({ courseCode: 'CS150', level: '100', semester: '9', prerequisiteCourseCodes: '' })]), ['invalid', 'invalid']);
 
     const cycle = validateCatalog([

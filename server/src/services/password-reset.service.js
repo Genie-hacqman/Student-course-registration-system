@@ -4,10 +4,6 @@ import { generateOpaqueToken, hashToken } from '../utils/jwt.js';
 import { sendTemplate, tokenKey } from './mail.service.js';
 import * as audit from './audit.service.js';
 
-/**
- * Stores a fresh reset token and emails the link. Used directly for admins and applying students, and on approval
- * of a password-reset request for everyone else. Returns the raw token for internal use (tests) only.
- */
 export const issuePasswordReset = async (user, { actor } = {}) => {
   const token = generateOpaqueToken();
   await User.update(
@@ -30,11 +26,6 @@ export const issuePasswordReset = async (user, { actor } = {}) => {
   return token;
 };
 
-/**
- * Invite for an account staff created without a password: the same token and `/reset-password` page as
- * a reset, but a longer expiry and "set your password" wording. Call it only after the account's
- * transaction commits, so an invite can never point at a rolled-back user. Returns the raw token for tests only.
- */
 export const issueInvite = async (user, { actor, to } = {}) => {
   const token = generateOpaqueToken();
   await User.update(
@@ -45,7 +36,6 @@ export const issueInvite = async (user, { actor, to } = {}) => {
     { where: { id: user.id } },
   );
 
-  // `to`: e.g. a new lecturer's personal address, since they can't read the school mailbox yet.
   await sendTemplate('staffInvite', {
     name: user.firstName,
     email: user.email,

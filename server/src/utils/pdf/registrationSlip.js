@@ -22,7 +22,6 @@ const cellText = (course, key) => {
   return String(course[key]);
 };
 
-/** Large diagonal watermark centred in the lower half of the page (below the course table). */
 const watermark = (doc, text) => {
   const cx = doc.page.width / 2;
   const cy = doc.page.height * 0.62;
@@ -50,11 +49,9 @@ const labelValue = (doc, label, value, x, y, width) => {
   doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(value ?? '—', x, y + 10, { width });
 };
 
-// The official application photo is a 3:4 portrait; the student block above the course table is 96 pt tall.
 const PHOTO_W = 60
 const PHOTO_H = 80
 
-/** The student's picture, top right of the student block. Skipped quietly when absent or not a format PDFKit reads. */
 const drawPhoto = (doc, dataUrl, x, y) => {
   const match = /^data:image\/(jpeg|png);base64,(.+)$/.exec(dataUrl ?? '');
   if (!match) return false;
@@ -67,7 +64,6 @@ const drawPhoto = (doc, dataUrl, x, y) => {
   }
 };
 
-/** Renders the registration slip as an A4 PDF into `stream` (e.g. the HTTP response). */
 export const renderSlipPdf = (slip, stream) => {
   const doc = new PDFDocument({
     size: 'A4',
@@ -79,7 +75,6 @@ export const renderSlipPdf = (slip, stream) => {
   const provisional = slip.status !== 'confirmed';
   if (provisional) watermark(doc, 'PROVISIONAL');
 
-  // Header
   doc.fillColor(INK).font('Helvetica-Bold').fontSize(16).text(slip.institution, MARGIN, MARGIN, { align: 'center' });
   doc.font('Helvetica').fontSize(12).fillColor(MUTED).text('Course Registration Slip', { align: 'center' });
   doc.moveDown(0.5);
@@ -90,13 +85,12 @@ export const renderSlipPdf = (slip, stream) => {
   doc.roundedRect(badgeX, doc.y, badgeWidth, 18, 4).fill(badgeColor);
   doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9).text(badge, badgeX, doc.y + 5, { width: badgeWidth, align: 'center' });
 
-  // Student and semester block
   let y = doc.y + 18;
   doc.moveTo(MARGIN, y).lineTo(MARGIN + TABLE_WIDTH, y).strokeColor(RULE).stroke();
   y += 10;
   const half = TABLE_WIDTH / 2;
   const hasPhoto = drawPhoto(doc, slip.student.photo, MARGIN + TABLE_WIDTH - PHOTO_W, y);
-  const rightWidth = hasPhoto ? half - PHOTO_W - 10 : half; // keep the right-hand text clear of the picture
+  const rightWidth = hasPhoto ? half - PHOTO_W - 10 : half;
   labelValue(doc, 'Student', slip.student.name, MARGIN, y, half - 10);
   labelValue(doc, 'Student number', slip.student.studentNumber, MARGIN + half, y, rightWidth);
   y += 32;
@@ -108,7 +102,6 @@ export const renderSlipPdf = (slip, stream) => {
   labelValue(doc, 'Reference number', slip.referenceNumber, MARGIN + half, y, half);
   y += 38;
 
-  // Course table
   y = drawTableHeader(doc, y);
   const bottom = doc.page.height - MARGIN - 110;
   doc.font('Helvetica').fontSize(9);
@@ -132,21 +125,18 @@ export const renderSlipPdf = (slip, stream) => {
     doc.moveTo(MARGIN, y).lineTo(MARGIN + TABLE_WIDTH, y).strokeColor('#e2e2e2').stroke();
   });
 
-  // Totals
   doc.font('Helvetica-Bold').fontSize(10).fillColor(INK)
     .text(`Total: ${slip.courses.length} course${slip.courses.length === 1 ? '' : 's'}, ${slip.totalCredits} credits`, MARGIN, y + 8, {
       width: TABLE_WIDTH, align: 'right',
     });
   y += 30;
 
-  // Status line
   doc.font('Helvetica').fontSize(9).fillColor(MUTED);
   const status = provisional
     ? `Submitted ${fmtDate(slip.submittedAt)}. This registration is awaiting approval and is not yet final.`
     : `Approved ${fmtDate(slip.approvedAt)}${slip.approvedBy ? ` by ${slip.approvedBy}` : ''}.`;
   doc.text(status, MARGIN, y, { width: TABLE_WIDTH });
 
-  // Footer (verification)
   const footerY = doc.page.height - MARGIN - 70;
   doc.moveTo(MARGIN, footerY).lineTo(MARGIN + TABLE_WIDTH, footerY).strokeColor(RULE).stroke();
   labelValue(doc, 'Verification code', slip.verificationCode, MARGIN, footerY + 8, half - 10);

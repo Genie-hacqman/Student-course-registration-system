@@ -11,10 +11,6 @@ export const password = z
 
 const email = z.email().max(191).transform((v) => v.toLowerCase());
 
-/**
- * `identifier` is a Student ID (students) or an email (staff; students may use their school email too).
- * `email` is still accepted in its place so older clients keep working.
- */
 export const loginSchema = z
   .object({
     identifier: z.string().trim().min(1).max(191).optional(),
@@ -25,7 +21,6 @@ export const loginSchema = z
   .transform((d) => ({ identifier: d.identifier ?? d.email, password: d.password }));
 
 const studentNumber = z.string().trim().min(3).max(30).transform((v) => v.toUpperCase());
-// Only the shape here; the strength rules (pinProblem) run in the service, where the student ID is known.
 const pin = z.string().regex(/^\d{6}$/, 'PIN must be exactly 6 digits');
 const confirmed = (d) => d.newPin === d.confirmPin;
 const mismatch = { message: 'The PINs do not match', path: ['confirmPin'] };
@@ -55,10 +50,8 @@ export const updateProfileSchema = z
   .partial()
   .refine((d) => Object.keys(d).length > 0, 'Provide at least one field to update');
 
-// ~200 KB of image is ~270K base64 characters; the service checks the decoded size and the real file type.
 export const avatarSchema = z.object({
   image: z.string().max(300_000).regex(/^data:image\/(jpeg|png|webp);base64,/, 'Upload a JPG, PNG or WebP image'),
-  // Optional small version for lists; the service checks its real type and size.
   thumb: z.string().max(20_000).regex(/^data:image\/jpeg;base64,/, 'The thumbnail must be a JPEG').optional(),
 });
 

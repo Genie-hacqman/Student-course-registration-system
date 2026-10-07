@@ -31,7 +31,7 @@ describe('staff enrolment', () => {
   });
 
   test('a failed check can be overridden only with a reason, and is recorded on the item', async () => {
-    const cs202 = await sectionIdFor('CS202'); // requires CS201 (min C), which the student hasn't passed
+    const cs202 = await sectionIdFor('CS202');
 
     const refused = await staffAdd(registrar.token, cs202, { studentId: student.studentId });
     assert.equal(refused.status, 422);
@@ -94,7 +94,6 @@ describe('staff enrolment', () => {
     assert.equal((await staffRemove(registrar.token, cs201, student.studentId, '')).status, 422);
     assert.equal((await staffRemove(registrar.token, await sectionIdFor('CS204'), student.studentId, 'Not registered here')).status, 404);
 
-    // Enrolment (registration:manage) is the registry's.
     for (const who of ['admin', 'lecturer']) {
       const staff = await loginAs(who);
       assert.equal((await staffAdd(staff.token, cs201, { studentId: student.studentId })).status, 403, who);

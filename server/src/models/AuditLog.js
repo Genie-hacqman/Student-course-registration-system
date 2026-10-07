@@ -14,7 +14,6 @@ AuditLog.init(
     ipAddress: { type: DataTypes.STRING(64) },
     requestId: { type: DataTypes.STRING(64) },
     userAgent: { type: DataTypes.STRING(255) },
-    // Who acted, as they were when it happened: survives the user being deleted (user_id is then cleared).
     actorEmail: { type: DataTypes.STRING(255) },
     actorRole: { type: DataTypes.STRING(30) },
     rowHmac: { type: DataTypes.CHAR(64) },
@@ -22,8 +21,6 @@ AuditLog.init(
   { sequelize, modelName: 'AuditLog', tableName: 'audit_logs', updatedAt: false },
 );
 
-// The log is append-only through the application. The one sanctioned way to remove rows is the retention
-// job in audit-maintenance.service.js, which archives them first and deletes with raw SQL on purpose.
 const refuse = () => { throw new Error('audit_logs is append-only'); };
 AuditLog.addHook('beforeUpdate', refuse);
 AuditLog.addHook('beforeDestroy', refuse);

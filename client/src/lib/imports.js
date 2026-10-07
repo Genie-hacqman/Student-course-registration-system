@@ -1,18 +1,7 @@
 import { PERMS } from './roles.js'
 
-/*
- * CSV → JSON rows for the bulk import endpoints (SCRS-backend `POST /api/admin/import/*`).
- * The cell formats follow SCRS-backend docs/import-templates/README.md.
- *
- * An empty cell omits the field instead of sending "": on a re-import the backend treats a
- * missing field as "leave the stored value unchanged". These checks only catch typos early;
- * the server validates everything again.
- */
-
 export const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 export const MAX_ROWS_PER_REQUEST = 5000
-
-// ── cell converters: each returns { value } or { problem } ────────────────────
 
 const text = (v) => ({ value: v })
 const upper = (v) => ({ value: v.toUpperCase() })
@@ -30,7 +19,6 @@ const oneOf = (values) => (v) => {
   return values.includes(lowerCased) ? { value: lowerCased } : { problem: `must be one of ${values.join(', ')}` }
 }
 
-/** "2026/2027": two consecutive years. */
 const session = (v) => {
   if (!/^\d{4}\/\d{4}$/.test(v)) return { problem: 'must look like 2026/2027' }
   return Number(v.slice(5)) === Number(v.slice(0, 4)) + 1 ? { value: v } : { problem: 'must be two consecutive years' }
@@ -43,7 +31,6 @@ const bool = (v) => {
   return { problem: 'must be true or false' }
 }
 
-/** "MATH101|MATH102" → ["MATH101", "MATH102"] */
 export const parseCodeList = (v) => {
   const codes = v.split('|').map((c) => c.trim().toUpperCase()).filter(Boolean)
   return codes.length ? { value: codes } : { problem: 'needs at least one course code' }
@@ -52,7 +39,6 @@ export const parseCodeList = (v) => {
 const toMinutes = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
 const pad = (t) => (t.length === 4 ? `0${t}` : t)
 
-/** "MON 09:00-10:00 LT1; WED 9:00-10:00 Main Hall" → [{ day, startTime, endTime, room? }] */
 export const parseSchedules = (v) => {
   const slots = []
   for (const part of v.split(';').map((p) => p.trim()).filter(Boolean)) {
@@ -71,18 +57,10 @@ export const parseSchedules = (v) => {
   return slots.length ? { value: slots } : { problem: 'needs at least one slot' }
 }
 
-// ── column definitions ────────────────────────────────────────────────────────
-
 const col = (name, convert, { required = false, hint = '' } = {}) => ({ name, convert, required, hint })
 
 const LEVEL = int(100, 900)
 
-/**
- * The import steps, in the order they must be loaded: each may only reference records from the
- * steps above it. `permission` mirrors the backend route's requirement.
- */
-// Departments through course offerings is one connected go-live job — either ADMIN or REGISTRAR
-// (whichever permission they hold) can run all of it. Mirrors `academic` in import.routes.js.
 const ACADEMIC_IMPORT = [PERMS.COURSE_MANAGE, PERMS.COURSE_CATALOG, PERMS.SECTION_MANAGE]
 
 export const IMPORT_STEPS = [
@@ -173,10 +151,8 @@ export const IMPORT_STEPS = [
   {
     key: 'students',
     label: 'Students (admission)',
-    // Not an /admin/import upsert: admission creates each student's ID, school email and PIN.
     endpoint: '/admissions/bulk',
     permission: PERMS.STUDENT_ADMIT,
-    // Every new row hashes a PIN on the server, so requests are smaller than other imports.
     batchSize: 1000,
     credentials: true,
     description: 'Admits students: each new row gets a Student ID, a school email and a temporary PIN, returned once for the admission letters. Rows are keyed by admission number, so re-running a file never admits anyone twice.',
@@ -214,12 +190,6 @@ export const IMPORT_STEPS = [
   },
 ]
 
-// ── file → rows ───────────────────────────────────────────────────────────────
-
-/**
- * Checks the header row against a step's columns. Missing required columns make the whole file
- * unusable; unknown columns are ignored with a warning.
- */
 export const checkHeaders = (step, headers) => {
   const known = new Set(step.columns.map((c) => c.name))
   const lowerToName = new Map(step.columns.map((c) => [c.name.toLowerCase(), c.name]))
@@ -230,7 +200,6 @@ export const checkHeaders = (step, headers) => {
   }
 }
 
-/** One parsed CSV record → `{ row, problems }`. Header matching ignores case. */
 export const toRow = (step, values) => {
   const byLower = new Map(Object.entries(values).map(([k, v]) => [k.toLowerCase(), v]))
   const row = {}
@@ -250,30 +219,22 @@ export const toRow = (step, values) => {
   return { row, problems }
 }
 
-/** Parsed CSV (`parseCsv`) → preview rows `{ line, row, problems }`, plus header issues. */
 export const prepare = (step, { headers, records }) => ({
   headers: checkHeaders(step, headers),
   rows: records.map(({ line, values }) => ({ line, ...toRow(step, values) })),
 })
 
-/** Template CSV content: the header row plus one example row. */
 export const templateRows = (step) => ({ headers: step.columns.map((c) => c.name), rows: [step.example] })
 
-/** Splits rows into request-sized batches. */
 export const batches = (rows, size = MAX_ROWS_PER_REQUEST) => {
   const out = []
   for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size))
   return out
 }
 
-/** Where a step's rows are posted, and how many per request. */
 export const endpointFor = (step) => step.endpoint ?? `/admin/import/${step.key}`
 export const batchSizeFor = (step) => step.batchSize ?? MAX_ROWS_PER_REQUEST
 
-/**
- * Merges per-batch reports; error and credential `row` indices become positions in the full list.
- * `credentials` (admission only) is present only when a batch returned it — never for a dry run.
- */
 export const mergeReports = (reports, batchSize = MAX_ROWS_PER_REQUEST) => reports.reduce((acc, r, i) => ({
   dryRun: r.dryRun,
   created: acc.created + r.created,
@@ -287,10 +248,6 @@ export const mergeReports = (reports, batchSize = MAX_ROWS_PER_REQUEST) => repor
     : {}),
 }), { dryRun: false, created: 0, updated: 0, unchanged: 0, failed: 0, invited: 0, errors: [] })
 
-/**
- * The credentials CSV for admission letters: one line per newly admitted student, joined back to the
- * uploaded rows (`sentRows[i]` is the row object sent, `lines[i]` its line in the source file).
- */
 export const credentialsCsvRows = (credentials, sentRows, lines) => credentials.map((c) => ({
   line: lines[c.row],
   admissionNumber: sentRows[c.row]?.admissionNumber ?? '',
@@ -302,7 +259,6 @@ export const credentialsCsvRows = (credentials, sentRows, lines) => credentials.
 }))
 export const CREDENTIAL_COLUMNS = ['line', 'admissionNumber', 'firstName', 'lastName', 'studentNumber', 'schoolEmail', 'pin']
 
-/** A 422 field path such as "body.rows.3.email" or "rows.3.email" → { index: 3, field: "email" }. */
 export const rowFieldFromPath = (field = '') => {
   const m = field.match(/(?:^|\.)rows\.(\d+)(?:\.(.+))?$/)
   return m ? { index: Number(m[1]), field: m[2] ?? '' } : null

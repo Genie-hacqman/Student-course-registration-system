@@ -3,10 +3,6 @@ import { sectionRoom } from './registration.socket.js';
 
 const sectionIds = z.array(z.coerce.number().int().positive()).max(50);
 
-/**
- * Clients join section rooms while a course page or registration cart is open,
- * so capacity updates are only pushed to people who are looking at that section.
- */
 export const registerCourseHandlers = (socket) => {
   const handle = (join) => (payload, ack) => {
     const parsed = sectionIds.safeParse(Array.isArray(payload) ? payload : [payload]);

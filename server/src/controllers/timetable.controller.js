@@ -5,7 +5,6 @@ export const mine = async (req, res) => ok(res, await timetableService.forStuden
 export const lecturerMine = async (req, res) =>
   ok(res, await timetableService.forLecturer(req.user.id, req.validated.query.semesterId));
 
-// Staff: clashes found while confirming timetables on registration approval
 export const listIssues = async (req, res) => {
   const { result, page, limit } = await timetableService.listIssues(req.validated.query);
   return paginated(res, result, { page, limit });

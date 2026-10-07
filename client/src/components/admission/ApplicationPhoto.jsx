@@ -5,10 +5,6 @@ import { useOfficialPhotoUrl, useRemoveOfficialPhoto, useSetOfficialPhoto } from
 import { Badge, Button, Spinner, cx } from '../ui'
 import { AVATAR_TYPES, avatarFileError, fileToOfficialPhoto } from '../../lib/image'
 
-/**
- * The portrait frame: the photo, a loading spinner, a "could not load" state with Retry, or an empty placeholder.
- * "Could not load" is deliberately different from "no photo", so a storage problem never looks like a deletion.
- */
 export function PhotoFrame({ url, loading, error, onRetry, alt, className }) {
   return (
     <div className={cx('relative flex aspect-3/4 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100 ring-1 ring-slate-300 sm:w-36', className)}>
@@ -30,17 +26,9 @@ export function PhotoFrame({ url, loading, error, onRetry, alt, className }) {
   )
 }
 
-/**
- * The applicant's official application photo. While the application is an editable draft: upload, preview,
- * replace and remove. Once submitted it is read-only and clearly marked locked. The lock is decided and enforced by
- * the server (`photo.locked`); this component only reflects it, so a hidden button is never the only protection.
- *
- * `photo` is the server's { present, uploadedAt, locked } (null when there is no application yet). The component keeps
- * the latest value itself and reports changes through `onChange`.
- */
 export default function ApplicationPhoto({ photo, onChange }) {
   const input = useRef(null)
-  const [preview, setPreview] = useState(null) // { blob, url }
+  const [preview, setPreview] = useState(null)
   const [error, setError] = useState('')
   const [reading, setReading] = useState(false)
   const upload = useSetOfficialPhoto()

@@ -31,7 +31,6 @@ const amendSchema = z.object({
   reason: z.string().trim().min(5, 'At least 5 characters').max(500),
 })
 
-/** Every result, provisional included. The registry can amend one with a reason (kept in the audit log). */
 function StudentResults({ studentId, canAmend }) {
   const results = useApi(`/students/${studentId}/results`)
   const amend = useApiMutation(({ id, ...body }) => http.patch(`/results/${id}`, body), { success: 'Grade amended — the student has been notified' })
@@ -78,7 +77,6 @@ function StudentResults({ studentId, canAmend }) {
   )
 }
 
-/** The small profile picture, captioned so it is never mistaken for the official application photo. */
 function ProfilePicture({ user, size = 'sm' }) {
   return (
     <div className="flex items-center gap-2">
@@ -88,16 +86,11 @@ function ProfilePicture({ user, size = 'sm' }) {
   )
 }
 
-/**
- * The student's identity photos: the OFFICIAL photo they applied with (kept with their application, unchanged by
- * anything they do to their profile picture), and their current profile picture, labelled as such.
- */
 function StudentPhotos({ studentId, student, application }) {
   if (application.isPending) {
     return <figure className="shrink-0"><PhotoFrame loading alt="" className="w-32 sm:w-40" /></figure>
   }
   if (application.data) return <OfficialPhoto source={`student:${studentId}`} photo={application.data.photo} />
-  // Admitted by staff (no online application), or the application could not be loaded: show the profile picture.
   return (
     <figure className="flex shrink-0 flex-col items-center gap-2">
       <Avatar user={student.user} size="xl" />
@@ -115,7 +108,6 @@ function Item({ label, children }) {
   )
 }
 
-/** Everything the student submitted in their online application, read-only (admins and registrars). */
 function AdmissionApplicationCard({ application, canReview }) {
   if (application.isPending) return null
   if (application.none) {

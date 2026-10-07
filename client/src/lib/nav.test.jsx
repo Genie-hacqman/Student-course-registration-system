@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { navForUser } from './nav.js'
 
-// The default permissions (server/src/utils/constants.js ROLE_PERMISSIONS).
 const ADMIN = ['user:manage', 'student:admit', 'application:review', 'course:manage', 'registration:view_all', 'report:view',
   'audit:view', 'settings:manage', 'account:approve', 'role:manage', 'announcement:create', 'directory:view']
 const REGISTRAR = ['course:catalog', 'lecturer:assign', 'semester:manage', 'section:manage', 'registration:approve',
@@ -16,7 +15,7 @@ describe('staff navigation by role', () => {
       'Dashboard', 'Students', 'Lecturers', 'Departments', 'Programmes', 'Administrators & Registrars', 'All Users',
       'Course Offerings', 'Enrolments & Registration', 'Audit Logs', 'Admissions',
     ])
-    expect(nav).not.toContain('Payments') // there is no payments feature, so no menu item for it
+    expect(nav).not.toContain('Payments')
   })
 
   it('registrars browse the directories but see no account pages or audit logs', () => {

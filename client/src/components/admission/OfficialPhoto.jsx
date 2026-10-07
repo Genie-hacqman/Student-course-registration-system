@@ -3,11 +3,6 @@ import { useOfficialPhotoUrl } from '../../api/applications'
 import { cx } from '../ui'
 import { PhotoFrame } from './ApplicationPhoto'
 
-/**
- * The photo submitted with an admission application, read-only and labelled, so staff never confuse it with the
- * person's profile picture. `source` is 'review:<applicationId>' or 'student:<studentId>'; `photo` is the
- * application's { present, uploadedAt } state from the API.
- */
 export default function OfficialPhoto({ source, photo, className }) {
   const { url, isLoading, isError, retry } = useOfficialPhotoUrl({ present: photo?.present, version: photo?.uploadedAt, source })
   return (
@@ -21,7 +16,6 @@ export default function OfficialPhoto({ source, photo, className }) {
   )
 }
 
-/** A small square version for list rows (the server makes the thumbnail; the stored photo is untouched). */
 export function OfficialPhotoThumb({ applicationId, photo, name }) {
   const { url, isError } = useOfficialPhotoUrl({ present: photo?.present, version: photo?.uploadedAt, source: `review:${applicationId}`, size: 'thumb' })
   const box = 'flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100 ring-1 ring-slate-200'

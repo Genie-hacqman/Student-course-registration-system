@@ -3,15 +3,6 @@ import { id, time } from './common.validator.js';
 import { COURSE_STATUS, DAYS, ROLES, SECTION_STATUS } from '../utils/constants.js';
 import { PASSABLE_GRADES } from '../utils/grades.js';
 
-/*
- * Bulk import rows reference other records by natural key (codes, emails, staff numbers), never by
- * database id, so the source spreadsheet stays readable and editable by the registrar.
- *
- * Rows are upserts. So optional fields deliberately have NO `.default()`: an omitted field on a
- * re-imported row must leave the stored value alone. Defaults for new records are applied in
- * import.service instead.
- */
-
 const MAX_ROWS = 5000;
 
 const code = z.string().trim().min(2).max(20).transform((v) => v.toUpperCase());
@@ -24,7 +15,6 @@ const level = z.coerce.number().int().min(100).max(900);
 
 export const importBody = (row, extra = {}, maxRows = MAX_ROWS) => z.object({
   rows: z.array(row).min(1).max(maxRows),
-  // Runs every row, reports exactly what a real import would, then rolls everything back.
   dryRun: z.boolean().default(false),
   ...extra,
 });
@@ -62,7 +52,6 @@ export const importProgramCoursesSchema = importBody(z.object({
 
 export const importPrerequisitesSchema = importBody(z.object({
   courseCode,
-  // One requirement group: any one of these courses satisfies it.
   requiresAnyOf: z.array(courseCode).min(1).max(10),
   type: z.enum(['prerequisite', 'corequisite']).default('prerequisite'),
   minGrade: z.string().trim().transform((v) => v.toUpperCase())
@@ -71,8 +60,6 @@ export const importPrerequisitesSchema = importBody(z.object({
 }));
 
 const sendInvites = {
-  // Off by default so everything can be loaded and checked before anyone is emailed.
-  // Send them later with POST /admin/import/invites.
   sendInvites: z.boolean().default(false),
 };
 
@@ -91,29 +78,20 @@ const slot = z
 
 export const importSectionsSchema = importBody(z.object({
   courseCode,
-  // Omit it to use the current semester.
   semesterId: id.optional(),
   sectionCode: z.string().trim().min(1).max(10).default('A'),
   capacity: z.coerce.number().int().min(1).max(2000),
-  // null removes the lecturer; omitted leaves it unchanged.
   lecturerStaffNumber: z.string().trim().min(2).max(30).nullable().optional(),
   status: z.enum(Object.values(SECTION_STATUS)).optional(),
   waitlistEnabled: z.boolean().optional(),
-  // When given, replaces the section's whole timetable.
   schedules: z.array(slot).max(20).optional(),
 }));
 
 export const sendInvitesSchema = z.object({
-  // Students are admitted with a PIN instead (POST /api/admissions); invites are for staff accounts.
   role: z.enum([ROLES.LECTURER, ROLES.REGISTRAR, ROLES.ADMIN]).optional(),
-  // Invites are emailed one by one, so a large backlog is sent in batches; `remaining` says how many are left.
   limit: z.coerce.number().int().min(1).max(1000).default(200),
 });
 
-/**
- * Course-catalogue rows are validated row by row in course-import/validate.js (so one bad row is
- * reported, not a 422 for the whole file); here only the envelope and the row count are checked.
- */
 export const importCourseCatalogSchema = z.object({
   rows: z.array(z.record(z.string(), z.unknown())).min(1, 'The file has no rows').max(MAX_ROWS, `At most ${MAX_ROWS} rows per import`),
   dryRun: z.boolean().default(true),

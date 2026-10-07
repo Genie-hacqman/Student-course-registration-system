@@ -9,8 +9,6 @@ import { hasPermission } from './permission.service.js';
 import * as lecturerService from './lecturer.service.js';
 import * as semesterService from './semester.service.js';
 
-/** Shared by attendance and assessments: section access and the class list they both work from. */
-
 export const loadSection = async (sectionId, { transaction } = {}) => {
   const section = await CourseSection.findByPk(sectionId, {
     include: [
@@ -30,10 +28,6 @@ export const briefSection = (section) => ({
   semester: section.semester,
 });
 
-/**
- * Lecturers may only work on sections they teach. Any other role holding the permission
- * (registrar/admin by default, or whoever an admin grants it to) may work on any section.
- */
 export const assertCanTeach = async (section, actor, permission) => {
   if (!hasPermission(actor.role, permission)) throw new ForbiddenError();
   if (actor.role === ROLES.LECTURER) {
@@ -46,7 +40,6 @@ export const assertCanTeach = async (section, actor, permission) => {
 
 const activeRegistration = { status: { [Op.ne]: REGISTRATION_STATUS.CANCELLED } };
 
-/** Students currently registered in the section (any live registration, not only approved). */
 export const rosterStudents = async (sectionId, { transaction } = {}) => {
   const items = await RegistrationItem.findAll({
     where: { courseSectionId: sectionId, status: REGISTRATION_ITEM_STATUS.REGISTERED },
@@ -74,7 +67,6 @@ export const studentSummary = (s) => ({
   name: `${s.user.firstName} ${s.user.lastName}`,
 });
 
-/** Registered students per section, for many sections at once. */
 export const rosterCounts = async (sectionIds) => {
   if (!sectionIds.length) return new Map();
   const rows = await RegistrationItem.findAll({
@@ -87,7 +79,6 @@ export const rosterCounts = async (sectionIds) => {
   return new Map(rows.map((r) => [r.courseSectionId, Number(r.count)]));
 };
 
-/** The current-semester sections a student is registered in. */
 export const studentSections = async (studentId, semesterId) => {
   const items = await RegistrationItem.findAll({
     where: { status: REGISTRATION_ITEM_STATUS.REGISTERED },
@@ -104,7 +95,6 @@ export const studentSections = async (studentId, semesterId) => {
   return items.map((i) => i.section);
 };
 
-/** Today as YYYY-MM-DD and as a DAYS code, in the server's local time zone. */
 export const today = (now = new Date()) => {
   const pad = (n) => String(n).padStart(2, '0');
   return {
@@ -116,11 +106,6 @@ export const today = (now = new Date()) => {
 const PRIORITY = { high: 0, normal: 1 };
 const GRADING_WINDOW_DAYS = 14;
 
-/**
- * A lecturer's to-do list, derived entirely from current data (nothing is stored):
- * today's classes without attendance, draft assessments, overdue ungraded assessments,
- * and sections still needing final grades as the semester ends.
- */
 export const tasksFor = async (userId, now = new Date()) => {
   const lecturer = await lecturerService.getByUserId(userId);
   const semester = await semesterService.findCurrent();

@@ -4,7 +4,6 @@ import { useAuth } from '../../auth/AuthProvider'
 import ChangePinForm from '../../components/account/ChangePinForm'
 import { homeForRole } from '../../lib/roles'
 
-/** Shown after signing in with a temporary PIN (new admission or a staff reset): nothing else works until it's replaced. */
 export default function ChangePin() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()

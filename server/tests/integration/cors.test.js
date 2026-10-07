@@ -1,11 +1,3 @@
-/**
- * The subdomain deployment (app.X / api.X) relies on the browser sending the refresh cookie on a
- * cross-origin, same-site request. That only happens if the credentialed CORS handshake is right:
- * the response must echo back the exact requesting origin (never "*") and set
- * Access-Control-Allow-Credentials: true. These tests prove that mechanism actually works,
- * against whatever CORS_ORIGIN is configured — see env.js for the production-only checks that
- * stop it from being misconfigured (wildcard, http, or a leftover dev origin) in the first place.
- */
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
 import env from '../../src/config/env.js';

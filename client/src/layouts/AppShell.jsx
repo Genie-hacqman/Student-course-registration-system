@@ -33,7 +33,6 @@ function useMediaQuery(query) {
   return matches
 }
 
-/** Active when the path matches (exactly, for `end`) and the entry's own `match(location)` agrees. */
 const isActive = (item, location) => {
   const [path] = item.to.split('?')
   const pathOk = item.end ? location.pathname === path : location.pathname === path || location.pathname.startsWith(`${path}/`)
@@ -100,7 +99,6 @@ function NavGroup({ group, onNavigate }) {
 
 const navItem = slideIn(-12)
 
-/** The menu. On first load (and each time the phone drawer opens) its entries cascade in one after another. */
 function NavTree({ nav, rail, onNavigate }) {
   return (
     <m.nav aria-label="Main" className="-mx-1 flex-1 space-y-0.5 overflow-y-auto px-1" initial="hidden" animate="show" variants={stagger(0.035, 0.12)}>
@@ -161,7 +159,6 @@ function Breadcrumbs() {
   )
 }
 
-/** ⌘K / Ctrl+K quick-jump over the pages this user can open. */
 function QuickJump({ nav, open, onClose }) {
   const navigate = useNavigate()
   const [q, setQ] = useState('')
@@ -285,7 +282,6 @@ function ProfileMenu({ user, profilePath, settingsPath, onSignOut }) {
   )
 }
 
-/** Sidebar + header frame shared by every signed-in area. `nav` is already filtered for the user. */
 export default function AppShell({ nav, home, notificationsPath, profilePath, settingsPath }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -299,7 +295,6 @@ export default function AppShell({ nav, home, notificationsPath, profilePath, se
   const drawerRef = useRef(null)
   useFocusTrap(drawerRef, drawer, () => setDrawer(false))
 
-  // A drawer left open would cover the page after navigating.
   const [lastPath, setLastPath] = useState(location.pathname)
   if (lastPath !== location.pathname) {
     setLastPath(location.pathname)
@@ -316,7 +311,7 @@ export default function AppShell({ nav, home, notificationsPath, profilePath, se
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
-      try { localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1') } catch { /* private mode: not remembered */ }
+      try { localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1') } catch {}
       return !c
     })
   }

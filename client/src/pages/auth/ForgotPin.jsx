@@ -8,13 +8,11 @@ import { useForgotPin, useResetPin } from '../../api/auth'
 import { Button, Input } from '../../components/ui'
 import { applyServerErrors, emailSchema, newPinSchema } from '../../lib/forms'
 
-// The server sends at most one code a minute per student.
 const RESEND_SECONDS = 60
 const pinInput = { type: 'password', inputMode: 'numeric', maxLength: 6, autoComplete: 'off' }
 
-/** Student ID + school email → emailed 6-digit code → new PIN. */
 export default function ForgotPin() {
-  const [sent, setSent] = useState(null) // { studentNumber, message, at }
+  const [sent, setSent] = useState(null)
   const [done, setDone] = useState(false)
   const navigate = useNavigate()
 

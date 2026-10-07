@@ -1,7 +1,3 @@
-/**
- * Turns validated query params into Sequelize limit/offset/order.
- * `sort` looks like "code" or "-createdAt"; only fields in `allowedSort` are accepted.
- */
 export const buildPagination = ({ page = 1, limit = 20, sort } = {}, allowedSort = [], defaultSort = ['id', 'ASC']) => {
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const safePage = Math.max(Number(page) || 1, 1);

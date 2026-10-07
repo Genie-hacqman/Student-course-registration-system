@@ -6,13 +6,8 @@ import { api, unwrap } from '../api/client'
 import { Badge, Button, Card, CardHeader, EmptyState, QueryState, cx } from './ui'
 import ConfirmDialog from './admin/ConfirmDialog'
 
-// Mirrors GRADE_SCALE in SCRS-backend src/utils/grades.js. W (withdrawn) and I (incomplete) carry no points.
 export const GRADES = ['A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E', 'F', 'W', 'I']
 
-/**
- * Grade entry for one section. Grades save as provisional (students can't see them) until the
- * section is finalised, after which only the registry can amend a result.
- */
 export default function GradeSheet({ sectionId }) {
   const qc = useQueryClient()
   const key = ['grades', String(sectionId)]
@@ -53,7 +48,6 @@ export default function GradeSheet({ sectionId }) {
       setMissing(new Set())
       toast.success('Grades are final and students have been notified')
     } catch (err) {
-      // 422 lists the students still without a grade.
       if (err.code === 'VALIDATION_ERROR' && Array.isArray(err.details)) setMissing(new Set(err.details.map((d) => d.studentId)))
       throw err
     }

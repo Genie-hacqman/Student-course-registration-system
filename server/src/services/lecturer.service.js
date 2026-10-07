@@ -24,7 +24,6 @@ const includes = [
 ];
 const DEPARTMENT_ATTRIBUTES = ['id', 'name', 'code', 'status'];
 
-/** The additional departments of the given lecturers, as a Map lecturerId → [department]. One query for a page. */
 const additionalDepartmentsFor = async (lecturerIds) => {
   const map = new Map(lecturerIds.map((id) => [id, []]));
   if (!lecturerIds.length) return map;
@@ -36,11 +35,9 @@ const additionalDepartmentsFor = async (lecturerIds) => {
   return map;
 };
 
-/** True when the lecturer belongs to the department, as their home department or an additional one. */
 export const belongsToDepartment = async (lecturer, departmentId, transaction) => lecturer.departmentId === departmentId
   || Boolean(await LecturerDepartment.findOne({ where: { lecturerId: lecturer.id, departmentId }, attributes: ['id'], transaction }));
 
-// Computed per lecturer: live (non-cancelled) offerings they teach, and whether they still have to set a password.
 const summaryAttributes = {
   include: [
     [sequelize.literal(`(SELECT COUNT(*) FROM course_sections cs WHERE cs.lecturer_id = Lecturer.id AND cs.status <> ${sequelize.escape(SECTION_STATUS.CANCELLED)})`), 'currentSections'],
@@ -48,10 +45,6 @@ const summaryAttributes = {
   ],
 };
 
-/**
- * Lecturers, filtered and paginated on the server. `departmentId` matches their home department OR an additional
- * one; each row lists its additional departments, and `membership` says how they belong to the filtered department.
- */
 export const list = async (query) => {
   const { page, limit, offset, order } = buildPagination(query, ['staffNumber', 'createdAt']);
   const where = {};
@@ -85,16 +78,11 @@ export const list = async (query) => {
   return { result: { count, rows: shaped }, page, limit };
 };
 
-/** A department's lecturers: home and additional members, each marked with how they belong. */
 export const listForDepartment = async (departmentId, query) => {
   if (!(await Department.findByPk(departmentId, { attributes: ['id'] }))) throw new NotFoundError('Department');
   return list({ ...query, departmentId });
 };
 
-/**
- * Replaces a lecturer's ADDITIONAL departments. The home department is set on the profile and can't be repeated
- * here; duplicates are collapsed; a department being newly added must be open (archived ones are closed to intake).
- */
 export const setDepartments = async (id, departmentIds, actor, req) => {
   const lecturer = await Lecturer.findByPk(id, { include: [{ model: Department, as: 'department', attributes: ['id', 'name'] }] });
   if (!lecturer) throw new NotFoundError('Lecturer');
@@ -119,7 +107,6 @@ export const setDepartments = async (id, departmentIds, actor, req) => {
   return { ...(await getById(id)).toJSON(), changes: { added, removed } };
 };
 
-/** Profile plus every course offering they were ever assigned (current first). */
 export const getById = async (id) => {
   const lecturer = await Lecturer.findByPk(id, {
     include: [
@@ -135,7 +122,6 @@ export const getById = async (id) => {
           attributes: ['id', 'sectionCode', 'status', 'seatsTaken', 'capacity'],
           include: [
             { model: Course, as: 'course', attributes: ['id', 'code', 'title', 'departmentId'] },
-            // Class times, so the profile can show the lecturer's teaching timetable.
             { model: Schedule, as: 'schedules', attributes: ['id', 'day', 'startTime', 'endTime', 'room'] },
             {
               model: Semester, as: 'semester', attributes: ['id', 'name', 'isCurrent'],
@@ -149,8 +135,6 @@ export const getById = async (id) => {
     order: [[{ model: SectionLecturerAssignment, as: 'assignments' }, 'assignedAt', 'DESC']],
   });
   if (!lecturer) throw new NotFoundError('Lecturer');
-  // What they teach this term, from the offerings themselves (course_sections.lecturer_id is the current lecturer;
-  // assignment history may be missing for offerings created before it existed or set up by import).
   const teaching = await CourseSection.findAll({
     where: { lecturerId: lecturer.id, status: { [Op.ne]: SECTION_STATUS.CANCELLED } },
     attributes: ['id', 'sectionCode', 'status', 'seatsTaken', 'capacity'],
@@ -179,7 +163,6 @@ const assertPersonalEmailFree = async (personalEmail, exceptId, transaction) => 
 
 const slug = (s) => String(s).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
-/** The school email: as entered, or first.last@<institution.staffEmailDomain> (first.last2@… if taken). */
 const resolveSchoolEmail = async ({ schoolEmail, firstName, lastName }, transaction) => {
   if (schoolEmail) {
     const email = schoolEmail.toLowerCase();
@@ -199,11 +182,6 @@ const resolveSchoolEmail = async ({ schoolEmail, firstName, lastName }, transact
   }
 };
 
-/**
- * Creates a lecturer's account and profile in one transaction, then emails a single-use
- * set-your-password link (to the personal email when given). No password is ever chosen by staff
- * or sent by email; the lecturer signs in with the school email once they've set theirs.
- */
 const createAccount = async (data, actor) => {
   const { user, lecturer } = await sequelize.transaction(async (transaction) => {
     await assertStaffNumberFree(data.staffNumber, null, transaction);
@@ -219,7 +197,7 @@ const createAccount = async (data, actor) => {
       email,
       passwordHash: UNUSABLE_PASSWORD_HASH,
       status: USER_STATUS.ACTIVE,
-      emailVerifiedAt: new Date(), // the school issues the mailbox
+      emailVerifiedAt: new Date(),
     }, { transaction });
     const createdLecturer = await Lecturer.create({
       userId: createdUser.id,
@@ -240,7 +218,6 @@ const createAccount = async (data, actor) => {
   return getById(lecturer.id);
 };
 
-/** `{ userId, … }` attaches a profile to an existing account (older flow); otherwise creates the account too. */
 export const create = async (data, actor) => {
   if (!data.userId) return createAccount(data, actor);
   if (!(await User.findByPk(data.userId))) throw new BadRequestError('User does not exist');
@@ -278,20 +255,16 @@ export const update = async (id, data, actor) => {
     if (nameKeys.length) await User.update(names, { where: { id: lecturer.userId }, transaction });
     await audit.log({
       userId: actor.id, action: 'lecturer.update', entityType: 'Lecturer', entityId: id, transaction,
-      // Personal details are recorded as "changed" only, never their values.
       metadata: { staffNumber: lecturer.staffNumber, ...diffFields(before, { ...snapshot(lecturer, fieldKeys), ...names }, { omitValues: ['phone', 'personalEmail'] }) },
     });
   });
   return getById(id);
 };
 
-/** Activate or deactivate the lecturer's account (deactivating ends their sessions). Assignments are kept. */
 export const setActive = async (id, active, actor) => {
   const lecturer = await Lecturer.findByPk(id);
   if (!lecturer) throw new NotFoundError('Lecturer');
   const status = active ? USER_STATUS.ACTIVE : USER_STATUS.SUSPENDED;
-  // One action, one row, in one transaction: the account change (with its guards and ended sessions) is made by
-  // userService.update without its own audit row, and this entry records it with the lecturer.
   await sequelize.transaction(async (transaction) => {
     const account = await User.findByPk(lecturer.userId, { attributes: ['id', 'status'], transaction });
     await userService.update(lecturer.userId, { status }, actor, undefined, { transaction, audit: false });
@@ -303,7 +276,6 @@ export const setActive = async (id, active, actor) => {
   return getById(id);
 };
 
-/** Re-sends the set-your-password link (to the personal email when known). */
 export const resendInvite = async (id, actor) => {
   const lecturer = await Lecturer.findByPk(id);
   if (!lecturer) throw new NotFoundError('Lecturer');
@@ -319,7 +291,6 @@ export const getByUserId = async (userId) => {
   return lecturer;
 };
 
-/** Sections taught by a lecturer, optionally limited to a semester. */
 export const getSections = async (lecturerId, semesterId) =>
   CourseSection.findAll({
     where: { lecturerId, ...(semesterId ? { semesterId } : {}) },
@@ -334,7 +305,6 @@ export const getSections = async (lecturerId, semesterId) =>
     order: [['semesterId', 'DESC'], ['id', 'ASC']],
   });
 
-/** Registered students for a section. Lecturers may only see their own sections. */
 export const getRoster = async (sectionId, actor) => {
   const section = await CourseSection.findByPk(sectionId, {
     include: [{ model: Course, as: 'course', attributes: ['id', 'code', 'title'] }],

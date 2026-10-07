@@ -1,15 +1,9 @@
 'use strict';
 
-/**
- * Online admission: applicants sign up with their personal email, submit one application, and an
- * admin admits or rejects it. Admission turns the same user row into a student account, which the
- * student activates through a single-use, time-limited link (only its sha256 hash is stored).
- */
 module.exports = {
   async up(queryInterface, Sequelize) {
     const now = { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') };
 
-    // The roles seeder only runs on fresh databases, so existing ones get the new role here.
     await queryInterface.sequelize.query(
       `INSERT IGNORE INTO roles (name, description, created_at, updated_at)
        VALUES ('APPLICANT', 'Prospective student with an online application', NOW(), NOW())`,
@@ -21,7 +15,6 @@ module.exports = {
 
     await queryInterface.createTable('admission_applications', {
       id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
-      // One application per account.
       user_id: {
         type: Sequelize.INTEGER, allowNull: false, unique: true,
         references: { model: 'users', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'CASCADE',
@@ -50,7 +43,6 @@ module.exports = {
       },
       reviewed_at: { type: Sequelize.DATE },
       rejection_reason: { type: Sequelize.STRING(500) },
-      // Set on admission; unique so an application can never produce two student records.
       student_id: {
         type: Sequelize.INTEGER, unique: true,
         references: { model: 'students', key: 'id' }, onUpdate: 'CASCADE', onDelete: 'SET NULL',

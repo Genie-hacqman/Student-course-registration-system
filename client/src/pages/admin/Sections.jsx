@@ -31,9 +31,8 @@ export const timetableSummary = (schedules) =>
 
 export default function Sections() {
   const { user } = useAuth()
-  // Choosing the lecturer is the registry's (lecturer:assign); section managers without it leave it alone.
   const canAssign = can(user, PERMS.LECTURER_ASSIGN)
-  const canManage = can(user, PERMS.SECTION_MANAGE) // admins can look at offerings; only the registry changes them
+  const canManage = can(user, PERMS.SECTION_MANAGE)
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const { semesterId, setSemesterId, semesters, semester } = useSemesterParam()

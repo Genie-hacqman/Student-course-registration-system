@@ -39,7 +39,7 @@ describe('Students page', () => {
     expect(cs).toHaveTextContent('3')
     expect(cs).toHaveAttribute('href', '/staff/students/departments/1')
     expect(screen.getByRole('link', { name: /MATH.*Mathematics/ })).toHaveAttribute('href', '/staff/students/departments/2')
-    expect(screen.queryByRole('list', { name: 'Programmes' })).not.toBeInTheDocument() // nothing expands inline
+    expect(screen.queryByRole('list', { name: 'Programmes' })).not.toBeInTheDocument()
   })
 
   it('searches students by name, Student ID or email and lists the matches', async () => {
@@ -54,6 +54,6 @@ describe('Students page', () => {
     const table = screen.getByRole('table')
     expect(within(table).getByText('Staff admission')).toBeInTheDocument()
     expect(within(table).getByText('Draft')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /admit student/i })).not.toBeInTheDocument() // registrars lack student:admit
+    expect(screen.queryByRole('button', { name: /admit student/i })).not.toBeInTheDocument()
   })
 })

@@ -35,10 +35,6 @@ export function Button({ variant = 'primary', size = 'md', loading, disabled, cl
 
 const AVATAR_SIZES = { sm: 'size-8 text-xs', md: 'size-10 text-sm', lg: 'size-14 text-lg', xl: 'size-24 text-3xl' }
 
-/**
- * A person's picture, or their initials on the brand colour when they have none. List rows only carry the
- * small `avatarThumb`, so they pass `thumb`; everywhere else the full `avatar` is used.
- */
 export function Avatar({ user, size = 'md', thumb = false, className }) {
   const label = [user?.firstName?.[0], user?.lastName?.[0]].filter(Boolean).join('').toUpperCase() || '?'
   const box = cx('shrink-0 rounded-full', AVATAR_SIZES[size], className)
@@ -86,9 +82,7 @@ export function Badge({ tone = 'slate', children, className }) {
 
 const STATUS_ICON = { green: CheckCircle2, amber: Clock, red: XCircle, slate: CircleDashed, blue: Info }
 
-/** Every status the UI shows, as tone + label. The icon keeps status readable without colour. */
 const STATUS = {
-  // registrations
   draft: ['slate', 'Draft'],
   submitted: ['amber', 'Awaiting approval'],
   pending: ['amber', 'Pending'],
@@ -97,18 +91,15 @@ const STATUS = {
   rejected: ['red', 'Needs changes'],
   cancelled: ['slate', 'Cancelled'],
   not_started: ['slate', 'Not started'],
-  // sections / course availability
   eligible: ['green', 'Available'],
   full: ['amber', 'Full'],
   blocked: ['red', 'Not eligible'],
   open: ['green', 'Open'],
   closed: ['amber', 'Closed'],
-  // accounts
   active: ['green', 'Active'],
   inactive: ['slate', 'Inactive'],
   suspended: ['red', 'Suspended'],
   completed: ['green', 'Completed'],
-  // teaching
   published: ['green', 'Published'],
   present: ['green', 'Present'],
   absent: ['red', 'Absent'],
@@ -118,7 +109,6 @@ const STATUS = {
   failed: ['red', 'Failed'],
 }
 
-/** A status pill with an icon, so the state never depends on colour alone. `label` overrides the default wording. */
 export function StatusBadge({ status, label, tone, className }) {
   const [defaultTone, defaultLabel] = STATUS[status] ?? ['slate', status ?? 'Unknown']
   const t = tone ?? defaultTone
@@ -132,8 +122,6 @@ export function StatusBadge({ status, label, tone, className }) {
 }
 
 export const Input = forwardRef(function Input({ label, error, hint, invalid, className, ...props }, ref) {
-  // Ties the message to the field, so a screen reader announces it with the input instead of leaving it as loose text.
-  // `invalid` marks the field as wrong without a message of its own, for a message shown once beside a group of inputs.
   const messageId = useId()
   const bad = Boolean(error) || Boolean(invalid)
   return (
@@ -181,10 +169,6 @@ export function Spinner({ className }) {
   return <Loader2 className={cx('size-5 animate-spin text-brand-600', className)} />
 }
 
-/**
- * The branded loader shown while the app starts or restores a session (every reload). It fades in after a short
- * delay, so a fast load never flashes it; then the logo springs in inside a pulsing ring and the wordmark rises.
- */
 export function FullPageSpinner() {
   return (
     <m.div
@@ -236,10 +220,6 @@ export function Loading({ label = 'Loading…' }) {
   )
 }
 
-/**
- * Client errors (4xx) carry messages written for users; anything else (5xx, network) could be
- * a raw server detail, so it gets a generic line instead.
- */
 export const userMessage = (error) => {
   if (!error) return 'Something went wrong.'
   if (error.status >= 400 && error.status < 500 && error.message) return error.message
@@ -275,7 +255,6 @@ export function EmptyState({ title, children, icon: Icon = Inbox, action, compac
   )
 }
 
-/** Renders loading / error / content for a TanStack query. Pass `fallback` (e.g. a skeleton) to replace the spinner. */
 export function QueryState({ query, children, loadingLabel, fallback, errorTitle }) {
   if (query.isPending) return fallback ?? <Loading label={loadingLabel} />
   if (query.isError) return <ErrorState error={query.error} title={errorTitle} onRetry={() => query.refetch()} />
@@ -285,7 +264,6 @@ export function QueryState({ query, children, loadingLabel, fallback, errorTitle
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-/** Keeps Tab inside `ref` while active, focuses its first control, and restores focus to the opener on close. */
 export function useFocusTrap(ref, active, onEscape) {
   const escape = useRef(onEscape)
   useEffect(() => { escape.current = onEscape }, [onEscape])
@@ -312,7 +290,6 @@ export function useFocusTrap(ref, active, onEscape) {
   }, [active, ref])
 }
 
-/** A dialog that animates in on a spring and back out on close (bottom sheet on phones, centred on larger screens). */
 export function Modal({ open, onClose, title, children, footer, wide, description }) {
   const ref = useRef(null)
   const titleId = useId()
@@ -377,7 +354,6 @@ export function PageHeader({ title, subtitle, action, eyebrow }) {
 
 const BAR_TONE = { amber: 'bg-amber-500', red: 'bg-red-500', green: 'bg-green-600', brand: 'bg-brand-600' }
 
-/** Fills from 0 on mount, then follows `value`. `label` names it for screen readers. */
 export function ProgressBar({ value, max, tone = 'brand', label, size = 'md' }) {
   const pct = max ? Math.min(100, Math.round((value / max) * 100)) : 0
   const [shown, setShown] = useState(0)
@@ -399,12 +375,10 @@ export function ProgressBar({ value, max, tone = 'brand', label, size = 'md' }) 
   )
 }
 
-/** A loading placeholder for text/values that haven't arrived yet. Size it via className (e.g. "h-8 w-16"). */
 export function Skeleton({ className, style }) {
   return <div aria-hidden style={style} className={cx('animate-pulse rounded-md bg-slate-200/70', className)} />
 }
 
-/** Placeholder grid of stat cards. */
 export function SkeletonCards({ count = 4, className }) {
   return (
     <div role="status" aria-label="Loading" className={cx('grid gap-4 sm:grid-cols-2 xl:grid-cols-4', className)}>
@@ -451,10 +425,6 @@ export function SkeletonChart({ height = 220 }) {
   )
 }
 
-/**
- * A search box that fires `onSearch` on blur or Enter, not on every keystroke —
- * keeps list pages from refetching mid-typing.
- */
 export function SearchInput({ defaultValue = '', onSearch, placeholder, className, ...props }) {
   const [value, setValue] = useState(defaultValue)
   const commit = () => onSearch(value.trim())
@@ -501,10 +471,8 @@ const TAB_VARIANTS = {
   },
 }
 
-/** A controlled tab bar. `items` is `[{ value, label }]`; panel rendering stays with the caller. */
 export function Tabs({ items, value, onChange, variant = 'pills', className, label }) {
   const v = TAB_VARIANTS[variant]
-  // Arrow keys move between tabs, per the WAI-ARIA tabs pattern.
   const onKeyDown = (e) => {
     const i = items.findIndex((item) => item.value === value)
     const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null

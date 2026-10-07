@@ -1,14 +1,5 @@
 'use strict';
 
-/**
- * Staff directory: organise people by department.
- *  - departments.status / programs.status: `archived` means closed to new intake (no new programmes, courses,
- *    lecturers, applications or admissions under it); everything already there stays visible. Default `active`.
- *  - lecturer_departments: a lecturer's ADDITIONAL departments (joint appointments). The home department stays in
- *    lecturers.department_id and is never duplicated here.
- *  - Indexes for the new directory filters (students by programme+level and status, users by status).
- * Additive and reversible: no existing data is changed.
- */
 module.exports = {
   async up(queryInterface, Sequelize) {
     const status = { type: Sequelize.ENUM('active', 'archived'), allowNull: false, defaultValue: 'active' };
@@ -48,6 +39,5 @@ module.exports = {
     await queryInterface.removeColumn('programs', 'status');
     await queryInterface.removeIndex('departments', ['status']);
     await queryInterface.removeColumn('departments', 'status');
-    // MySQL drops an ENUM with its column; nothing else to clean up.
   },
 };

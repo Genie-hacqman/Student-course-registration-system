@@ -27,7 +27,6 @@ export class ForbiddenError extends AppError {
   }
 }
 
-/** Too many attempts for one account (sign-in lockout), as opposed to the per-IP rate limiter. */
 export class TooManyAttemptsError extends AppError {
   constructor(message, code = 'TOO_MANY_ATTEMPTS') {
     super(message, 429, code);
@@ -52,7 +51,6 @@ export class ValidationError extends AppError {
   }
 }
 
-/** Raised when one or more registration business rules fail. `details` holds every failed rule. */
 export class RegistrationRuleError extends AppError {
   constructor(failures) {
     super('Registration rules not satisfied', 422, 'REGISTRATION_RULES_FAILED', failures);

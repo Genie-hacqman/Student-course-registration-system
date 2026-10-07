@@ -7,7 +7,6 @@ import { Badge, SkeletonList, cx, useFocusTrap } from '../ui'
 import { popover } from '../../lib/motionPresets'
 import { timeAgo } from '../../lib/format'
 
-/** Categories for the student dashboard and the notification center, derived from the notification type. */
 export const CATEGORIES = {
   action: { label: 'Action required', tone: 'red', icon: AlertCircle, dot: 'bg-red-50 text-red-600' },
   important: { label: 'Important', tone: 'amber', icon: Star, dot: 'bg-amber-50 text-amber-600' },
@@ -48,7 +47,6 @@ export function NotificationItem({ n, onRead, compact }) {
   )
 }
 
-/** Header bell: unread badge (pops once when the count changes) and a popover with the latest items. */
 export function NotificationCenter({ allPath }) {
   const [open, setOpen] = useState(false)
   const list = useNotifications({ page: 1, limit: 5 })

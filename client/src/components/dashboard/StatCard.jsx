@@ -20,10 +20,6 @@ function Value({ value, decimals, suffix }) {
   return `${decimals ? n.toFixed(decimals) : Math.round(n).toLocaleString()}${suffix ?? ''}`
 }
 
-/**
- * A single headline number. `value` undefined renders a skeleton; numbers count up on first render.
- * `to` makes the whole card a link; `hint` is the supporting line underneath.
- */
 export function StatCard({ label, value, hint, icon: Icon, tone = 'brand', to, decimals, suffix, className, index = 0 }) {
   const body = (
     <Card className={cx('flex h-full items-start gap-4 p-5', to && 'transition-shadow hover:shadow-md hover:ring-brand-300', className)}>
@@ -42,7 +38,6 @@ export function StatCard({ label, value, hint, icon: Icon, tone = 'brand', to, d
       {to && <ArrowUpRight className="size-4 shrink-0 text-slate-400" aria-hidden />}
     </Card>
   )
-  // Cards cascade in on a spring (each a beat after the last), and linked ones lift a little on hover.
   return (
     <m.div
       className="h-full"

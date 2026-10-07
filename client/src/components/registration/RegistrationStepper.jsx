@@ -1,10 +1,6 @@
 import { Check } from 'lucide-react'
 import { ProgressBar, cx } from '../ui'
 
-/**
- * Horizontal stepper on desktop, a compact "Step 3 of 6" bar on mobile.
- * Completed steps up to `maxReached` are buttons, so students can step back.
- */
 export function RegistrationStepper({ steps, current, maxReached = current, onSelect }) {
   return (
     <nav aria-label="Registration steps" className="no-print">

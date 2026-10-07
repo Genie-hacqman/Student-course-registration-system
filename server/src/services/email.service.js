@@ -6,38 +6,18 @@ import logger from '../config/logger.js';
 import { EmailDelivery } from '../models/index.js';
 import { EMAIL_STATUS } from '../utils/constants.js';
 
-/*
- * The only place that sends email. Providers, in order: Resend (RESEND_API_KEY), SMTP (SMTP_HOST,
- * nodemailer), else nothing — the email is logged with token links redacted (dev). Under NODE_ENV=test a
- * real provider is never used (nor under `node --test`) unless a test injects one, so a developer's .env
- * can't make tests send mail.
- *
- * sendMail never throws: a failed send must not fail (or roll back) the business action that triggered it.
- * With a `template`, every attempt is recorded in email_deliveries; with an `idempotencyKey`, an email
- * that was already accepted is not sent again (and the key is passed to Resend, which dedupes for 24 h).
- */
-
 export const ONBOARDING_SENDER = 'SCRS <onboarding@resend.dev>';
 
-/** EMAIL_FROM, else SMTP_FROM; outside production with Resend, the onboarding sender (reaches only the account owner). */
 export const senderAddress = () => env.EMAIL_FROM
   || env.SMTP_FROM
   || (env.RESEND_API_KEY && !env.isProduction ? ONBOARDING_SENDER : undefined);
 
-/**
- * Whether email will really be sent: a provider is configured (Resend, else SMTP) AND there is a sender address.
- * The same condition `sendMail` uses, so the health check reports what actually happens. Reads configuration only;
- * never creates a provider client.
- */
 export const isEmailConfigured = () => Boolean((env.RESEND_API_KEY || env.SMTP_HOST) && senderAddress());
 
-/** Hides token values in links (activation, reset, verification) so raw tokens never reach the logs. */
 export const redactTokens = (text) => String(text ?? '').replace(/([?&]token=)[^\s&"'<>]+/g, '$1[redacted]');
 
-/** "ama.mensah@gmail.com" → "a***@gmail.com": enough to tell addresses apart in logs, not to harvest them. */
 export const maskEmail = (email) => String(email ?? '').replace(/^(.)[^@]*(@.*)$/, '$1***$2');
 
-/** A provider error reduced to something safe to store and log (no API keys, bounded length). */
 export const safeError = (error) => {
   const name = error?.name && error.name !== 'Error' ? `${error.name}: ` : '';
   const status = error?.statusCode ? ` (HTTP ${error.statusCode})` : '';
@@ -48,7 +28,6 @@ export const safeError = (error) => {
 
 class ProviderError extends Error {}
 
-/** Resend. Its SDK reports failures as `{ error }` rather than throwing; both become a ProviderError. */
 export const resendProvider = (client) => ({
   name: 'resend',
   async send({ from, to, subject, text, html }, { idempotencyKey } = {}) {
@@ -58,7 +37,6 @@ export const resendProvider = (client) => ({
   },
 });
 
-/** SMTP via nodemailer (the pre-Resend setup), also what tests inject as `{ transporter }`. */
 export const smtpProvider = (transporter) => ({
   name: 'smtp',
   async send({ from, to, subject, text, html }) {
@@ -68,14 +46,12 @@ export const smtpProvider = (transporter) => ({
 });
 
 let cachedProvider;
-let testProvider; // undefined = not overridden; null = force "not configured"
+let testProvider;
 
-/** Tests only: route every email through `provider` (a mock with `send`), or `undefined` to reset. */
 export const setEmailProviderForTests = (provider) => {
   testProvider = provider;
 };
 
-// node --test sets NODE_TEST_CONTEXT in every test process, including `npm run test:unit` (no NODE_ENV).
 const underTest = () => env.isTest || Boolean(process.env.NODE_TEST_CONTEXT);
 
 const defaultProvider = () => {
@@ -95,10 +71,8 @@ const defaultProvider = () => {
   return cachedProvider;
 };
 
-// Statuses meaning "the provider has it": a retry with the same key must not send again.
 const ACCEPTED = [EMAIL_STATUS.SENT, EMAIL_STATUS.DELIVERED, EMAIL_STATUS.DELIVERY_DELAYED];
 
-/** Writes (or updates) the delivery row. Never throws: logging must not break sending. */
 const record = async (existing, fields) => {
   try {
     if (existing) return await existing.update({ ...fields, attempts: existing.attempts + 1 });
@@ -113,13 +87,6 @@ const record = async (existing, fields) => {
   }
 };
 
-/**
- * Sends one email. Returns `{ sent, duplicate?, messageId?, error?, deliveryId? }` and never throws.
- * `sent` means the provider accepted it, not that it was delivered (see the Resend webhook).
- *
- * Options: `template` (a name — also turns on the delivery log), `idempotencyKey`, `userId`,
- * `entityType`/`entityId` (what it's about), and for tests `transporter` (nodemailer) or `provider`.
- */
 export const sendMail = async ({ to, subject, text, html }, options = {}) => {
   const { transporter, template, idempotencyKey, userId, entityType, entityId } = options;
   const provider = options.provider ?? (transporter ? smtpProvider(transporter) : defaultProvider());

@@ -2,7 +2,6 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 import { TIMETABLE_ISSUE_STATUS, TIMETABLE_ISSUE_TYPES } from '../utils/constants.js';
 
-/** A clash or missing slot found while confirming a registration's timetable on approval (see timetable.service). */
 class TimetableIssue extends Model {}
 
 TimetableIssue.init(

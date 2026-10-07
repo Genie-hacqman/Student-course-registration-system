@@ -5,11 +5,6 @@ import { NotFoundError } from '../utils/errors.js';
 import logger from '../config/logger.js';
 import { sendTemplate } from './mail.service.js';
 
-/**
- * Notification types worth an email, not just an in-app badge — status changes, anything
- * time-sensitive, and confirmations of an important submission. Types tied to a small action the user
- * just took (COURSE_REGISTERED, PREREQUISITE_OVERRIDE, REGISTRATION_TIME) stay in-app only.
- */
 const EMAILED_TYPES = new Set([
   'REGISTRATION_SUBMITTED',
   'REGISTRATION_APPROVED',
@@ -17,17 +12,13 @@ const EMAILED_TYPES = new Set([
   'WAITLIST_SEAT_AVAILABLE',
   'GRADES_RELEASED',
   'GRADE_AMENDED',
-  // Timetable changes.
   'SECTION_RESCHEDULED',
   'SECTION_CANCELLED',
-  // Done to the student by staff, so they may not know yet.
   'COURSE_ADDED_BY_STAFF',
   'COURSE_DROPPED_BY_STAFF',
   'ACCOUNT_REQUEST_APPROVED',
   'ACCOUNT_REQUEST_REJECTED',
-  // Sent to the applicant's personal email (their account email until admission).
   'APPLICATION_REJECTED',
-  // Administrative alerts to admins.
   'ACCOUNT_REQUEST_CREATED',
   'APPLICATION_SUBMITTED',
 ]);
@@ -36,7 +27,6 @@ export const isEmailable = (type) => EMAILED_TYPES.has(type);
 
 const ADMIN_PATHS = { ACCOUNT_REQUEST_CREATED: '/staff/account-requests', APPLICATION_SUBMITTED: '/staff/applications' };
 
-/** Which template renders a notification type, and its data. */
 const templateFor = (n, user) => {
   const d = n.data ?? {};
   switch (n.type) {
@@ -61,10 +51,6 @@ const templateFor = (n, user) => {
   }
 };
 
-/**
- * Emails a notification with its template. Keyed on the notification id, so it's sent at most once.
- * Never throws: a failed email must not affect the notification that was already saved.
- */
 const emailNotification = async (notification) => {
   if (!isEmailable(notification.type)) return;
   try {
@@ -83,7 +69,6 @@ const emailNotification = async (notification) => {
   }
 };
 
-/** Creates a notification, pushes it over Socket.IO, and emails it (if its type warrants one), once the (optional) transaction commits. */
 export const create = async ({ userId, type, title, message, data }, { transaction } = {}) => {
   const notification = await Notification.create({ userId, type, title, message, data }, { transaction });
   const afterCommit = () => {
@@ -95,7 +80,6 @@ export const create = async ({ userId, type, title, message, data }, { transacti
   return notification;
 };
 
-/** The same notification for many users at once (announcements, published assessments), in one insert. */
 export const createMany = async ({ userIds, type, title, message, data }, { transaction } = {}) => {
   if (!userIds.length) return [];
   const notifications = await Notification.bulkCreate(

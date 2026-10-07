@@ -4,8 +4,6 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// A queryInterface that throws if any of its methods are actually called — proves the guard
-// runs before any database work is attempted, not just that up() eventually rejects.
 const untouchableQueryInterface = new Proxy(
   {},
   { get: () => () => { throw new Error('queryInterface should not have been touched'); } },
@@ -39,10 +37,6 @@ describe('demo seeders refuse to run in production', () => {
 });
 
 describe('the admin seeder rejects unsafe production credentials', () => {
-  // Required once: the module's own `require('dotenv').config()` runs a single time here, reading
-  // whatever real .env is on disk. Because the module is then cached, later tests' env mutations
-  // (delete/set) are what resolveAdminCredentials() actually sees when up() is called — dotenv
-  // does not run again to repopulate deleted vars from the file.
   const seeder = require('../../seeders/20260926000001-roles-and-admin.cjs');
 
   afterEach(restoreEnv);

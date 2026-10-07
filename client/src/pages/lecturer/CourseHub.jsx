@@ -54,7 +54,6 @@ function ClassList({ roster }) {
   )
 }
 
-/** One course section: class list, attendance, assessments and grades in tabs (kept in `?tab=`). */
 export default function CourseHub() {
   const { id } = useParams()
   const { user } = useAuth()

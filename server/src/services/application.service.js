@@ -25,19 +25,6 @@ import * as settingService from './setting.service.js';
 import { isOpen } from './org-status.service.js';
 import * as audit from './audit.service.js';
 
-/*
- * Online admission. A prospective student signs up with their personal email (STUDENT role; admission is
- * a status, see auth.service.admissionStatusOf), fills in
- * one application and submits it; an admin (application:review) admits or rejects it.
- *
- * Admitting is the one event that creates the official student record: the same STUDENT account gets a generated Student ID and school email, via the same assignStudentIdentity
- * as staff admission. The account is left `pending` with no usable password, and the applicant's
- * personal email gets a single-use, time-limited activation link (only its sha256 hash is stored).
- * Activating sets the student's own PIN; from then on they sign in like every other student.
- *
- * Raw tokens are returned from these functions for tests only; controllers never send them.
- */
-
 const { DRAFT, SUBMITTED, ADMITTED, REJECTED } = APPLICATION_STATUS;
 
 const programInclude = {
@@ -55,16 +42,10 @@ const detailInclude = [
 
 const activationLink = (token) => `${env.FRONTEND_URL}/activate-account?token=${token}`;
 
-/** Minimum gap between two sends of the admission email for one application. */
 export const RESEND_COOLDOWN_MS = 60 * 1000;
 
-/** Levels a programme admits into: 100 up to its final year. */
 const maxLevelFor = (program) => program.durationYears * 100;
 
-/**
- * Checks the programme/department/level choice against the configured programmes. Returns the
- * programme, or throws. The department is always the programme's own.
- */
 const checkChoice = async ({ departmentId, programId, entryLevel }, transaction) => {
   if (!programId) return null;
   const program = await Program.findByPk(programId, {
@@ -72,7 +53,6 @@ const checkChoice = async ({ departmentId, programId, entryLevel }, transaction)
     transaction,
   });
   if (!program) throw new BadRequestError('Choose one of the listed programmes');
-  // Archived programmes (or departments) are closed to new applications and admissions.
   if (!isOpen(program)) throw new ConflictError(`${program.name} is no longer accepting applications. Choose another programme.`);
   if (departmentId && departmentId !== program.departmentId) {
     throw new BadRequestError(`${program.name} is not offered by the chosen department`);
@@ -83,7 +63,6 @@ const checkChoice = async ({ departmentId, programId, entryLevel }, transaction)
   return program;
 };
 
-/** "2026/2027": the current semester's academic year if it's named that way, else derived from today's date. */
 const defaultSession = async (transaction) => {
   const current = await Semester.findOne({
     where: { isCurrent: true },
@@ -96,15 +75,7 @@ const defaultSession = async (transaction) => {
   return `${year}/${year + 1}`;
 };
 
-// ── applicant ────────────────────────────────────────────────────────────────
-
-/**
- * Creates an applicant account and emails a verification link. Resolves the same way when the email
- * is already registered (nothing is created or sent), so the endpoint can't be used to find accounts.
- */
 export const signUp = async ({ firstName, lastName, email, password }, req) => {
-  // Also taken: a personal email an application already used. After admission that account's email
-  // becomes the school address, and one person must not end up with a second application.
   const [existingUser, existingApplication] = await Promise.all([
     User.findOne({ where: { email }, attributes: ['id'] }),
     AdmissionApplication.findOne({ where: { personalEmail: email }, attributes: ['id'] }),
@@ -115,7 +86,6 @@ export const signUp = async ({ firstName, lastName, email, password }, req) => {
   let user;
   try {
     user = await sequelize.transaction(async (transaction) => {
-      // Applicants are STUDENTs from the start; admission (a student record) is their status, not a role.
       const role = await Role.findOne({ where: { name: ROLES.STUDENT }, transaction });
       if (!role) throw new Error('STUDENT role missing — run the seeders');
       const created = await User.create(
@@ -126,7 +96,7 @@ export const signUp = async ({ firstName, lastName, email, password }, req) => {
       return created;
     });
   } catch (err) {
-    if (err instanceof UniqueConstraintError) return null; // lost a race with the same email
+    if (err instanceof UniqueConstraintError) return null;
     throw err;
   }
 
@@ -135,9 +105,7 @@ export const signUp = async ({ firstName, lastName, email, password }, req) => {
   return { userId: user.id, verificationToken };
 };
 
-/** Departments with their programmes, for the application form. */
 export const options = async () => {
-  // Only open departments and programmes are offered to applicants.
   const departments = await Department.findAll({
     where: { status: ORG_STATUS.ACTIVE },
     attributes: ['id', 'name', 'code'],
@@ -153,7 +121,6 @@ export const options = async () => {
   }));
 };
 
-/** The signed-in applicant's application (or null), plus whether their email is verified yet. */
 export const getMine = async (userId) => {
   const [application, user] = await Promise.all([
     AdmissionApplication.findOne({ where: { userId }, include: detailInclude.filter((i) => i.as !== 'reviewer') }),
@@ -162,10 +129,8 @@ export const getMine = async (userId) => {
   return { application, emailVerified: Boolean(user?.emailVerifiedAt) };
 };
 
-/** Creates or updates the applicant's draft. Only a draft can change; submitted ones are with the admissions office. */
 export const saveDraft = async (userId, data, req) => {
   await sequelize.transaction(async (transaction) => {
-    // Application row first, user row never locked: the same order as submit (see lockOwnApplication).
     let application = await AdmissionApplication.findOne({ where: { userId }, transaction, lock: transaction.LOCK.UPDATE });
     if (await Student.findOne({ where: { userId }, attributes: ['id'], transaction })) {
       throw new ConflictError('You are already admitted; there is no application to fill in');
@@ -196,12 +161,6 @@ export const saveDraft = async (userId, data, req) => {
   return getMine(userId);
 };
 
-// ── official application photo ───────────────────────────────────────────────
-// Stored in private object storage (key + sha256 + lock time on the application row), never in `users.avatar`.
-// Editable only while the application is an unlocked draft; the lock is checked here, on the server, under the
-// same row lock `submit` takes, so an upload racing a submit can never land after it.
-
-/** The application number everyone sees: the existing APP + 6-digit id convention (also the admission number). */
 export const applicationNumber = (id) => `APP${String(id).padStart(6, '0')}`;
 
 const PHOTO_LOCKED_MESSAGE = 'The official application photo is locked once your application is submitted and can no longer be changed';
@@ -213,12 +172,6 @@ const assertPhotoEditable = (application) => {
 const photoKeyFor = (application) =>
   `applications/${new Date().getUTCFullYear()}/${application.id}/official-photo/${crypto.randomUUID()}.jpg`;
 
-/** The caller's application row, locked for update; a draft is created if they haven't saved anything yet. */
-/*
- * Lock order matters: take the APPLICATION row first (the same row `submit` locks) and never hold the user row.
- * `submit` writes an audit entry that references the user, which needs a shared lock on the user row; an upload
- * holding that row while waiting for the application deadlocked against a concurrent submit (ER_LOCK_DEADLOCK).
- */
 const lockOwnApplication = async (userId, transaction) => {
   const found = await AdmissionApplication.findOne({ where: { userId }, transaction, lock: transaction.LOCK.UPDATE });
   if (found) return found;
@@ -231,7 +184,6 @@ const lockOwnApplication = async (userId, transaction) => {
       firstName: user.firstName, lastName: user.lastName, userId, personalEmail: user.email,
     }, { transaction });
   } catch (err) {
-    // Two first-ever saves at once (e.g. two tabs): the unique user_id lets one win; the other can simply retry.
     if (err instanceof UniqueConstraintError) throw new ConflictError('Your application is being saved elsewhere. Please try again.');
     throw err;
   }
@@ -239,10 +191,8 @@ const lockOwnApplication = async (userId, transaction) => {
 
 const discard = (key) => storage.remove(key).catch((err) => logger.warn(`Could not delete stored photo ${key}: ${err.message}`));
 
-/** Upload or replace the official photo (draft only). `body` is the raw upload, `contentType` what the client declared. */
 export const setPhoto = async (userId, { body, contentType }, req) => {
   storage.assertConfigured();
-  // Decoding is the slow part, so it happens before the row lock is taken.
   const photo = await normalizeOfficialPhoto(body, contentType);
 
   let newKey = null;
@@ -261,14 +211,13 @@ export const setPhoto = async (userId, { body, contentType }, req) => {
       });
     });
   } catch (err) {
-    if (newKey) await discard(newKey); // the row never pointed at it
+    if (newKey) await discard(newKey);
     throw err;
   }
   if (oldKey) await discard(oldKey);
   return getMine(userId);
 };
 
-/** Remove the official photo (draft only). */
 export const removePhoto = async (userId, req) => {
   storage.assertConfigured();
   let oldKey = null;
@@ -286,17 +235,13 @@ export const removePhoto = async (userId, req) => {
 
 const THUMB_SIDE = 96;
 
-/**
- * The stored photo, or a 96 px square thumbnail made on the fly (`size: 'thumb'`, for lists). A storage failure is
- * a 503 PHOTO_UNAVAILABLE, never a 404, so a screen can tell "could not load" apart from "there is no photo".
- */
 const readPhoto = async (application, size = 'full') => {
   if (!application?.photoKey) throw new NotFoundError('Photo');
   let bytes;
   try {
     bytes = await storage.get(application.photoKey);
   } catch (err) {
-    if (err instanceof AppError) throw err; // e.g. storage not configured
+    if (err instanceof AppError) throw err;
     logger.error(`Could not read the official photo of application ${application.id}: ${err.name ?? 'Error'}: ${err.message}`);
     throw new AppError('The photo could not be loaded from storage right now. Please try again shortly.', 503, 'PHOTO_UNAVAILABLE');
   }
@@ -304,30 +249,22 @@ const readPhoto = async (application, size = 'full') => {
   return size === 'thumb' ? squareJpeg(bytes, THUMB_SIDE, 80) : bytes;
 };
 
-/** The applicant's own official photo, in any status. */
 export const getMyPhoto = async (userId) =>
   readPhoto(await AdmissionApplication.findOne({ where: { userId }, attributes: ['id', 'photoKey'] }));
 
-/** A reviewer's view of a submitted application's official photo (drafts are the applicant's own business). */
 export const getPhotoForReview = async (id, size) => {
   const application = await AdmissionApplication.findByPk(id, { attributes: ['id', 'status', 'photoKey'] });
   if (!application || application.status === DRAFT) throw new NotFoundError('Application');
   return readPhoto(application, size);
 };
 
-// ── a student's own application, for staff viewing the student's record ─────────
-// Read-only and gated like the student record itself (registration:view_all: admins and registrars), so the
-// registrar sees the photo the student applied with without getting admit/reject rights.
-
 const studentApplication = async (studentId, options = {}) => {
   if (!await Student.findByPk(studentId, { attributes: ['id'] })) throw new NotFoundError('Student');
-  // Admission links the application to the student it created; staff-admitted students have none.
   const application = await AdmissionApplication.findOne({ where: { studentId }, ...options });
   if (!application) throw new AppError('This student has no online application (admitted by staff)', 404, 'NO_APPLICATION');
   return application;
 };
 
-/** The application the student was admitted from: every submitted field plus photo state (never the storage key). */
 export const getForStudent = async (studentId) => {
   const application = await studentApplication(studentId, {
     include: [
@@ -339,7 +276,6 @@ export const getForStudent = async (studentId) => {
   return { ...application.toJSON(), applicationNumber: applicationNumber(application.id) };
 };
 
-/** The official photo of the application the student was admitted from. */
 export const getPhotoForStudent = async (studentId, size) =>
   readPhoto(await studentApplication(studentId, { attributes: ['id', 'photoKey'] }), size);
 
@@ -359,12 +295,10 @@ export const submit = async (userId, req) => {
       throw new BadRequestError('Confirm your email address first — we send your admission decision there');
     }
     const missing = Object.entries(REQUIRED_TO_SUBMIT).filter(([key]) => !application[key]).map(([, label]) => label);
-    // The official application photo (not the profile picture) is part of the application, and mandatory.
     if (!application.photoKey) missing.push('official application photo');
     if (missing.length) throw new BadRequestError(`Still missing: ${missing.join(', ')}`, { missing });
     await checkChoice(application, transaction);
 
-    // Submitting locks the official photo in the same transaction (the photo routes take this same row lock first).
     const now = new Date();
     await application.update({ status: SUBMITTED, submittedAt: now, photoLockedAt: now }, { transaction });
     await audit.log({
@@ -372,7 +306,6 @@ export const submit = async (userId, req) => {
       metadata: { photoLocked: true, photoSha256: application.photoSha256 }, req, transaction,
     });
 
-    // Tell the reviewers (in-app and by email) that an application is waiting.
     const program = await Program.findByPk(application.programId, { attributes: ['name'], transaction });
     const reviewers = await User.findAll({
       where: { status: USER_STATUS.ACTIVE },
@@ -391,12 +324,9 @@ export const submit = async (userId, req) => {
   return getMine(userId);
 };
 
-// ── reviewers ────────────────────────────────────────────────────────────────
-
 export const list = async (query) => {
   const { page, limit, offset, order } = buildPagination(query, ['submittedAt', 'createdAt', 'lastName'], ['submittedAt', 'ASC']);
   const where = {};
-  // Drafts are the applicant's own business until submitted.
   where.status = query.status ?? { [Op.ne]: DRAFT };
   if (query.programId) where.programId = query.programId;
   if (query.search) {
@@ -430,10 +360,6 @@ const lockSubmitted = async (id, transaction) => {
   return application;
 };
 
-/**
- * The admission + activation email (templates.accountActivation), with the shared branding. Kept under
- * its old name and parameters for existing callers and tests. Never contains a PIN or password.
- */
 export const admissionEmail = ({
   institution, firstName, lastName, programName, departmentName, level, studentNumber, schoolEmail, link, hours,
 }) => templates.accountActivation({
@@ -441,14 +367,12 @@ export const admissionEmail = ({
   studentNumber, programName, departmentName, level, schoolEmail, activationUrl: link, hours,
 }, { school: institution, frontendUrl: env.FRONTEND_URL });
 
-/** Tests: route email through a nodemailer-style transport (`{ sendMail }`); `undefined` resets. Uses email.service's one seam. */
 export const useTransporterForTests = (transporter) => {
   emailService.setEmailProviderForTests(transporter ? emailService.smtpProvider(transporter) : undefined);
 };
 
 const sendAdmissionEmail = async (application, { studentNumber, schoolEmail, program, level }, token) => {
   const department = program.departmentId ? await Department.findByPk(program.departmentId, { attributes: ['name'] }) : null;
-  // One email per activation token: a retried request never sends it twice; a resend (new token) does.
   const result = await sendTemplate('accountActivation', {
     name: [application.firstName, application.lastName].filter(Boolean).join(' '),
     programName: program.name,
@@ -476,7 +400,7 @@ const sendAdmissionEmail = async (application, { studentNumber, schoolEmail, pro
       ...(result.sent ? { activationEmailSentAt: now } : {}),
     },
     { where: { id: application.id } },
-  ).catch(() => {}); // recording is best effort; the admission itself is already committed
+  ).catch(() => {});
   return { sent: Boolean(result.sent), error };
 };
 
@@ -488,16 +412,6 @@ const newActivation = () => {
   };
 };
 
-/**
- * Admits a submitted application: creates the student record (Student ID, school email, programme,
- * level), converts the applicant's account into a pending student account and emails the activation
- * link. `programId`/`level`/`admissionSession` let the reviewer adjust the offer.
- */
-/**
- * A new student starts with their official application photo as their profile picture, but only if they have not
- * set one themselves. It is a separate copy (resized bytes in `users.avatar`), so later profile changes never
- * alter the original application photo. Never blocks admission: if storage is unavailable they simply start without one.
- */
 const startingProfilePicture = async (app, userId, transaction) => {
   if (!app.photoKey) return {};
   if (await User.count({ where: { id: userId, avatar: { [Op.ne]: null } }, transaction })) return {};
@@ -535,7 +449,6 @@ export const admit = async (id, { programId, level, admissionSession } = {}, act
       lastName: app.lastName,
       level: entryLevel,
       admissionSession: session,
-      // Ties the student record to its application; unique, so it can never be admitted twice.
       admissionNumber: applicationNumber(app.id),
     }, program, ctx, transaction);
 
@@ -546,16 +459,14 @@ export const admit = async (id, { programId, level, admissionSession } = {}, act
       firstName: app.firstName,
       lastName: app.lastName,
       email,
-      // No usable credential until the student activates and chooses a PIN.
       passwordHash: UNUSABLE_PASSWORD_HASH,
       status: USER_STATUS.PENDING,
       mustChangePassword: false,
-      emailVerifiedAt: new Date(), // the school owns the new mailbox
+      emailVerifiedAt: new Date(),
       failedLoginAttempts: 0,
       lockedUntil: null,
       ...activation.fields,
     }, { transaction });
-    // Sign-in moves from the personal email + password to Student ID + PIN: end the applicant's sessions.
     await sessionService.endAllSessions(user.id, transaction);
 
     await app.update({
@@ -581,7 +492,6 @@ export const admit = async (id, { programId, level, admissionSession } = {}, act
     };
   });
 
-  // After commit: a failed send never undoes the admission; it is recorded for the admin to resend.
   const emailDelivery = await sendAdmissionEmail(application, identity, token);
   return { application: await getById(application.id), emailDelivery, activationToken: token };
 };
@@ -590,7 +500,6 @@ export const reject = async (id, { reason } = {}, actor, req) => {
   await sequelize.transaction(async (transaction) => {
     const app = await lockSubmitted(id, transaction);
     await app.update({ status: REJECTED, rejectionReason: reason ?? null, reviewedBy: actor.id, reviewedAt: new Date() }, { transaction });
-    // The applicant's account email is their personal email, so the notification's email reaches them there.
     await notificationService.create({
       userId: app.userId,
       type: 'APPLICATION_REJECTED',
@@ -605,11 +514,6 @@ export const reject = async (id, { reason } = {}, actor, req) => {
   return getById(id);
 };
 
-/**
- * A new activation link for an admitted student who hasn't activated yet; the previous link stops
- * working. Never creates a student record. After a successful send, at most one more per
- * RESEND_COOLDOWN_MS, claimed with a conditional update so parallel clicks can't both send.
- */
 export const resendActivation = async (id, actor, req) => {
   const application = await AdmissionApplication.findByPk(id, {
     include: [programInclude, { model: Student, as: 'student', attributes: ['id', 'studentNumber', 'level'] }],
@@ -618,15 +522,11 @@ export const resendActivation = async (id, actor, req) => {
   const user = await User.findByPk(application.userId);
   if (user.status !== USER_STATUS.PENDING) throw new ConflictError('This student has already activated their account');
 
-  // Claimed under a row lock (not a conditional UPDATE: MySQL reports 0 changed rows when a send in
-  // the same second wrote the same timestamp), so parallel clicks can't both send.
   await sequelize.transaction(async (transaction) => {
     const row = await AdmissionApplication.findByPk(id, {
       attributes: ['id', 'activationEmailLastAttemptAt', 'activationEmailError'], transaction, lock: transaction.LOCK.UPDATE,
     });
     const last = row.activationEmailLastAttemptAt;
-    // The cooldown follows a successful send only: after a failure the admin may retry at once
-    // (the route's resendLimiter still caps attempts).
     if (last && !row.activationEmailError && Date.now() - last.getTime() < RESEND_COOLDOWN_MS) {
       throw new TooManyAttemptsError(
         `An activation email was sent less than ${RESEND_COOLDOWN_MS / 1000} seconds ago. Wait a moment before resending.`,
@@ -645,9 +545,6 @@ export const resendActivation = async (id, actor, req) => {
   return { emailDelivery, activationToken: activation.token };
 };
 
-// ── activation (public) ──────────────────────────────────────────────────────
-
-/** Single use: the token is cleared in the same transaction that sets the PIN and activates the account. */
 export const activate = async ({ token, pin }, req) => sequelize.transaction(async (transaction) => {
   const user = await User.scope('withSecrets').findOne({
     where: { activationHash: hashToken(token), activationExpires: { [Op.gt]: new Date() }, status: USER_STATUS.PENDING },
@@ -655,8 +552,6 @@ export const activate = async ({ token, pin }, req) => sequelize.transaction(asy
     lock: transaction.LOCK.UPDATE,
   });
   if (!user) {
-    // No row matched, so no lock is held and a plain insert cannot wait on this transaction. Nothing identifies the
-    // caller, and the token is never recorded.
     await audit.log({ action: 'security.token_invalid', req, metadata: { kind: 'activation', reason: 'invalid_or_expired' } });
     throw new BadRequestError('This activation link is invalid or has expired. Ask the admissions office for a new one.');
   }

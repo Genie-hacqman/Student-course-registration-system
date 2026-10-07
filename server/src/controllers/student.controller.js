@@ -17,8 +17,6 @@ export const getById = async (req, res) => ok(res, await studentService.getById(
 export const summary = async (req, res) => ok(res, await studentService.summary(req.validated.query));
 export const results = async (req, res) => {
   const data = await studentService.getResults(req.validated.params.id, { finalOnly: false });
-  // Includes provisional grades the student cannot see yet. A student reads their own results through
-  // myResults, so a STUDENT arriving here (only if an admin granted them view_all) is not logged as staff.
   if (req.user.role !== ROLES.STUDENT) {
     await recordStaffView(req, { action: 'student.results_viewed', entityType: 'Student', entityId: req.validated.params.id, metadata: { includesProvisional: true } });
   }

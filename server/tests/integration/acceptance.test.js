@@ -1,7 +1,3 @@
-/**
- * User story: As a student, I want to register for courses so that I can enroll in
- * the courses required for my semester. One describe block per acceptance criterion.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -27,7 +23,6 @@ const findSection = (body, code) => body.data.courses.find((c) => c.code === cod
 
 describe('AC1 — Course availability', () => {
   before(async () => {
-    // A course that exists and has a section this semester, but is NOT on BSC-CS's curriculum.
     const [{ id: departmentId }] = await query("SELECT id FROM departments WHERE code = 'MATH'");
     const course = await api().post('/api/courses').set(auth(registrar.token))
       .send({ departmentId, code: 'STAT210', title: 'Statistics for Economists', credits: 3, level: 200 });
@@ -108,14 +103,14 @@ describe('AC2 — Prerequisites', () => {
   });
 
   test('when the student has completed them, registration is allowed', async () => {
-    const res = await add(student.token, 'CS201'); // requires CS101, which the student passed
+    const res = await add(student.token, 'CS201');
     assert.equal(res.status, 201);
   });
 });
 
 describe('AC3 — Credit limit', () => {
   test('Given the student has reached the maximum credits, when they add another course, then registration is prevented with the reason', async () => {
-    await query('UPDATE semesters SET max_credits = 3 WHERE is_current = 1'); // student already holds CS201 (3 credits)
+    await query('UPDATE semesters SET max_credits = 3 WHERE is_current = 1');
     try {
       const res = await add(student.token, 'MATH201');
       assert.equal(res.status, 422);

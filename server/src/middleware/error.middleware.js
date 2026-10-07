@@ -41,12 +41,8 @@ export const errorHandler = async (err, req, res, next) => {
   const known = normalise(err);
   const status = known?.statusCode ?? 500;
 
-  // A signed-in user refused by a permission or role check (not the forced PIN change, which has its own code).
-  // Awaited so the entry exists before the client sees the 403; recording never throws.
   if (status === 403 && known?.code === 'FORBIDDEN' && req.user) await recordAccessDenied(req);
 
-  // Every 5xx is a bug or an outage, not an expected "business rule" failure (unlike 4xx) — worth
-  // both a log line and an error-tracking report, correlated by requestId with what the client saw.
   if (status >= 500) {
     logger.error(`[${req.id}]`, err);
     captureException(err, {

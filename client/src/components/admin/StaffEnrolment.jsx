@@ -14,10 +14,6 @@ const WHY_NOT = {
   STUDENT_ELIGIBILITY: 'The student cannot register right now (suspended, graduated or on academic hold). Fix that on their account first.',
 }
 
-/**
- * Staff adds a student to a section. The server runs the normal checks (except the registration period);
- * if some fail and all of them may be overridden, staff can override them with a reason.
- */
 export function AddStudentDialog({ open, onClose, sectionId, sectionLabel }) {
   const [studentId, setStudentId] = useState()
   const [failures, setFailures] = useState(null)
@@ -105,7 +101,6 @@ export function AddStudentDialog({ open, onClose, sectionId, sectionLabel }) {
   )
 }
 
-/** Staff removes a student from a section; a reason is required and sent to the student. */
 export function RemoveStudentDialog({ student, onClose, sectionId, sectionLabel }) {
   const [reason, setReason] = useState('')
   const remove = useApiMutation(() => http.delete(`/admin/sections/${sectionId}/students/${student.id}`, { reason: reason.trim() }), {

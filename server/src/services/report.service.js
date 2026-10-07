@@ -12,7 +12,6 @@ const resolveSemesterId = async (semesterId) => {
   return current.id;
 };
 
-/** Seat fill rate and waitlist demand per section, most in-demand first. */
 export const coursePopularity = async ({ semesterId } = {}) => {
   const id = await resolveSemesterId(semesterId);
   const rows = await sequelize.query(
@@ -66,10 +65,6 @@ export const registrationSummary = async ({ semesterId } = {}) => {
 
 const select = (sql, replacements = {}) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
 
-/**
- * One payload for the admin and registrar dashboards: people, academic structure, and this
- * semester's registration progress. "Not started" means an active student with no live registration.
- */
 export const overview = async ({ semesterId } = {}, actor) => {
   const id = await resolveSemesterId(semesterId);
 
@@ -125,7 +120,6 @@ export const overview = async ({ semesterId } = {}, actor) => {
     registrations: {
       byStatus: statusCounts,
       notStarted: Number(notStarted),
-      // Anyone active who isn't approved or awaiting approval still has registering to do.
       notRegistered: Math.max(0, activeStudents - statusCounts.approved - statusCounts.submitted),
       completionRate: activeStudents ? Math.round((statusCounts.approved / activeStudents) * 1000) / 10 : 0,
     },

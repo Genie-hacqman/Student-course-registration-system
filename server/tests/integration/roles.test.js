@@ -1,7 +1,3 @@
-/**
- * The four-role model (ADMIN, REGISTRAR, LECTURER, STUDENT): what exists, who may do what, and the
- * migration from the old seven roles.
- */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -112,7 +108,6 @@ describe('who may do what (enforced by the API)', () => {
 
 describe('migration from the seven old roles', () => {
   test('USER→STUDENT, SUPER_ADMIN→ADMIN, ACADEMIC_ADVISOR→REGISTRAR, APPLICANT→STUDENT; nothing lost', async () => {
-    // Recreate the pre-migration state: old role rows, users holding them, an applicant's application.
     await query("UPDATE roles SET name = 'USER' WHERE name = 'STUDENT'");
     for (const name of ['SUPER_ADMIN', 'ACADEMIC_ADVISOR', 'APPLICANT']) {
       await query('INSERT INTO roles (name, description, created_at, updated_at) VALUES (:name, :name, NOW(), NOW())', { name });
@@ -154,7 +149,6 @@ describe('migration from the seven old roles', () => {
     assert.deepEqual([application.status, application.first_name], ['submitted', 'Old'], 'application data kept');
     assert.equal(Number((await query('SELECT COUNT(*) AS n FROM role_permission_overrides'))[0].n), 0, 'overrides of removed roles dropped');
 
-    // Idempotent: running it again changes nothing.
     await fourRoles.up(sequelize.getQueryInterface(), Sequelize);
     assert.deepEqual((await query('SELECT name FROM roles ORDER BY name')).map((r) => r.name), ['ADMIN', 'LECTURER', 'REGISTRAR', 'STUDENT']);
     assert.equal((await roleOf(superId)).token_version, 4);

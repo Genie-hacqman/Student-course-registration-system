@@ -38,7 +38,6 @@ import SectionLecturerAssignment from './SectionLecturerAssignment.js';
 import EmailDelivery from './EmailDelivery.js';
 import LecturerDepartment from './LecturerDepartment.js';
 
-// Role → Users
 Role.hasMany(User, { foreignKey: 'roleId', as: 'users' });
 User.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
 
@@ -52,7 +51,6 @@ Student.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasOne(Lecturer, { foreignKey: 'userId', as: 'lecturer' });
 Lecturer.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
-// Department → Programs, Courses, Lecturers
 Department.hasMany(Program, { foreignKey: 'departmentId', as: 'programs' });
 Program.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
 
@@ -61,26 +59,21 @@ Course.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
 
 Department.hasMany(Lecturer, { foreignKey: 'departmentId', as: 'lecturers' });
 Lecturer.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
-// A lecturer's additional departments (the home one is Lecturer.department above).
 Lecturer.belongsToMany(Department, { through: LecturerDepartment, as: 'additionalDepartments', foreignKey: 'lecturerId', otherKey: 'departmentId' });
 Department.belongsToMany(Lecturer, { through: LecturerDepartment, as: 'additionalLecturers', foreignKey: 'departmentId', otherKey: 'lecturerId' });
 
-// Program ↔ Courses (curriculum)
 Program.belongsToMany(Course, { through: ProgramCourse, as: 'courses', foreignKey: 'programId', otherKey: 'courseId' });
 Course.belongsToMany(Program, { through: ProgramCourse, as: 'programs', foreignKey: 'courseId', otherKey: 'programId' });
 ProgramCourse.belongsTo(Program, { foreignKey: 'programId', as: 'program' });
 ProgramCourse.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
 ProgramCourse.belongsTo(AcademicYear, { foreignKey: 'academicYearId', as: 'academicYear' });
 
-// Program → Students
 Program.hasMany(Student, { foreignKey: 'programId', as: 'students' });
 Student.belongsTo(Program, { foreignKey: 'programId', as: 'program' });
 
-// Academic periods
 AcademicYear.hasMany(Semester, { foreignKey: 'academicYearId', as: 'semesters' });
 Semester.belongsTo(AcademicYear, { foreignKey: 'academicYearId', as: 'academicYear' });
 
-// Course → Prerequisites (self-referencing many-to-many), Sections
 Course.belongsToMany(Course, {
   through: CoursePrerequisite,
   as: 'prerequisites',
@@ -99,7 +92,6 @@ CoursePrerequisite.belongsTo(Course, { foreignKey: 'prerequisiteCourseId', as: '
 Course.hasMany(CourseSection, { foreignKey: 'courseId', as: 'sections' });
 CourseSection.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
 
-// Course Section → Semester, Lecturer, Schedules
 Semester.hasMany(CourseSection, { foreignKey: 'semesterId', as: 'sections' });
 CourseSection.belongsTo(Semester, { foreignKey: 'semesterId', as: 'semester' });
 
@@ -109,7 +101,6 @@ CourseSection.belongsTo(Lecturer, { foreignKey: 'lecturerId', as: 'lecturer' });
 CourseSection.hasMany(Schedule, { foreignKey: 'courseSectionId', as: 'schedules' });
 Schedule.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
 
-// Student → Results, Registrations, Waitlists
 Student.hasMany(Result, { foreignKey: 'studentId', as: 'results' });
 Result.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
 Result.belongsTo(Course, { foreignKey: 'courseId', as: 'course' });
@@ -138,7 +129,6 @@ Waitlist.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
 CourseSection.hasMany(Waitlist, { foreignKey: 'courseSectionId', as: 'waitlists' });
 Waitlist.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
 
-// Registration → Registration Items
 Registration.hasMany(RegistrationItem, { foreignKey: 'registrationId', as: 'items' });
 RegistrationItem.belongsTo(Registration, { foreignKey: 'registrationId', as: 'registration' });
 RegistrationItem.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
@@ -159,7 +149,6 @@ AccountChangeRequest.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' 
 Role.hasMany(RolePermissionOverride, { foreignKey: 'roleId', as: 'permissionOverrides' });
 RolePermissionOverride.belongsTo(Role, { foreignKey: 'roleId', as: 'role' });
 
-// Teaching: attendance and assessments hang off a section
 CourseSection.hasMany(AttendanceSession, { foreignKey: 'courseSectionId', as: 'attendanceSessions' });
 AttendanceSession.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
 AttendanceSession.belongsTo(Schedule, { foreignKey: 'scheduleId', as: 'schedule' });
@@ -177,7 +166,6 @@ Announcement.belongsTo(User, { foreignKey: 'authorId', as: 'author' });
 Announcement.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
 Announcement.belongsTo(Program, { foreignKey: 'programId', as: 'program' });
 
-// Online admission
 User.hasOne(AdmissionApplication, { foreignKey: 'userId', as: 'application' });
 AdmissionApplication.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 AdmissionApplication.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' });
@@ -185,13 +173,11 @@ AdmissionApplication.belongsTo(Program, { foreignKey: 'programId', as: 'program'
 AdmissionApplication.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
 AdmissionApplication.belongsTo(Student, { foreignKey: 'studentId', as: 'student' });
 
-// Timetable confirmation issues
 Registration.hasMany(TimetableIssue, { foreignKey: 'registrationId', as: 'timetableIssues' });
 TimetableIssue.belongsTo(Registration, { foreignKey: 'registrationId', as: 'registration' });
 TimetableIssue.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
 TimetableIssue.belongsTo(User, { foreignKey: 'resolvedBy', as: 'resolver' });
 
-// Lecturer assignment history per course offering
 CourseSection.hasMany(SectionLecturerAssignment, { foreignKey: 'courseSectionId', as: 'lecturerAssignments' });
 SectionLecturerAssignment.belongsTo(CourseSection, { foreignKey: 'courseSectionId', as: 'section' });
 Lecturer.hasMany(SectionLecturerAssignment, { foreignKey: 'lecturerId', as: 'assignments' });

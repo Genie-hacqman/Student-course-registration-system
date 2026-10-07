@@ -1,22 +1,5 @@
 'use strict';
 
-/**
- * Four roles: ADMIN, REGISTRAR, LECTURER, STUDENT.
- *
- *   USER             → renamed STUDENT (same row, so every student keeps their role)
- *   SUPER_ADMIN      → users move to ADMIN
- *   ACADEMIC_ADVISOR → users move to REGISTRAR
- *   APPLICANT        → users move to STUDENT; their admission_applications rows are untouched, and
- *                      their admission state is derived from them (see auth.service.admissionStatusOf)
- *
- * Moved users get token_version + 1, which ends their sessions (their permissions changed). Permission
- * overrides of the removed roles, and of ADMIN (now fixed), are deleted: they were differences from
- * defaults that no longer exist. Nothing else is deleted. Safe on a fresh database (where the roles
- * seeder hasn't run yet) and re-runnable.
- *
- * down() renames STUDENT back to USER and recreates the removed role rows, but cannot know which users
- * used to hold them: those users stay ADMIN / REGISTRAR / STUDENT.
- */
 const FOUR = [
   ['ADMIN', 'Institution administration: accounts, admission, departments, programmes, settings'],
   ['REGISTRAR', 'Academic administration: courses, offerings, lecturer assignment, registrations, timetable'],
@@ -44,7 +27,6 @@ module.exports = {
       await run(`DELETE o FROM role_permission_overrides o JOIN roles r ON r.id = o.role_id
                   WHERE r.name IN ('SUPER_ADMIN', 'ACADEMIC_ADVISOR', 'APPLICANT', 'ADMIN')`);
 
-      // USER → STUDENT: rename in place (users keep their role id); merge if both somehow exist.
       const userRole = await idOf('USER');
       if (userRole) {
         const studentRole = await idOf('STUDENT');
@@ -76,7 +58,6 @@ module.exports = {
       return moved;
     });
 
-    // Migration output, so whoever runs it sees what changed.
     // eslint-disable-next-line no-console
     console.log('four-roles migration — users moved:', JSON.stringify(report));
   },

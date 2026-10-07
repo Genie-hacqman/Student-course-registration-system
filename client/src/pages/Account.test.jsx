@@ -5,7 +5,6 @@ import Account from './Account'
 
 const auth = vi.hoisted(() => ({ user: null }))
 vi.mock('../auth/AuthProvider', () => ({ useAuth: () => auth }))
-// Only the Profile tab's picture card is under test; the other sections need their own data.
 vi.mock('../components/account/AvatarUploader', () => ({ default: () => <div>uploader</div> }))
 vi.mock('../components/account/Account', () => ({ Sessions: () => null }))
 vi.mock('../components/account/ChangeRequests', () => ({ default: () => null }))

@@ -7,11 +7,6 @@ import { authApi } from '../../api/auth'
 import { Avatar, Button } from '../ui'
 import { AVATAR_TYPES, avatarFileError, fileToAvatarImages } from '../../lib/image'
 
-/**
- * Pick, preview and save the signed-in user's profile picture (their portal picture, which is NOT the official
- * application photo). The file is cropped to a square and shrunk in the browser first. Optional for every role,
- * and anyone can change or remove it.
- */
 export default function AvatarUploader({ onSaved }) {
   const { user, setProfile } = useAuth()
   const input = useRef(null)
@@ -37,7 +32,7 @@ export default function AvatarUploader({ onSaved }) {
 
   const onPick = async (e) => {
     const file = e.target.files?.[0]
-    e.target.value = '' // picking the same file again should still fire
+    e.target.value = ''
     if (!file) return
     setError('')
     const problem = avatarFileError(file)

@@ -1,7 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database.js';
 
-/** Waives a course's prerequisites and corequisites for one student (optionally only in one semester). */
 class PrerequisiteOverride extends Model {}
 
 PrerequisiteOverride.init(

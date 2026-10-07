@@ -5,7 +5,6 @@ import { Badge, Card, EmptyState, ErrorState, PageHeader, Select, SkeletonTable,
 import { FilterBar } from '../../components/dashboard/Widgets'
 import { fullName } from '../../lib/format'
 
-/** Everyone registered in the lecturer's current courses, one row per student. */
 export default function LecturerStudents() {
   const sections = useMySections()
   const current = useMemo(() => currentSections(sections.data ?? []), [sections.data])

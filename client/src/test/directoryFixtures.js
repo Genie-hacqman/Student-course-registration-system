@@ -1,4 +1,3 @@
-// Records shaped like the API's, using only the demo seed's departments and programme (CS, MATH, BSC-CS).
 export const ADMIN = { id: 1, firstName: 'System', lastName: 'Administrator', role: { name: 'ADMIN' }, permissions: ['user:manage', 'course:manage', 'registration:view_all', 'directory:view', 'student:admit'] }
 export const REGISTRAR = { id: 4, firstName: 'Esi', lastName: 'Boateng', role: { name: 'REGISTRAR' }, permissions: ['registration:view_all', 'directory:view', 'lecturer:assign', 'section:manage', 'course:catalog'] }
 

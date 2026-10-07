@@ -1,11 +1,5 @@
 'use strict';
 
-/**
- * Demo-only — never run this in production:
- * - a school-email domain for admitted students (the real one is set by the institution in settings)
- * - a qualification code for the demo programme
- * An UPDATE, not an insert: the setting row itself belongs to the essential-settings seeder, which runs first.
- */
 module.exports = {
   async up(queryInterface) {
     if (process.env.NODE_ENV === 'production') {

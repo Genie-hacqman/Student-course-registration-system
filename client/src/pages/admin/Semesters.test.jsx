@@ -6,7 +6,7 @@ import { api } from '../../api/client'
 import { plain } from '../../test/directoryFixtures'
 import { SemesterForm } from './Semesters'
 
-const local = (value) => new Date(value).toISOString() // the form works in the browser's local time
+const local = (value) => new Date(value).toISOString()
 
 const semester = {
   id: 5, academicYearId: 1, name: 'First Semester', term: 1, startDate: '2027-06-01', endDate: '2027-09-30',
@@ -82,7 +82,7 @@ describe('Semester form: registration period', () => {
     expect(await screen.findByText('Must be after registration opens')).toBeInTheDocument()
     expect(patch).not.toHaveBeenCalled()
 
-    await setBox(user, 'Closes time', '1000') // same day, later time: fine
+    await setBox(user, 'Closes time', '1000')
     await save(user)
     await waitFor(() => expect(patch).toHaveBeenCalled())
     expect(patch.mock.calls[0][1].registrationEnd).toBe(local('2027-05-01T10:00'))

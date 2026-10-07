@@ -11,21 +11,7 @@ import { currentRequest } from '../middleware/request-context.middleware.js';
 
 const clip = (value, max) => (value == null ? null : String(value).slice(0, max));
 
-/**
- * Records an audit entry.
- *
- * Request details (IP, user agent, request id and, unless `userId` is given, the signed-in actor) come from
- * `req`, or from the current HTTP request when a caller does not pass one. Scripts pass `actor` instead.
- *
- * Failure handling depends on `transaction`:
- *  - with one, the entry is part of the change it describes, so a failed write throws and rolls the change
- *    back (on MySQL a failed insert can already have doomed the transaction; carrying on would report
- *    success for work that was rolled back);
- *  - without one, a failure must not fail the business action: it is logged and reported, never thrown.
- */
 export const log = async ({ userId, action, entityType, entityId, metadata, req, transaction, actor } = {}) => {
-  // An action missing from the catalogue (utils/audit-actions.js) has no label in the UI and no retention rule.
-  // Caught loudly in development and tests, reported but never blocking in production. `test.*` is free in tests.
   if (typeof action === 'string' && !isKnownAction(action) && !(env.isTest && action.startsWith('test.'))) {
     const message = `Unknown audit action "${action}": add it to utils/audit-actions.js`;
     if (!env.isProduction) throw new Error(message);
@@ -42,14 +28,12 @@ export const log = async ({ userId, action, entityType, entityId, metadata, req,
       action,
       entityType: entityType ?? null,
       entityId: entityId ?? null,
-      // JSON round trip first: what is hashed must be exactly what the JSON column will hold.
       metadata: metadata === undefined || metadata === null ? null : redactSecrets(JSON.parse(JSON.stringify(metadata))),
       ipAddress: clip(request?.ip, 64),
       requestId: clip(request?.id, 64),
       userAgent: clip(request?.get?.('user-agent') ?? request?.headers?.['user-agent'], 255),
       actorEmail: clip(who?.email, 255),
       actorRole: clip(who?.role, 30),
-      // The column has one-second resolution, so use a whole second or the signature would not match.
       createdAt: new Date(Math.floor(Date.now() / 1000) * 1000),
     };
     row.rowHmac = computeRowHmac(env.auditHmacSecret, row);
@@ -82,15 +66,12 @@ export const list = async (query) => {
     include: [{ model: User, as: 'user', attributes: ['id', 'email', 'firstName', 'lastName'] }],
     limit,
     offset,
-    // Rows from the same second would otherwise repeat or vanish between pages.
     order: [...order, ['id', order[0][1]]],
   });
-  // The label is looked up here so every client shows the same wording as the catalogue.
   result.rows = result.rows.map((row) => ({ ...row.toJSON(), actionLabel: actionLabel(row.action) }));
   return { result, page, limit };
 };
 
-/** The values the audit-log filters can offer, so the UI never goes out of date with what is being written. */
 export const filterOptions = async () => {
   const [types, actions] = await Promise.all([
     AuditLog.findAll({ attributes: ['entityType'], group: ['entity_type'], where: { entityType: { [Op.ne]: null } }, order: [['entityType', 'ASC']], raw: true }),
@@ -102,13 +83,8 @@ export const filterOptions = async () => {
   };
 };
 
-// The Sign-ins page shows attempts, not the refusals that follow a lock.
 const SIGN_IN_LIST_ACTIONS = ['auth.login', 'auth.login_failed'];
 
-/**
- * Sign-in history built from the audit log: every successful and failed sign-in, with time, IP and
- * the browser's user agent (recorded in metadata since sign-in tracking was added — older rows have none).
- */
 export const listSignIns = async (query) => {
   const { page, limit, offset } = buildPagination(query, []);
   const where = { action: query.result ? (query.result === 'success' ? 'auth.login' : 'auth.login_failed') : SIGN_IN_LIST_ACTIONS };
@@ -131,7 +107,6 @@ export const listSignIns = async (query) => {
       model: User,
       as: 'user',
       attributes: ['id', 'firstName', 'lastName', 'email'],
-      // A role filter only keeps sign-ins that belong to a known user.
       required: Boolean(query.role),
       include: [{ model: Role, as: 'role', attributes: ['name'], ...(query.role ? { where: { name: query.role } } : {}) }],
     }],
@@ -148,7 +123,6 @@ export const listSignIns = async (query) => {
     ipAddress: l.ipAddress,
     userAgent: l.userAgent ?? l.metadata?.userAgent ?? null,
     user: l.user ? { id: l.user.id, firstName: l.user.firstName, lastName: l.user.lastName, email: l.user.email, role: l.user.role?.name } : null,
-    // A failed attempt for an unknown address has no user, only what was typed.
     email: l.user?.email ?? l.metadata?.email ?? null,
   }));
   return { result: { rows, count: result.count }, page, limit };

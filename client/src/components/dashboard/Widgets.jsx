@@ -25,7 +25,6 @@ export function WelcomeHeader({ name, subtitle, meta, actions }) {
   )
 }
 
-/** A small labelled chip for the header meta row (semester, programme, level…). */
 export function MetaChip({ icon: Icon, children }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
@@ -35,7 +34,6 @@ export function MetaChip({ icon: Icon, children }) {
   )
 }
 
-/** Tiles of shortcuts. items: [{ to, label, description?, icon, onClick? }] */
 export function QuickActions({ items, title = 'Quick actions', columns = 'sm:grid-cols-2' }) {
   return (
     <Card>
@@ -64,7 +62,6 @@ export function QuickActions({ items, title = 'Quick actions', columns = 'sm:gri
   )
 }
 
-/** Chronological list: [{ id, title, description?, at, icon?, tone?, to? }] */
 export function ActivityList({ items, empty = 'Nothing yet', emptyIcon }) {
   if (!items.length) return <EmptyState compact title={empty} icon={emptyIcon} />
   return (
@@ -98,7 +95,6 @@ export function ActivityList({ items, empty = 'Nothing yet', emptyIcon }) {
 
 const DAY = 86_400_000
 
-/** "in 3 days", "today", "2 days ago" relative to now. */
 export const countdown = (date, now = Date.now()) => {
   const ms = new Date(date).getTime() - now
   const days = Math.round(ms / DAY)
@@ -110,10 +106,6 @@ export const countdown = (date, now = Date.now()) => {
   return days === -1 || days === 0 ? 'Yesterday' : `${-days} days ago`
 }
 
-/**
- * Upcoming dates with countdowns; past dates are dimmed. items: [{ label, date, description?, withTime? }]
- * `urgentWithinDays` highlights anything close.
- */
 export function KeyDates({ items, urgentWithinDays = 7, empty = 'No upcoming dates' }) {
   const [now] = useState(() => Date.now())
   const dated = items.filter((i) => i.date).sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -145,10 +137,6 @@ export function KeyDates({ items, urgentWithinDays = 7, empty = 'No upcoming dat
   )
 }
 
-/**
- * A card for a chart or list backed by a query: skeleton while loading, a friendly error with retry,
- * an empty state when `isEmpty(data)`, otherwise `children(data)`.
- */
 export function DataCard({ title, subtitle, action, icon, query, isEmpty, emptyTitle = 'No data yet', emptyHint, emptyIcon, fallback, children, bodyClassName }) {
   let body
   if (query.isPending) body = fallback ?? <SkeletonChart />
@@ -171,7 +159,6 @@ export function CardLink({ to, children = 'View all' }) {
   )
 }
 
-/** Search box plus filters in one responsive row. */
 export function FilterBar({ children, summary, onClear }) {
   return (
     <Card className="p-3 sm:p-4">
@@ -186,7 +173,6 @@ export function FilterBar({ children, summary, onClear }) {
   )
 }
 
-/** Animated check for completed actions. */
 export function SuccessState({ title, children, actions }) {
   return (
     <div className="flex flex-col items-center px-6 py-10 text-center" role="status">

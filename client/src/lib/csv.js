@@ -1,11 +1,3 @@
-/**
- * Minimal RFC 4180 CSV parser: quoted fields, "" escapes, commas and newlines inside quotes,
- * CRLF line endings and the BOM Excel puts at the start of a UTF-8 export.
- *
- * Returns `{ headers, records }`. Each record is `{ line, values }`, where `line` is the 1-based
- * line the record starts on in the source (so errors can point back at the spreadsheet) and
- * `values` maps each header to its trimmed cell. Blank lines are skipped.
- */
 export const parseCsv = (text) => {
   const src = text.startsWith('﻿') ? text.slice(1) : text
   const raw = []
@@ -58,6 +50,5 @@ const escapeCell = (value) => {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-/** `rows` are objects keyed by header; used for downloadable templates. */
 export const toCsv = (headers, rows = []) =>
   [headers, ...rows.map((r) => headers.map((h) => r[h]))].map((cells) => cells.map(escapeCell).join(',')).join('\r\n') + '\r\n'

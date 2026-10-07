@@ -25,7 +25,6 @@ export const updateAttendanceSchema = z.object({
   records: attendanceRecords.optional(),
 }).refine(notEmpty, 'Provide at least one field to update');
 
-// No .default() here: zod 4 would apply it inside .partial() and reset fields on PATCH.
 const assessmentFields = {
   title: z.string().trim().min(2).max(150),
   type: z.enum(ASSESSMENT_TYPES),

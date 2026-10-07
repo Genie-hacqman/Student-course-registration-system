@@ -7,7 +7,6 @@ import { SectionActionButton, SectionRow } from '../../components/SectionCard'
 import { useRegistrationActions } from '../../components/RegistrationActions'
 import { useSectionRooms } from '../../lib/socket'
 
-/** Groups requirement rows: rows sharing a non-null groupNo are alternatives; a null groupNo is its own group. */
 const groupRequirements = (rows) => {
   const groups = new Map()
   rows.forEach((row, i) => {
@@ -96,7 +95,6 @@ export default function CourseDetails() {
   const waitlists = useMyWaitlists()
   const { addSection, joinWaitlist, pendingId, dialog } = useRegistrationActions()
 
-  // Status and seats come from available-courses (same rules as the add endpoint); course detail supplies the rest.
   const offered = available.data?.courses.find((c) => String(c.id) === String(id))
   const waitlisted = useMemo(() => new Set((waitlists.data ?? []).map((w) => w.courseSectionId)), [waitlists.data])
   const sections = useMemo(() => {

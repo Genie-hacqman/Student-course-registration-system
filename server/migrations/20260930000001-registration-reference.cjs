@@ -2,7 +2,6 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Printed on the registration slip; assigned the first time a registration is submitted and never changed.
     await queryInterface.addColumn('registrations', 'reference_number', {
       type: Sequelize.STRING(30),
       after: 'semester_id',
@@ -12,7 +11,6 @@ module.exports = {
       type: 'unique',
       name: 'registrations_reference_number_unique',
     });
-    // Backfill registrations that were already submitted.
     await queryInterface.sequelize.query(`
       UPDATE registrations
          SET reference_number = CONCAT('REG-', YEAR(COALESCE(submitted_at, created_at)), '-',

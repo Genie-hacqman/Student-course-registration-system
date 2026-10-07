@@ -25,7 +25,6 @@ const sectionInclude = [
 export const lecturerName = (lecturer) =>
   lecturer ? [lecturer.title, lecturer.user?.firstName, lecturer.user?.lastName].filter(Boolean).join(' ') : null;
 
-/** Flattens sections into class slots grouped by day (MON..SUN) and sorted by start time. */
 export const buildTimetable = (sections) => {
   const slots = sections.flatMap((section) =>
     section.schedules.map((s) => ({
@@ -46,7 +45,6 @@ export const buildTimetable = (sections) => {
     }))
     .filter((d) => d.classes.length);
 
-  // Flag any clashes (should not happen via the registration flow, but schedules can be edited afterwards).
   const conflicts = [];
   for (let i = 0; i < slots.length; i += 1) {
     for (let j = i + 1; j < slots.length; j += 1) {
@@ -101,20 +99,9 @@ export const forLecturer = async (userId, semesterId) => {
   return { semester: { id: semester.id, name: semester.name }, ...buildTimetable(sections) };
 };
 
-// ── timetable confirmation on registration approval ──────────────────────────
-
 const slotOf = (s) => ({ day: s.day, startTime: s.startTime, endTime: s.endTime, room: s.room });
 const label = (s) => `${s.day} ${String(s.startTime).slice(0, 5)}-${String(s.endTime).slice(0, 5)}`;
 
-/**
- * Checks a registration's timetable before it is approved, against the configured schedules only
- * (nothing is invented). Returns one issue per (section, type):
- * - UNSCHEDULED: the section has no class times, or a class with no room.
- * - STUDENT: two of the student's sections overlap (e.g. a schedule edited after the courses were added).
- *   Skipped for a pair when staff enrolled one of them with TIMETABLE_CONFLICT overridden, as `submit` does.
- * - LECTURER / ROOM: the section's slots clash with another non-cancelled section this semester.
- * Pure reads; the caller's transaction (holding the registration row lock) is passed through.
- */
 export const findAllocationIssues = async (registrationId, transaction) => {
   const items = await RegistrationItem.findAll({
     where: { registrationId, status: REGISTRATION_ITEM_STATUS.REGISTERED },
@@ -130,7 +117,7 @@ export const findAllocationIssues = async (registrationId, transaction) => {
     transaction,
   });
 
-  const found = new Map(); // `${sectionId}:${type}` → issue
+  const found = new Map();
   const add = (section, type, detail) => {
     const key = `${section.id}:${type}`;
     if (!found.has(key)) found.set(key, { courseSectionId: section.id, courseCode: section.course.code, type, details: [] });
@@ -178,10 +165,6 @@ export const findAllocationIssues = async (registrationId, transaction) => {
   return [...found.values()];
 };
 
-/**
- * Records issues from a refused approval, in their own transaction (the approval itself was rolled
- * back). One row per (registration, section, type): a retry updates it and reopens it if resolved.
- */
 export const recordIssues = async (registrationId, issues, actor) => sequelize.transaction(async (transaction) => {
   for (const issue of issues) {
     const [row, created] = await TimetableIssue.findOrCreate({
@@ -201,7 +184,6 @@ export const recordIssues = async (registrationId, issues, actor) => sequelize.t
   });
 });
 
-/** On successful approval: anything still open for this registration is now confirmed clear. */
 export const closeIssues = async (registrationId, actor, transaction) => {
   const [closed] = await TimetableIssue.update(
     { status: TIMETABLE_ISSUE_STATUS.RESOLVED, resolvedBy: actor.id, resolvedAt: new Date(), resolutionNote: 'Timetable confirmed on approval' },
@@ -241,10 +223,6 @@ export const listIssues = async (query) => {
   return { result, page, limit };
 };
 
-/**
- * Marks an issue handled (e.g. after moving a class or dropping the course). This doesn't approve the
- * registration: approving again re-runs the check, which reopens the issue if the clash is still there.
- */
 export const resolveIssue = async (id, { note }, actor, req) => {
   const issue = await TimetableIssue.findByPk(id);
   if (!issue) throw new NotFoundError('Timetable issue');

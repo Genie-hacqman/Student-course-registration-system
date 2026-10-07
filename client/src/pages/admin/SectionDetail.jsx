@@ -32,9 +32,8 @@ const slotSchema = z.object({
 
 export default function SectionDetail() {
   const { user } = useAuth()
-  // Choosing the lecturer is the registry's (lecturer:assign); section managers without it leave it alone.
   const canAssign = can(user, PERMS.LECTURER_ASSIGN)
-  const canManage = can(user, PERMS.SECTION_MANAGE) // read-only for admins, who can look but not change offerings
+  const canManage = can(user, PERMS.SECTION_MANAGE)
   const { id } = useParams()
   const navigate = useNavigate()
   const section = useApi(`/sections/${id}`)

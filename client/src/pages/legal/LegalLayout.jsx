@@ -3,7 +3,6 @@ import BrandMark from '../../components/BrandMark'
 import { ContactDetails } from '../../components/SiteFooter'
 import { hasContact } from '../../lib/site'
 
-/** A long-form page on the plain background: privacy policy and terms. Public, and open to signed-in users too. */
 export default function LegalLayout({ title, updated, intro, children }) {
   return (
     <div className="min-h-full bg-slate-50">

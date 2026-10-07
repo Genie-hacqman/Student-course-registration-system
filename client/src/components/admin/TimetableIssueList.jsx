@@ -8,10 +8,6 @@ export const ISSUE_TYPES = {
   UNSCHEDULED: { label: 'No class time / room', tone: 'amber' },
 }
 
-/**
- * Issues found while confirming a timetable on approval: rows from GET /admin/timetable-issues, or the
- * `details` of a 409 TIMETABLE_CONFLICT (`[{ courseCode, type, details: [{ message }] }]`).
- */
 export default function TimetableIssueList({ issues }) {
   return (
     <ul className="space-y-3">

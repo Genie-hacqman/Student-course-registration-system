@@ -14,9 +14,6 @@ const sequelize = new Sequelize(env.dbName, env.DB_USER, env.DB_PASSWORD, {
     freezeTableName: false,
   },
   pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
-  // See DB_SSL in env.js: off by default (plain local MySQL needs nothing here), opt-in for
-  // providers that require TLS. DB_SSL_CA lets the provider's own CA be pinned; without it, Node's
-  // default trusted CA list is used, which is enough for most managed providers' public certs.
   dialectOptions: env.DB_SSL ? { ssl: { ca: env.DB_SSL_CA, rejectUnauthorized: true } } : {},
 });
 

@@ -5,7 +5,6 @@ import { importBody } from './import.validator.js';
 const name = z.string().trim().min(1).max(100);
 const code = z.string().trim().min(2).max(20).transform((v) => v.toUpperCase());
 
-/** "2026/2027": two consecutive years. */
 export const admissionSession = z
   .string()
   .trim()
@@ -13,7 +12,6 @@ export const admissionSession = z
   .refine((s) => Number(s.slice(5)) === Number(s.slice(0, 4)) + 1, 'The second year must follow the first');
 
 const admissionNumber = z.string().trim().min(1).max(30);
-// Only when migrating students who already have an ID; new admissions get a generated one.
 const studentNumber = z.string().trim().min(3).max(30).transform((v) => v.toUpperCase());
 const level = z.coerce.number().int().min(100).max(900);
 
@@ -30,13 +28,8 @@ export const admitSchema = z
   })
   .refine((d) => d.programId || d.programCode, { message: 'Give programId or programCode', path: ['programCode'] });
 
-// Each row hashes a PIN, so a request is capped lower than other imports (send larger files in parts).
 export const MAX_ADMISSIONS_PER_REQUEST = 1000;
 
-/**
- * Bulk rows are upserts keyed by `studentNumber` (existing students) or else `admissionNumber`,
- * so re-running a file never admits anyone twice. No `.default()` on optional fields, as for imports.
- */
 export const bulkAdmitSchema = importBody(
   z.object({
     firstName: name,

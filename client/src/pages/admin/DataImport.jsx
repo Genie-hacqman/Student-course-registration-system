@@ -34,11 +34,9 @@ export default function DataImport() {
   const steps = IMPORT_STEPS.filter((s) => can(user, s.permission))
   const canInvite = can(user, PERMS.USER_MANAGE)
   const [active, setActive] = useState(steps[0]?.key ?? INVITES)
-  // Kept per step, so switching steps never loses a loaded file or its report.
   const [states, setStates] = useState({})
   const stateFor = (key) => states[key] ?? EMPTY
 
-  // Admission PINs exist only in this page's memory until downloaded: warn before they're lost.
   const unsaved = Object.values(states).some((s) => s.report?.credentials?.length && !s.report.credentialsSaved)
   useEffect(() => {
     if (!unsaved) return undefined
@@ -101,7 +99,7 @@ export default function DataImport() {
 function StepPanel({ step, state, update }) {
   const qc = useQueryClient()
   const fileInput = useRef(null)
-  const [busy, setBusy] = useState(null) // 'check' | 'import'
+  const [busy, setBusy] = useState(null)
 
   const parsed = useMemo(() => (state.text.trim() ? prepare(step, parseCsv(state.text)) : null), [step, state.text])
   const ready = parsed && !parsed.headers.missing.length ? parsed.rows.filter((r) => !r.problems.length) : []
@@ -136,7 +134,6 @@ function StepPanel({ step, state, update }) {
       }
       update({ report: report(), checkedText: dryRun ? state.text : state.checkedText })
     } catch (err) {
-      // Earlier batches may already have been saved; show what was (including any credentials), alongside the error.
       update({ error: { err, lines }, report: reports.length ? report() : null })
     } finally {
       setBusy(null)
@@ -280,7 +277,6 @@ const saveCredentials = (report) => {
   URL.revokeObjectURL(url)
 }
 
-/** New admissions' one-time PINs: the only copy, so saving them is made hard to miss. */
 function CredentialsPanel({ report, onSaved }) {
   return (
     <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
@@ -328,7 +324,6 @@ function Report({ report, onCredentialsSaved }) {
   )
 }
 
-/** A request that failed as a whole: a 422 names rows and fields, anything else gets a plain message. */
 function RequestError({ err, lines }) {
   const rowIssues = (Array.isArray(err.details) ? err.details : [])
     .map((d) => ({ ...d, at: rowFieldFromPath(d.field) }))
@@ -350,7 +345,7 @@ function RequestError({ err, lines }) {
 
 function InvitesPanel() {
   const [role, setRole] = useState('')
-  const [progress, setProgress] = useState(null) // { sent, remaining }
+  const [progress, setProgress] = useState(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState(null)
   const stop = useRef(false)

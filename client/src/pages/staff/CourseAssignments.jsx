@@ -14,11 +14,6 @@ import { formatDateTime, fullName, lecturerName } from '../../lib/format'
 
 const inactive = (lecturer) => lecturer && lecturer.user?.status && lecturer.user.status !== 'active'
 
-/**
- * Registry: who teaches each course offering (course_sections) of a semester. Assigning goes through
- * PUT /sections/:id/lecturer, which checks the lecturer is active, in the course's department (when the
- * institution restricts it), free at the offering's class times, and not already assigned.
- */
 export default function CourseAssignments() {
   const [params, setParams] = useSearchParams()
   const { semesterId, setSemesterId, semesters, semester } = useSemesterParam()

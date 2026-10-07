@@ -21,7 +21,6 @@ const RULE_TITLES = {
 
 export const ruleTitle = (rule) => RULE_TITLES[rule] ?? 'Not allowed'
 
-/** The list of rule failures the backend returns (422 REGISTRATION_RULES_FAILED or the catalog's `reasons`). */
 export function RuleList({ failures }) {
   return (
     <ul className="space-y-3">
@@ -38,10 +37,6 @@ export function RuleList({ failures }) {
   )
 }
 
-/**
- * Add / join-waitlist behaviour shared by the catalog and course details pages.
- * The backend is the source of truth: a refused add shows its rule failures in a dialog.
- */
 export function useRegistrationActions() {
   const add = useAddCourse()
   const join = useJoinWaitlist()

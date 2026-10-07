@@ -8,8 +8,6 @@ const SECRETS = [
   'activationHash', 'activationExpires',
 ];
 
-// The full picture is tens of KB, so it stays out of the many name-only user includes; `withAvatar` opts in.
-// The small `avatarThumb` (about 2 KB) is always loaded, for list pages.
 const AVATAR = ['avatar'];
 
 class User extends Model {
@@ -47,7 +45,6 @@ User.init(
     passwordResetHash: { type: DataTypes.STRING(64) },
     passwordResetExpires: { type: DataTypes.DATE },
     lastLoginAt: { type: DataTypes.DATE },
-    // Set on admission and staff PIN resets: every route except changing the PIN is refused until it's cleared.
     mustChangePassword: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     failedLoginAttempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     lockedUntil: { type: DataTypes.DATE },
@@ -55,7 +52,6 @@ User.init(
     pinOtpExpires: { type: DataTypes.DATE },
     pinOtpAttempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     pinOtpSentAt: { type: DataTypes.DATE },
-    // Online admission: single-use activation link (sha256 of the token), cleared once used.
     activationHash: { type: DataTypes.CHAR(64) },
     activationExpires: { type: DataTypes.DATE },
     avatar: { type: DataTypes.TEXT('medium') },

@@ -12,7 +12,6 @@ Lecturer.init(
     title: { type: DataTypes.STRING(50) },
     phone: { type: DataTypes.STRING(30) },
     specialization: { type: DataTypes.STRING(150) },
-    // Where activation and personal notices go; the school email is users.email.
     personalEmail: {
       type: DataTypes.STRING(191),
       unique: true,

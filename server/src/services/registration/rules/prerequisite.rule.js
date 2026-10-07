@@ -1,9 +1,5 @@
 import { describeGroup, flattenGroups } from '../../prerequisite.service.js';
 
-/**
- * `requirements` is precomputed by prerequisite.service.evaluateRequirements:
- * { missing: [{ anyOf: [course], minGrade }], corequisitesMissing, overridden }.
- */
 export const prerequisite = ({ section, requirements }) => {
   const rule = 'PREREQUISITE';
   const groups = requirements?.missing ?? [];

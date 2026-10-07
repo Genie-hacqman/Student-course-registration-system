@@ -1,9 +1,3 @@
-/**
- * Security signals and sensitive reads in the audit log: failed and blocked sign-ins, the moment of lockout,
- * wrong current password/PIN, rejected PIN-reset codes, invalid tokens, refused refreshes, 403 denials (deduped),
- * staff opening other people's sensitive records (deduped, owners never logged) and admins opening the audit log.
- * Nothing secret is ever written, and none of it shows up on the Sign-ins page.
- */
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {

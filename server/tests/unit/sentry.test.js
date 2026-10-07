@@ -2,12 +2,6 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 
-/**
- * env.js reads SENTRY_DSN once at import time, so exercising both the "not configured" and
- * "configured" paths needs two real processes, not two in-process calls — matches the pattern in
- * env-safety.test.js. Confirms both paths complete quickly and never throw, so a Sentry outage or
- * a missing/invalid DSN can never be the thing that breaks a request.
- */
 const BASE_ENV = { PATH: process.env.PATH, DB_NAME: 'x', DB_USER: 'x', JWT_ACCESS_SECRET: 'a'.repeat(32) };
 
 const SCRIPT = `
