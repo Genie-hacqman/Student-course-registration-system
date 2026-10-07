@@ -100,7 +100,10 @@ export default function ProgramDetail() {
           <p className="mt-1 text-sm text-slate-500">
             <Link to={`/staff/departments/${p.department?.id}`} className="hover:text-brand-700">{p.department?.name}</Link> · {p.durationYears} years · up to {p.maxCredits} credits per semester
           </p>
-          <div className="mt-2"><OrgStatusBadge status={p.status} /></div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <OrgStatusBadge status={p.status} />
+            <Badge tone={p.autoApprove ? 'green' : 'slate'}>{p.autoApprove ? 'Registrations auto-approved' : 'Registrations need approval'}</Badge>
+          </div>
         </div>
         {canManage && (
           <div className="flex flex-wrap gap-2">

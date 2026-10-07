@@ -138,6 +138,7 @@ export const programSchema = z.object({
   durationYears: z.coerce.number().int().min(1).max(10).default(4),
   maxCredits: z.coerce.number().int().min(1).max(60).default(24),
   qualificationCode: z.string().trim().min(1).max(20).transform((v) => v.toUpperCase()).optional(),
+  autoApprove: z.boolean().default(false),
 });
 
 export const updateProgramSchema = z
@@ -148,6 +149,7 @@ export const updateProgramSchema = z
     durationYears: z.coerce.number().int().min(1).max(10),
     maxCredits: z.coerce.number().int().min(1).max(60),
     qualificationCode: z.string().trim().min(1).max(20).transform((v) => v.toUpperCase()).nullable(),
+    autoApprove: z.boolean(),
   })
   .partial()
   .refine((d) => Object.keys(d).length > 0, 'Provide at least one field to update');

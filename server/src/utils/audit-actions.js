@@ -160,6 +160,7 @@ export const AUDIT_CATALOGUE = Object.freeze([
     ['registration.staff_drop', 'Course dropped by staff'],
     ['registration.submit', 'Registration submitted'],
     ['registration.approved', 'Registration approved'],
+    ['registration.auto_approved', 'Registration auto-approved'],
     ['registration.rejected', 'Registration rejected'],
     ['registration.slip_printed', 'Slip printed'],
     ['registration.slip_viewed', "Student's slip viewed by staff"],
