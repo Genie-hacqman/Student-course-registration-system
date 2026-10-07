@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { UserPlus, X } from 'lucide-react'
+import { UserPlus } from 'lucide-react'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { http, useApi, useApiMutation } from '../../api/admin'
@@ -10,8 +10,7 @@ import FormModal from '../../components/admin/FormModal'
 import CredentialsDialog from '../../components/admin/CredentialsDialog'
 import StudentTable, { STUDENT_TONE } from '../../components/directory/StudentTable'
 import DepartmentOverview from '../../components/directory/DepartmentOverview'
-import { SemesterSelect, useSemesterParam } from '../../components/staff'
-import { REGISTRATION_STATUS, fullName } from '../../lib/format'
+import { fullName } from '../../lib/format'
 import { can, PERMS } from '../../lib/roles'
 import { optionalNumber } from '../../lib/forms'
 
@@ -97,40 +96,17 @@ function AdmitStudent({ open, onClose, onAdmitted }) {
   )
 }
 
-const LEVELS = [100, 200, 300, 400, 500, 600]
-
 export default function Students() {
   const { user } = useAuth()
   const canAdmit = can(user, PERMS.STUDENT_ADMIT)
   const [admitting, setAdmitting] = useState(false)
   const [admitted, setAdmitted] = useState(null) // { student, credentials }
   const [params, setParams] = useSearchParams()
-  const { semesterId, setSemesterId, semesters } = useSemesterParam()
-  const f = {
-    search: params.get('search') ?? '',
-    departmentId: params.get('department') ?? '',
-    programId: params.get('program') ?? '',
-    level: params.get('level') ?? '',
-    registrationStatus: params.get('registration') ?? '',
-    status: params.get('status') ?? '',
-  }
+  const search = params.get('search') ?? ''
   const page = Number(params.get('page') ?? 1)
-  const departments = useApi('/departments')
-  const programs = useApi('/programs', f.departmentId ? { departmentId: f.departmentId } : undefined)
-  const students = useApi('/students', {
-    search: f.search || undefined,
-    departmentId: f.departmentId || undefined,
-    programId: f.programId || undefined,
-    level: f.level || undefined,
-    semesterId: semesterId || undefined,
-    registrationStatus: f.registrationStatus || undefined,
-    status: f.status || undefined,
-    page,
-    limit: 20,
-    sort: 'name',
-  })
+  // Students only load once something is searched for; otherwise people browse by department and programme.
+  const results = useApi(search ? '/students' : null, { search, page, limit: 20, sort: 'name' })
 
-  /** Update several URL filters at once; any change goes back to page 1. */
   const update = (changes) => {
     const next = new URLSearchParams(params)
     for (const [key, value] of Object.entries(changes)) {
@@ -140,14 +116,12 @@ export default function Students() {
     if (!('page' in changes)) next.delete('page')
     setParams(next, { replace: true })
   }
-  const drillDown = ({ departmentId, programId, level } = {}) => update({ department: departmentId, program: programId, level })
-  const filtered = Boolean(f.search || f.departmentId || f.programId || f.level || f.registrationStatus || f.status)
 
   return (
     <div>
       <PageHeader
         title="Students"
-        subtitle="Browse students by department, programme and level, or search and filter the full list."
+        subtitle="Browse students by department and programme, or search for a student by name, Student ID or email."
         action={canAdmit && <Button onClick={() => setAdmitting(true)}><UserPlus className="size-4" /> Admit student</Button>}
       />
       <AdmitStudent open={admitting} onClose={() => setAdmitting(false)} onAdmitted={setAdmitted} />
@@ -159,52 +133,22 @@ export default function Students() {
         action={admitted && <Link to={`/staff/students/${admitted.student.id}`}><Button variant="secondary">View student</Button></Link>}
       />
 
-      <Card className="mb-4 space-y-3 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <SearchInput key={f.search} defaultValue={f.search} onSearch={(v) => update({ search: v })} placeholder="Name, Student ID or email" className="w-full sm:w-72" />
-          <Select aria-label="Department" className="w-full sm:w-52" value={f.departmentId} onChange={(e) => update({ department: e.target.value, program: '', level: '' })}>
-            <option value="">All departments</option>
-            {departments.data?.map((d) => <option key={d.id} value={d.id}>{d.name}{d.status === 'archived' ? ' (archived)' : ''}</option>)}
-          </Select>
-          <Select aria-label="Programme" className="w-full sm:w-56" value={f.programId} onChange={(e) => update({ program: e.target.value })}>
-            <option value="">All programmes</option>
-            {programs.data?.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
-          </Select>
-          <Select aria-label="Level" className="w-full sm:w-36" value={f.level} onChange={(e) => update({ level: e.target.value })}>
-            <option value="">All levels</option>
-            {LEVELS.map((l) => <option key={l} value={l}>Level {l}</option>)}
-          </Select>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <SemesterSelect value={semesterId} onChange={setSemesterId} semesters={semesters} />
-          <Select aria-label="Registration status" className="w-full sm:w-52" value={f.registrationStatus} onChange={(e) => update({ registration: e.target.value })}>
-            <option value="">Any registration status</option>
-            <option value="none">Not registered</option>
-            {Object.entries(REGISTRATION_STATUS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
-          </Select>
-          <Select aria-label="Academic status" className="w-full sm:w-44" value={f.status} onChange={(e) => update({ status: e.target.value })}>
-            <option value="">Any academic status</option>
-            {Object.keys(STUDENT_TONE).map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
-          </Select>
-          {filtered && (
-            <Button variant="ghost" size="sm" onClick={() => update({ search: '', department: '', program: '', level: '', registration: '', status: '' })}>
-              <X className="size-4" aria-hidden /> Clear filters
-            </Button>
-          )}
-        </div>
-        <p className="text-xs text-slate-500">Registration status is for the selected term.</p>
+      <Card className="mb-4 p-4">
+        <SearchInput key={search} defaultValue={search} onSearch={(v) => update({ search: v })} placeholder="Name, Student ID or email" className="w-full sm:w-96" />
       </Card>
 
-      <DepartmentOverview departmentId={f.departmentId} programId={f.programId} level={f.level} onSelect={drillDown} />
+      {search ? (
+        <Card className="mb-4">
+          <StudentTable
+            query={results}
+            onPage={(n) => update({ page: n })}
+            empty="No students match this search"
+            emptyHint="Check the spelling, or browse by department below."
+          />
+        </Card>
+      ) : null}
 
-      <Card>
-        <StudentTable
-          query={students}
-          onPage={(n) => update({ page: n })}
-          empty={filtered ? 'No students match these filters' : 'No students yet'}
-          emptyHint={filtered ? 'Try clearing a filter or choosing another term.' : undefined}
-        />
-      </Card>
+      <DepartmentOverview />
     </div>
   )
 }

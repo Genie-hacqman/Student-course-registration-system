@@ -77,6 +77,8 @@ const PRIVATE_ROUTES = [
   ['/staff/sections/:id', 'Course offering'],
   ['/staff/sections/:id/class', 'Class list'],
   ['/staff/students', 'Students'],
+  ['/staff/students/departments/:departmentId', 'Students by department'],
+  ['/staff/students/programs/:programId', 'Programme students'],
   ['/staff/students/:id', 'Student record'],
   ['/staff/users', 'All users'],
   ['/staff/users/:id', 'User'],

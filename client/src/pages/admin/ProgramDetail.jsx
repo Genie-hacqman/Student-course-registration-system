@@ -6,8 +6,8 @@ import { Controller } from 'react-hook-form'
 import { toast } from 'sonner'
 import { http, useApi, useApiMutation } from '../../api/admin'
 import { useAuth } from '../../auth/AuthProvider'
-import { Badge, Button, Card, CardHeader, ErrorState, Input, Loading, SearchInput, Select, Tabs } from '../../components/ui'
-import StudentTable from '../../components/directory/StudentTable'
+import { Badge, Button, Card, CardHeader, ErrorState, Input, Loading, Select, Tabs } from '../../components/ui'
+import ProgramStudentList from '../../components/directory/ProgramStudentList'
 import OrgStatusBadge from '../../components/directory/OrgStatusBadge'
 import { can, PERMS } from '../../lib/roles'
 import DataTable from '../../components/admin/DataTable'
@@ -23,35 +23,11 @@ const addSchema = z.object({
   recommendedLevel: optionalNumber(z.number().int().min(100).max(900)),
 })
 
-/** The programme's students, by level: level tabs with counts from the server, then the student list. */
+/** The programme's students, by level: level counts come from the department overview, the list from the shared component. */
 function StudentsByLevel({ program }) {
-  const [params, setParams] = useSearchParams()
-  const level = params.get('level') ?? ''
-  const search = params.get('search') ?? ''
-  const page = Number(params.get('page') ?? 1)
   const overview = useApi(`/departments/${program.departmentId}/overview`)
   const levels = overview.data?.programs.find((p) => p.id === program.id)?.levels ?? []
-  const total = levels.reduce((sum, l) => sum + l.students, 0)
-  const students = useApi(`/programs/${program.id}/students`, { level: level || undefined, search: search || undefined, page, limit: 20, sort: 'name' })
-  const set = (changes) => {
-    const next = new URLSearchParams(params)
-    for (const [key, value] of Object.entries(changes)) {
-      if (value === undefined || value === '') next.delete(key)
-      else next.set(key, String(value))
-    }
-    if (!('page' in changes)) next.delete('page')
-    setParams(next, { replace: true })
-  }
-  const tabs = [{ value: '', label: 'All levels', count: overview.data ? total : undefined }, ...levels.map((l) => ({ value: String(l.level), label: `Level ${l.level}`, count: l.students }))]
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
-        <Tabs items={tabs} value={level} onChange={(v) => set({ level: v })} label="Level" />
-        <SearchInput key={search} defaultValue={search} onSearch={(v) => set({ search: v })} placeholder="Name, Student ID or email" className="w-full sm:w-64" />
-      </div>
-      <StudentTable query={students} showProgram={false} showDepartment={false} onPage={(n) => set({ page: n })} empty="No students on this programme match" />
-    </>
-  )
+  return <ProgramStudentList programId={program.id} levels={levels} countsReady={Boolean(overview.data)} />
 }
 
 export default function ProgramDetail() {
