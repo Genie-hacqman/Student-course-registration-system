@@ -30,7 +30,7 @@ const userInclude = { model: User, as: 'user', attributes: ['id', 'firstName', '
 const programInclude = {
   model: Program,
   as: 'program',
-  attributes: ['id', 'name', 'code', 'maxCredits', 'qualificationCode', 'status'],
+  attributes: ['id', 'name', 'code', 'maxCredits', 'qualificationCode', 'status', 'autoApprove'],
   include: [{ model: Department, as: 'department', attributes: ['id', 'name', 'code', 'status'] }],
 };
 

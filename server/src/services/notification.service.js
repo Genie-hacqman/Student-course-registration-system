@@ -44,7 +44,10 @@ const templateFor = (n, user) => {
       return ['registrationSubmitted', { name: user.firstName, reference: d.reference, semester: d.semester, credits: d.credits, needsApproval: d.needsApproval }];
     case 'REGISTRATION_APPROVED':
     case 'REGISTRATION_REJECTED':
-      return ['registrationDecision', { name: user.firstName, approved: n.type === 'REGISTRATION_APPROVED', reason: d.reason }];
+      return ['registrationDecision', {
+        name: user.firstName, approved: n.type === 'REGISTRATION_APPROVED', reason: d.reason,
+        auto: d.auto, reference: d.reference, semester: d.semester, credits: d.credits,
+      }];
     case 'APPLICATION_REJECTED':
       return ['applicationDecision', { name: user.firstName, reason: d.reason }];
     case 'SECTION_RESCHEDULED':

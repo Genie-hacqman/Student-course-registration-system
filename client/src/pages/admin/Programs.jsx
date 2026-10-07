@@ -6,7 +6,7 @@ import { http, useApi, useApiMutation } from '../../api/admin'
 import { useAuth } from '../../auth/AuthProvider'
 import { Button, Card, CardHeader, Input, PageHeader, QueryState, SearchInput, Select, Tabs } from '../../components/ui'
 import DataTable, { stop } from '../../components/admin/DataTable'
-import FormModal from '../../components/admin/FormModal'
+import FormModal, { Checkbox } from '../../components/admin/FormModal'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import OrgStatusBadge from '../../components/directory/OrgStatusBadge'
 import { requiredNumber } from '../../lib/forms'
@@ -19,6 +19,7 @@ export const programSchema = z.object({
   departmentId: requiredNumber(z.number().int().positive('Choose a department'), 'Choose a department'),
   durationYears: requiredNumber(z.number().int().min(1).max(10)),
   maxCredits: requiredNumber(z.number().int().min(1).max(60)),
+  autoApprove: z.boolean(),
 })
 
 export function ProgramForm({ editing, onClose, onSaved }) {
@@ -38,6 +39,7 @@ export function ProgramForm({ editing, onClose, onSaved }) {
         departmentId: editing?.departmentId ?? '',
         durationYears: editing?.durationYears ?? 4,
         maxCredits: editing?.maxCredits ?? 24,
+        autoApprove: editing?.autoApprove ?? false,
       }}
       onSubmit={async (values) => {
         const saved = await save.mutateAsync({ id: editing?.id, ...values })
@@ -61,6 +63,11 @@ export function ProgramForm({ editing, onClose, onSaved }) {
             <Input label="Duration (years)" type="number" error={errors.durationYears?.message} {...register('durationYears')} />
             <Input label="Max credits per semester" type="number" hint="Used when the semester sets no limit" error={errors.maxCredits?.message} {...register('maxCredits')} />
           </div>
+          <Checkbox
+            label="Approve registrations automatically"
+            hint="Students on this programme are confirmed as soon as their registration passes every check and their timetable is clear. Anything else still goes to the registrar."
+            {...register('autoApprove')}
+          />
         </>
       )}
     </FormModal>

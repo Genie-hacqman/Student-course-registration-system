@@ -532,11 +532,28 @@ export const staffAddStudent = async (sectionId, { studentId, override, reason }
 export const staffRemoveStudent = async (sectionId, studentId, { reason }, actor, req) =>
   removeItem(await studentService.getById(studentId), { courseSectionId: sectionId }, { actor, reason, req });
 
-/** Re-runs every rule against the whole selection, then submits (or auto-approves if approval is disabled). */
+/**
+ * The writes that approve a registration whose timetable has just been checked clean, shared by a registrar's
+ * approval and by auto-approval so the two can't drift. `actor` is null for the system (auto-approval), which
+ * leaves `reviewed_by` empty. Returns how many open timetable issues it closed.
+ */
+const confirmApproval = async (reg, { actor, remarks = null }, transaction) => {
+  const now = new Date();
+  await reg.update({
+    status: REGISTRATION_STATUS.APPROVED, reviewedAt: now, reviewedBy: actor?.id ?? null, remarks, timetableConfirmedAt: now,
+  }, { transaction });
+  return timetableService.closeIssues(reg.id, { id: actor?.id ?? null }, transaction);
+};
+
+/**
+ * Re-runs every rule against the whole selection, then submits it. It is approved on the spot when approval
+ * is switched off globally or the student's programme has `autoApprove` and the timetable is clash-free;
+ * otherwise it waits for the registrar.
+ */
 export const submit = async (userId, req) => {
   const student = await studentService.getByUserId(userId);
 
-  const registration = await sequelize.transaction(async (transaction) => {
+  const outcome = await sequelize.transaction(async (transaction) => {
     const semester = await requireCurrentSemester(transaction);
     const reg = await Registration.findOne({
       where: { studentId: student.id, semesterId: semester.id },
@@ -544,7 +561,11 @@ export const submit = async (userId, req) => {
       transaction,
     });
     if (!reg) throw new BadRequestError('Add at least one course before submitting');
-    if ([REGISTRATION_STATUS.SUBMITTED, REGISTRATION_STATUS.APPROVED].includes(reg.status)) {
+    // Auto-approval: the global switch off approves everyone; otherwise the student's programme decides.
+    const requireApproval = await settingService.get('registration.requireApproval', { transaction });
+    const wantsAutoApproval = !requireApproval || Boolean(student.program?.autoApprove);
+    // A registration an edit sent back to `submitted` can be submitted again, but only where that can approve it on the spot.
+    if (reg.status === REGISTRATION_STATUS.APPROVED || (reg.status === REGISTRATION_STATUS.SUBMITTED && !wantsAutoApproval)) {
       throw new ConflictError(`Registration is already ${reg.status}`);
     }
 
@@ -594,33 +615,53 @@ export const submit = async (userId, req) => {
     }
     if (failures.length) throw new RegistrationRuleError(failures);
 
-    const requireApproval = await settingService.get('registration.requireApproval', { transaction });
+    // Auto-approval needs the same clean timetable a registrar's approval does, else it waits for the registrar.
+    const issues = wantsAutoApproval ? await timetableService.findAllocationIssues(reg.id, transaction) : [];
+    const autoApproved = wantsAutoApproval && !issues.length;
+
     await reg.update({
-      status: requireApproval ? REGISTRATION_STATUS.SUBMITTED : REGISTRATION_STATUS.APPROVED,
+      status: REGISTRATION_STATUS.SUBMITTED,
       submittedAt: now,
       referenceNumber: reg.referenceNumber ?? buildReferenceNumber(reg, now),
       totalCredits,
       remarks: null,
     }, { transaction });
+    const reference = { registrationId: reg.id, reference: reg.referenceNumber, semester: semester.name, credits: totalCredits };
 
-    await notificationService.create({
-      userId,
-      type: 'REGISTRATION_SUBMITTED',
-      title: 'Registration submitted',
-      message: requireApproval
-        ? `Your ${semester.name} registration (${totalCredits} credits) was submitted and is awaiting approval.`
-        : `Your ${semester.name} registration (${totalCredits} credits) is confirmed.`,
-      // Also what the confirmation email shows; `submittedAt` keys it, so a resubmission emails again.
-      data: {
-        registrationId: reg.id, reference: reg.referenceNumber, semester: semester.name, credits: totalCredits,
-        needsApproval: Boolean(requireApproval), submittedAt: now.toISOString(),
-      },
-    }, { transaction });
+    if (autoApproved) {
+      const issuesClosed = await confirmApproval(reg, { actor: null }, transaction);
+      await notificationService.create({
+        userId,
+        type: 'REGISTRATION_APPROVED',
+        title: 'Registration approved',
+        message: `Your ${semester.name} registration (${totalCredits} credits) was approved automatically and your timetable is confirmed.`,
+        data: { ...reference, auto: true, submittedAt: now.toISOString() },
+      }, { transaction });
+      await audit.log({
+        userId, action: 'registration.auto_approved', entityType: 'Registration', entityId: reg.id, req, transaction,
+        metadata: { totalCredits, programId: student.programId, ...(issuesClosed ? { timetableIssuesClosed: issuesClosed } : {}) },
+      });
+    } else {
+      await notificationService.create({
+        userId,
+        type: 'REGISTRATION_SUBMITTED',
+        title: 'Registration submitted',
+        message: issues.length
+          ? `Your ${semester.name} registration (${totalCredits} credits) was submitted. It could not be approved automatically because of a timetable clash, so the registrar will review it.`
+          : `Your ${semester.name} registration (${totalCredits} credits) was submitted and is awaiting approval.`,
+        // Also what the confirmation email shows; `submittedAt` keys it, so a resubmission emails again.
+        data: { ...reference, needsApproval: true, submittedAt: now.toISOString() },
+      }, { transaction });
+    }
     await audit.log({ userId, action: 'registration.submit', entityType: 'Registration', entityId: reg.id, metadata: { totalCredits }, req, transaction });
-    return reg;
+    return { reg, issues, autoApproved };
   });
 
+  const { reg: registration, issues, autoApproved } = outcome;
+  // The clash is recorded after commit, in its own transaction (as `review` does), so the registrar sees it.
+  if (issues.length) await timetableService.recordIssues(registration.id, issues, { id: userId });
   emitRegistrationStatusChanged(userId, { registrationId: registration.id, status: registration.status });
+  if (autoApproved) emitTimetableUpdated(userId, { registrationId: registration.id });
   return getRegistrationDetail(registration.id);
 };
 
@@ -705,11 +746,9 @@ const review = async (id, decision, remarks, actor, req) => {
       if (issues.length) return { issues };
     }
 
-    await reg.update({
-      status: decision, reviewedAt: new Date(), reviewedBy: actor.id, remarks: remarks ?? null,
-      ...(approved ? { timetableConfirmedAt: new Date() } : {}),
-    }, { transaction });
-    const issuesClosed = approved ? await timetableService.closeIssues(reg.id, actor, transaction) : 0;
+    let issuesClosed = 0;
+    if (approved) issuesClosed = await confirmApproval(reg, { actor, remarks: remarks ?? null }, transaction);
+    else await reg.update({ status: decision, reviewedAt: new Date(), reviewedBy: actor.id, remarks: remarks ?? null }, { transaction });
 
     await notificationService.create({
       userId: reg.student.userId,

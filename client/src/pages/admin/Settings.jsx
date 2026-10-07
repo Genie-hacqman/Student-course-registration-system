@@ -99,7 +99,7 @@ function SettingsForm({ rows }) {
         <div className="space-y-5 px-5 py-5">
           <Checkbox
             label="Registrations need approval"
-            hint="When off, a submitted registration is approved automatically."
+            hint="When off, every programme's registrations are approved automatically. When on, only programmes set to auto-approve skip the registrar."
             {...register(field('registration.requireApproval'))}
           />
           <Checkbox

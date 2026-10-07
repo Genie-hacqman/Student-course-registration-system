@@ -144,11 +144,15 @@ export const registrationSubmitted = ({ name, reference, semester, credits, need
   action: { label: 'View your registration', url: link(ctx, '/student/my-courses') },
 }, ctx);
 
-export const registrationDecision = ({ name, approved, reason }, ctx) => make(approved ? 'Registration approved' : 'Registration needs changes', {
+export const registrationDecision = ({ name, approved, reason, auto, reference, semester, credits }, ctx) => make(approved ? 'Registration approved' : 'Registration needs changes', {
   greeting: hello(name),
   paragraphs: approved
-    ? ['Your course registration has been approved and your timetable is confirmed.']
+    ? [auto
+      ? 'Your course registration was submitted and approved automatically, and your timetable is confirmed.'
+      : 'Your course registration has been approved and your timetable is confirmed.']
     : ['Your course registration was not approved. Please update it and submit it again.', ...(reason ? [`Reason: ${reason}`] : [])],
+  // An automatic approval is also the student's only confirmation of what they submitted.
+  rows: auto ? [['Reference', reference ?? '—'], ['Semester', semester ?? '—'], ['Credits', credits ?? '—']] : undefined,
   action: approved
     ? { label: 'View your timetable', url: link(ctx, '/student/timetable') }
     : { label: 'Update your registration', url: link(ctx, '/student/registration') },
