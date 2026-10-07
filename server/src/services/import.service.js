@@ -13,6 +13,7 @@ import { findConflicts } from './schedule.service.js';
 import { issueInvite } from './password-reset.service.js';
 import * as waitlistService from './waitlist.service.js';
 import * as audit from './audit.service.js';
+import { summariseEntries } from '../utils/audit-diff.js';
 
 /*
  * Bulk import of real institutional data. Each endpoint takes rows keyed by natural keys (codes,
@@ -47,17 +48,21 @@ export const runImport = async ({ rows, dryRun = false, sendInvites = false }, h
   };
   const ctx = { actor, dryRun, cache: new Map() };
   const invites = [];
+  // What the audit entry lists per row: the natural key and what happened (never messages or credentials).
+  const touched = [];
 
   const runRows = async (outer) => {
     for (const [index, row] of rows.entries()) {
       try {
         const { outcome, invite, credentials } = await sequelize.transaction({ transaction: outer }, (t) => handler(row, t, ctx));
         report[outcome] += 1;
+        if (outcome !== 'unchanged') touched.push({ row: index, key: keyOf(row), outcome });
         if (invite) invites.push(invite);
         if (credentials && report.credentials) report.credentials.push({ row: index, ...credentials });
       } catch (err) {
         report.failed += 1;
         report.errors.push({ row: index, key: keyOf(row), ...describeError(err) });
+        touched.push({ row: index, key: keyOf(row), outcome: 'failed' });
       }
     }
   };
@@ -82,7 +87,10 @@ export const runImport = async ({ rows, dryRun = false, sendInvites = false }, h
   await audit.log({
     userId: actor.id,
     action,
-    metadata: { created: report.created, updated: report.updated, unchanged: report.unchanged, failed: report.failed, invited: report.invited },
+    metadata: {
+      created: report.created, updated: report.updated, unchanged: report.unchanged, failed: report.failed, invited: report.invited,
+      rows: summariseEntries(touched),
+    },
   });
   return report;
 };

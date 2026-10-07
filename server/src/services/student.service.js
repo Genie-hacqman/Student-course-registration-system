@@ -5,6 +5,7 @@ import { buildPagination } from '../utils/pagination.js';
 import { NotFoundError, BadRequestError, ForbiddenError, ConflictError } from '../utils/errors.js';
 import { assertProgramOpen } from './org-status.service.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 import * as settingService from './setting.service.js';
 import { computeGpa } from '../utils/grades.js';
 
@@ -169,8 +170,11 @@ export const create = async (data, actor) => {
   if (await Student.findOne({ where: { userId: data.userId }, attributes: ['id'] })) {
     throw new ConflictError('This user already has a student profile');
   }
-  const student = await createStudentRecord(data);
-  await audit.log({ userId: actor.id, action: 'student.create', entityType: 'Student', entityId: student.id });
+  const student = await sequelize.transaction(async (transaction) => {
+    const created = await createStudentRecord(data, transaction);
+    await audit.log({ userId: actor.id, action: 'student.create', entityType: 'Student', entityId: created.id, transaction });
+    return created;
+  });
   return getById(student.id);
 };
 
@@ -178,8 +182,15 @@ export const update = async (id, data, actor) => {
   const student = await getById(id);
   // Moving a student into a programme counts as new intake; staying in an archived one is fine.
   if (data.programId && data.programId !== student.programId) await assertProgramOpen(data.programId);
-  await student.update(data);
-  await audit.log({ userId: actor.id, action: 'student.update', entityType: 'Student', entityId: id, metadata: data });
+  const fields = Object.keys(data);
+  const before = snapshot(student, fields);
+  await sequelize.transaction(async (transaction) => {
+    await student.update(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'student.update', entityType: 'Student', entityId: id, transaction,
+      metadata: { studentNumber: student.studentNumber, ...diffFields(before, snapshot(student, fields)) },
+    });
+  });
   return getById(id);
 };
 

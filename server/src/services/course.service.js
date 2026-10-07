@@ -8,6 +8,7 @@ import { COURSE_STATUS, SECTION_STATUS, ADMIN_ROLES } from '../utils/constants.j
 import { COURSE_SORT_FIELDS } from '../validators/course.validator.js';
 import { assertDepartmentOpen } from './org-status.service.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 
 const isAdmin = (actor) => ADMIN_ROLES.includes(actor?.role);
 
@@ -95,8 +96,11 @@ export const getById = async (id, actor) => {
 
 export const create = async (data, actor) => {
   await assertDepartmentOpen(data.departmentId, { what: 'new courses' });
-  const course = await Course.create(data);
-  await audit.log({ userId: actor.id, action: 'course.create', entityType: 'Course', entityId: course.id, metadata: { code: course.code } });
+  const course = await sequelize.transaction(async (transaction) => {
+    const created = await Course.create(data, { transaction });
+    await audit.log({ userId: actor.id, action: 'course.create', entityType: 'Course', entityId: created.id, metadata: { code: created.code }, transaction });
+    return created;
+  });
   return getById(course.id, actor);
 };
 
@@ -106,8 +110,15 @@ export const update = async (id, data, actor) => {
   if (data.departmentId && data.departmentId !== course.departmentId) {
     await assertDepartmentOpen(data.departmentId, { what: 'new courses' });
   }
-  await course.update(data);
-  await audit.log({ userId: actor.id, action: 'course.update', entityType: 'Course', entityId: course.id, metadata: data });
+  const fields = Object.keys(data);
+  const before = snapshot(course, fields);
+  await sequelize.transaction(async (transaction) => {
+    await course.update(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'course.update', entityType: 'Course', entityId: course.id, transaction,
+      metadata: { code: course.code, ...diffFields(before, snapshot(course, fields), { omitValues: ['description'] }) },
+    });
+  });
   return getById(course.id, actor);
 };
 
@@ -115,6 +126,12 @@ export const update = async (id, data, actor) => {
 export const remove = async (id, actor) => {
   const course = await Course.findByPk(id);
   if (!course) throw new NotFoundError('Course');
-  await course.update({ status: COURSE_STATUS.INACTIVE });
-  await audit.log({ userId: actor.id, action: 'course.deactivate', entityType: 'Course', entityId: course.id });
+  const previousStatus = course.status;
+  await sequelize.transaction(async (transaction) => {
+    await course.update({ status: COURSE_STATUS.INACTIVE }, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'course.deactivate', entityType: 'Course', entityId: course.id, transaction,
+      metadata: { code: course.code, changes: { status: { from: previousStatus, to: COURSE_STATUS.INACTIVE } } },
+    });
+  });
 };

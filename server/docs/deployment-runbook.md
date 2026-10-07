@@ -249,6 +249,8 @@ Run it before relying on the log in a dispute, and after any restore. Limits to 
 
 **Retention.** On the same hourly pass, sealed batches older than 12 months (sign-in rows) or 24 months (everything else) are written to object storage as `audit-archive/<stream>/seal-<id>.ndjson.gz`, read back and compared, and only then deleted. Seals are never deleted, so the chain stays verifiable. Without a configured bucket the job logs a warning and deletes nothing. To look at old history, download and `gunzip` the archive named in `audit_seals.archive_key`.
 
+**Security signals.** Besides business changes, the log records `security.*` entries (failed or blocked sign-ins, the moment an account locks, rejected PIN-reset codes, invalid links, refused sessions, 403 denials, hit rate limits), staff opening another person's photo, results, slip or session list, and admins opening the audit log. They are kept 12 months, like sign-ins, and never appear on the Sign-ins page. Repeats are collapsed in memory per process (10 minutes for denials and views; one row per address per window for rate limits), so after a restart or with several instances you may see a few repeats; that is noise control, not an exact count.
+
 **Rotating the key.** Rows signed with the old key will fail verification. Keep the old key until the log has been exported or archived, or accept that history before the rotation is unverifiable.
 
 ## Deleting a test applicant

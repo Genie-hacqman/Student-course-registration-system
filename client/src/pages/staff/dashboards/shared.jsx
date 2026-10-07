@@ -3,13 +3,12 @@ import { useApi } from '../../../api/admin'
 import { useRegistrations } from '../../../api/staff'
 import { PERMS, can } from '../../../lib/roles'
 
-/** A readable phrase for an audit action like "registration.approve". */
-export const describeAction = (action) => {
-  const [entity, verb] = action.split('.')
-  const words = { auth: 'Signed', login: 'in', login_failed: 'in (failed)' }
-  if (entity === 'auth') return `${words.auth} ${words[verb] ?? verb}`
-  return `${(entity ?? '').replace(/[-_]/g, ' ')} ${(verb ?? '').replace(/[-_]/g, ' ')}`.trim().replace(/^./, (c) => c.toUpperCase())
-}
+/**
+ * A readable phrase for an audit action. The server sends the catalogue's label with every entry (`actionLabel`);
+ * this only covers an action it did not label, e.g. "role.permissions.update" -> "Role permissions update".
+ */
+export const describeAction = (action, label) =>
+  label ?? action.split('.').map((w) => w.replace(/[-_]/g, ' ')).join(' ').replace(/^./, (c) => c.toUpperCase())
 
 /** Counts that need someone's decision, each only for users who can act on it. */
 export function usePendingActions(user, semesterId) {

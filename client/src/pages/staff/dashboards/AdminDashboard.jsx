@@ -105,7 +105,7 @@ export default function AdminDashboard() {
               <ActivityList
                 items={(audit.data?.items ?? []).map((l) => ({
                   id: l.id,
-                  title: describeAction(l.action),
+                  title: describeAction(l.action, l.actionLabel),
                   description: [l.user ? fullName(l.user) : 'System', l.entityType && `${l.entityType}${l.entityId ? ` #${l.entityId}` : ''}`].filter(Boolean).join(' · '),
                   at: l.createdAt,
                   icon: Activity,

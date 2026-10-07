@@ -13,6 +13,7 @@
  */
 
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 
 // Records whose existence means this is a real student, not a test: deleting the user would cascade into them.
 const ACADEMIC_TABLES = {
@@ -126,12 +127,14 @@ export const deleteApplicant = async ({ email, apply = false, includeAdmitted = 
       action: 'applicant.delete',
       entityType: 'User',
       entityId: checked.user.id,
+      // The log outlives the person, so it holds no name or email address: the application number and Student ID
+      // say which record this was, and a fingerprint of the address lets you confirm "was this one deleted?"
+      // for an address you already have, without the log revealing it.
       metadata: {
-        name: checked.user.name,
-        email: checked.user.email,
-        personalEmail: checked.application?.personalEmail ?? null,
         applicationNumber: checked.application?.number ?? null,
         studentNumber: checked.studentNumber,
+        status: checked.user.status,
+        emailFingerprint: createHash('sha256').update(checked.user.email.toLowerCase()).digest('hex').slice(0, 16),
         via: 'applicant:delete',
       },
       transaction,

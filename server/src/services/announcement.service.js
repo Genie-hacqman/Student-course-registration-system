@@ -11,6 +11,7 @@ import { hasPermission } from './permission.service.js';
 import * as lecturerService from './lecturer.service.js';
 import * as notificationService from './notification.service.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 import { sendTemplate } from './mail.service.js';
 import env from '../config/env.js';
 import logger from '../config/logger.js';
@@ -210,16 +211,25 @@ const loadEditable = async (id, actor) => {
 
 export const update = async (id, data, actor, req) => {
   const announcement = await loadEditable(id, actor);
-  await announcement.update(data);
-  await audit.log({ userId: actor.id, action: 'announcement.update', entityType: 'Announcement', entityId: announcement.id, metadata: data, req });
+  const fields = Object.keys(data);
+  const before = snapshot(announcement, fields);
+  await sequelize.transaction(async (transaction) => {
+    await announcement.update(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'announcement.update', entityType: 'Announcement', entityId: announcement.id, transaction,
+      metadata: { title: announcement.title, ...diffFields(before, snapshot(announcement, fields), { omitValues: ['body'] }) }, req,
+    });
+  });
   return getById(id);
 };
 
 export const remove = async (id, actor, req) => {
   const announcement = await loadEditable(id, actor);
-  await announcement.destroy();
-  await audit.log({
-    userId: actor.id, action: 'announcement.delete', entityType: 'Announcement', entityId: announcement.id,
-    metadata: { title: announcement.title }, req,
+  await sequelize.transaction(async (transaction) => {
+    await announcement.destroy({ transaction });
+    await audit.log({
+      userId: actor.id, action: 'announcement.delete', entityType: 'Announcement', entityId: announcement.id,
+      metadata: { title: announcement.title }, req, transaction,
+    });
   });
 };

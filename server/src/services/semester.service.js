@@ -3,6 +3,7 @@ import { sequelize, AcademicYear, Semester } from '../models/index.js';
 import { buildPagination } from '../utils/pagination.js';
 import { NotFoundError, BadRequestError } from '../utils/errors.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 
 const yearInclude = { model: AcademicYear, as: 'academicYear', attributes: ['id', 'name'] };
 
@@ -12,9 +13,11 @@ export const listAcademicYears = () =>
   AcademicYear.findAll({ include: [{ model: Semester, as: 'semesters' }], order: [['startDate', 'DESC']] });
 
 export const createAcademicYear = async (data, actor) => {
-  const year = await AcademicYear.create(data);
-  await audit.log({ userId: actor.id, action: 'academic_year.create', entityType: 'AcademicYear', entityId: year.id });
-  return year;
+  return sequelize.transaction(async (transaction) => {
+    const year = await AcademicYear.create(data, { transaction });
+    await audit.log({ userId: actor.id, action: 'academic_year.create', entityType: 'AcademicYear', entityId: year.id, metadata: { name: year.name }, transaction });
+    return year;
+  });
 };
 
 export const updateAcademicYear = async (id, data, actor) => {
@@ -22,8 +25,15 @@ export const updateAcademicYear = async (id, data, actor) => {
   if (!year) throw new NotFoundError('Academic year');
   const merged = { ...year.get(), ...data };
   if (merged.startDate >= merged.endDate) throw new BadRequestError('endDate must be after startDate');
-  await year.update(data);
-  await audit.log({ userId: actor.id, action: 'academic_year.update', entityType: 'AcademicYear', entityId: id, metadata: data });
+  const fields = Object.keys(data);
+  const before = snapshot(year, fields);
+  await sequelize.transaction(async (transaction) => {
+    await year.update(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'academic_year.update', entityType: 'AcademicYear', entityId: id, transaction,
+      metadata: { name: year.name, ...diffFields(before, snapshot(year, fields)) },
+    });
+  });
   return year;
 };
 
@@ -71,9 +81,16 @@ const assertValidWindow = (s) => {
   }
 };
 
-/** Only one semester may be current: setting one clears the flag everywhere else in the same transaction. */
-const clearOtherCurrent = (exceptId, transaction) =>
-  Semester.update({ isCurrent: false }, { where: { isCurrent: true, id: { [Op.ne]: exceptId ?? 0 } }, transaction });
+/**
+ * Only one semester may be current: setting one clears the flag everywhere else in the same transaction.
+ * Returns the ids it cleared, so the audit entry can say which semester stopped being current.
+ */
+const clearOtherCurrent = async (exceptId, transaction) => {
+  const where = { isCurrent: true, id: { [Op.ne]: exceptId ?? 0 } };
+  const cleared = await Semester.findAll({ where, attributes: ['id'], transaction });
+  if (cleared.length) await Semester.update({ isCurrent: false }, { where, transaction });
+  return cleared.map((s) => s.id);
+};
 
 export const create = async (data, actor) => {
   if (!(await AcademicYear.findByPk(data.academicYearId))) throw new BadRequestError('Academic year does not exist');
@@ -81,8 +98,11 @@ export const create = async (data, actor) => {
 
   const semester = await sequelize.transaction(async (transaction) => {
     const created = await Semester.create(data, { transaction });
-    if (data.isCurrent) await clearOtherCurrent(created.id, transaction);
-    await audit.log({ userId: actor.id, action: 'semester.create', entityType: 'Semester', entityId: created.id, transaction });
+    const stoppedBeingCurrent = data.isCurrent ? await clearOtherCurrent(created.id, transaction) : [];
+    await audit.log({
+      userId: actor.id, action: 'semester.create', entityType: 'Semester', entityId: created.id, transaction,
+      metadata: { name: created.name, ...(stoppedBeingCurrent.length ? { previousCurrentSemesterIds: stoppedBeingCurrent } : {}) },
+    });
     return created;
   });
   return getById(semester.id);
@@ -95,10 +115,19 @@ export const update = async (id, data, actor) => {
   }
   assertValidWindow({ ...semester.get(), ...data });
 
+  const fields = Object.keys(data);
+  const before = snapshot(semester, fields);
   await sequelize.transaction(async (transaction) => {
     await semester.update(data, { transaction });
-    if (data.isCurrent) await clearOtherCurrent(semester.id, transaction);
-    await audit.log({ userId: actor.id, action: 'semester.update', entityType: 'Semester', entityId: id, metadata: data, transaction });
+    const stoppedBeingCurrent = data.isCurrent ? await clearOtherCurrent(semester.id, transaction) : [];
+    await audit.log({
+      userId: actor.id, action: 'semester.update', entityType: 'Semester', entityId: id, transaction,
+      metadata: {
+        name: semester.name,
+        ...diffFields(before, snapshot(semester, fields)),
+        ...(stoppedBeingCurrent.length ? { previousCurrentSemesterIds: stoppedBeingCurrent } : {}),
+      },
+    });
   });
   return getById(id);
 };

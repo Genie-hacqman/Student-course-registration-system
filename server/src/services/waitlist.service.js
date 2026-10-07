@@ -9,6 +9,7 @@ import * as notificationService from './notification.service.js';
 import * as studentService from './student.service.js';
 import * as settingService from './setting.service.js';
 import * as audit from './audit.service.js';
+import { summariseEntries } from '../utils/audit-diff.js';
 
 const ACTIVE = [WAITLIST_STATUS.WAITING, WAITLIST_STATUS.NOTIFIED];
 
@@ -71,16 +72,24 @@ export const leave = async (userId, id) => {
   const student = await studentService.getByUserId(userId);
   const entry = await Waitlist.findOne({ where: { id, studentId: student.id, status: ACTIVE } });
   if (!entry) throw new NotFoundError('Waitlist entry');
-  await entry.update({ status: WAITLIST_STATUS.CANCELLED });
-  await audit.log({ userId, action: 'waitlist.leave', entityType: 'Waitlist', entityId: entry.id });
+  await sequelize.transaction(async (transaction) => {
+    await entry.update({ status: WAITLIST_STATUS.CANCELLED }, { transaction });
+    await audit.log({ userId, action: 'waitlist.leave', entityType: 'Waitlist', entityId: entry.id, metadata: { courseSectionId: entry.courseSectionId }, transaction });
+  });
 };
 
 /** Marks the student's waitlist entry as converted once they get a seat in that section. */
-export const markConverted = (studentId, courseSectionId, { transaction } = {}) =>
-  Waitlist.update(
+export const markConverted = async (studentId, courseSectionId, { transaction } = {}) => {
+  const [converted] = await Waitlist.update(
     { status: WAITLIST_STATUS.CONVERTED },
     { where: { studentId, courseSectionId, status: ACTIVE }, transaction },
   );
+  // A system consequence of the registration that took the seat, so it is recorded with it (same transaction).
+  if (converted > 0) {
+    await audit.log({ action: 'waitlist.converted', entityType: 'CourseSection', entityId: courseSectionId, metadata: { studentId }, transaction });
+  }
+  return [converted];
+};
 
 /**
  * Called when seats free up. Notifies the next `count` waiting students (FIFO by position).
@@ -103,6 +112,12 @@ export const notifyNext = async (section, { transaction, count = 1 } = {}) => {
     { status: WAITLIST_STATUS.NOTIFIED, notifiedAt: new Date() },
     { where: { id: { [Op.in]: entries.map((e) => e.id) } }, transaction },
   );
+
+  // Who was told a seat opened: nothing else records it, and it decides who got a fair chance at the seat.
+  await audit.log({
+    action: 'waitlist.notified', entityType: 'CourseSection', entityId: section.id, transaction,
+    metadata: { courseCode: course.code, ...summariseEntries(entries.map((e) => ({ studentId: e.student.id, position: e.position }))) },
+  });
 
   for (const entry of entries) {
     const payload = { courseSectionId: section.id, courseCode: course.code, position: entry.position };

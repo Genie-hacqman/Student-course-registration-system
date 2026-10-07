@@ -5,6 +5,7 @@ import {
 import { COURSE_STATUS } from '../utils/constants.js';
 import { addGroup } from './prerequisite.service.js';
 import * as audit from './audit.service.js';
+import { summariseEntries } from '../utils/audit-diff.js';
 import { validateCatalog, importOrder, summarize, parseCodes } from './course-import/validate.js';
 
 /*
@@ -111,6 +112,10 @@ export const importCatalog = async ({ rows, dryRun }, actor, req) => {
     entityType: 'Course',
     metadata: {
       total: report.total, imported: report.imported, failed: report.failed, invalid: report.invalid, duplicates: report.duplicates,
+      // Which courses were actually created (or failed), capped; rows that were only checked are not listed.
+      rows: summariseEntries(results
+        .filter((r) => r.status === 'imported' || r.status === 'failed')
+        .map((r) => ({ courseCode: r.courseCode, programme: r.programme, status: r.status }))),
     },
     req,
   });

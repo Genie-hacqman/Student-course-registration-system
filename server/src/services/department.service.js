@@ -4,6 +4,7 @@ import { NotFoundError, ConflictError } from '../utils/errors.js';
 import { buildPagination } from '../utils/pagination.js';
 import { ORG_STATUS } from '../utils/constants.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 
 /** All departments (pickers, filters). `status` narrows it, e.g. `active` for forms that create new records. */
 export const list = ({ status } = {}) => Department.findAll({ where: status ? { status } : {}, order: [['code', 'ASC']] });
@@ -82,15 +83,24 @@ export const overview = async (id) => {
 };
 
 export const create = async (data, actor, req) => {
-  const department = await Department.create(data);
-  await audit.log({ userId: actor.id, action: 'department.create', entityType: 'Department', entityId: department.id, metadata: data, req });
-  return department;
+  return sequelize.transaction(async (transaction) => {
+    const department = await Department.create(data, { transaction });
+    await audit.log({ userId: actor.id, action: 'department.create', entityType: 'Department', entityId: department.id, metadata: data, req, transaction });
+    return department;
+  });
 };
 
 export const update = async (id, data, actor, req) => {
   const department = await getById(id);
-  await department.update(data);
-  await audit.log({ userId: actor.id, action: 'department.update', entityType: 'Department', entityId: id, metadata: data, req });
+  const fields = Object.keys(data);
+  const before = snapshot(department, fields);
+  await sequelize.transaction(async (transaction) => {
+    await department.update(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'department.update', entityType: 'Department', entityId: id, transaction,
+      metadata: { code: department.code, ...diffFields(before, snapshot(department, fields)) }, req,
+    });
+  });
   return department;
 };
 
@@ -101,10 +111,13 @@ export const update = async (id, data, actor, req) => {
 export const setStatus = async (id, status, actor, req) => {
   const department = await getById(id);
   if (department.status === status) throw new ConflictError(`${department.name} is already ${status}`);
-  await department.update({ status });
-  await audit.log({
-    userId: actor.id, action: status === ORG_STATUS.ARCHIVED ? 'department.archive' : 'department.activate',
-    entityType: 'Department', entityId: id, metadata: { code: department.code }, req,
+  const previousStatus = department.status;
+  await sequelize.transaction(async (transaction) => {
+    await department.update({ status }, { transaction });
+    await audit.log({
+      userId: actor.id, action: status === ORG_STATUS.ARCHIVED ? 'department.archive' : 'department.activate', transaction,
+      entityType: 'Department', entityId: id, metadata: { code: department.code, changes: { status: { from: previousStatus, to: status } } }, req,
+    });
   });
   return department;
 };
@@ -112,6 +125,8 @@ export const setStatus = async (id, status, actor, req) => {
 /** Fails with 409 (FK constraint) while programs, courses or lecturers still reference it. */
 export const remove = async (id, actor, req) => {
   const department = await getById(id);
-  await department.destroy();
-  await audit.log({ userId: actor.id, action: 'department.delete', entityType: 'Department', entityId: id, metadata: { code: department.code }, req });
+  await sequelize.transaction(async (transaction) => {
+    await department.destroy({ transaction });
+    await audit.log({ userId: actor.id, action: 'department.delete', entityType: 'Department', entityId: id, metadata: { code: department.code }, req, transaction });
+  });
 };

@@ -4,6 +4,7 @@
  */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   resetDatabase, api, loginAs, auth, query, sequelize, createApplicant, submitApplication, uploadAvatar,
 } from './helpers.js';
@@ -66,8 +67,14 @@ describe('deleting', () => {
     // History is kept (unlinked), and the deletion itself is recorded.
     const [entry] = await query("SELECT metadata FROM audit_logs WHERE action = 'applicant.delete' AND entity_id = :id", { id: application.userId });
     const metadata = typeof entry.metadata === 'string' ? JSON.parse(entry.metadata) : entry.metadata;
-    assert.equal(metadata.email, applicant.email);
     assert.equal(metadata.via, 'applicant:delete');
+    assert.equal(metadata.applicationNumber, `APP${String(application.id).padStart(6, '0')}`);
+    // No personal data stays in a log that is kept for years: no name, no address.
+    assert.equal(metadata.name, undefined);
+    assert.equal(metadata.email, undefined);
+    assert.equal(metadata.personalEmail, undefined);
+    assert.ok(!JSON.stringify(metadata).includes(applicant.email));
+    assert.equal(metadata.emailFingerprint, createHash('sha256').update(applicant.email.toLowerCase()).digest('hex').slice(0, 16));
     const kept = (await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'application.submit' AND entity_id = :id", { id: application.id }))[0].n;
     assert.equal(Number(kept), 1);
 

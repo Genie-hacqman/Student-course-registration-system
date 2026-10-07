@@ -1,5 +1,6 @@
 import * as userService from '../services/user.service.js';
 import * as authService from '../services/auth.service.js';
+import { recordStaffView } from '../services/security-audit.service.js';
 import { ok, created, paginated, noContent } from '../utils/response.js';
 
 export const list = async (req, res) => {
@@ -18,7 +19,12 @@ export const deactivate = async (req, res) => ok(res, await userService.deactiva
 
 export const sessions = async (req, res) => {
   await userService.getById(req.validated.params.id);
-  return ok(res, await authService.listSessions(req.validated.params.id, null));
+  const data = await authService.listSessions(req.validated.params.id, null);
+  // Another account's sign-in addresses and browsers. Looking at your own is not worth a row.
+  if (Number(req.validated.params.id) !== req.user.id) {
+    await recordStaffView(req, { action: 'user.sessions_viewed', entityType: 'User', entityId: req.validated.params.id });
+  }
+  return ok(res, data);
 };
 export const endSession = async (req, res) => {
   await authService.endSession(req.validated.params.id, req.validated.params.sessionId, null, req, req.user);

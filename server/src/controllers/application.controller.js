@@ -1,4 +1,5 @@
 import * as applicationService from '../services/application.service.js';
+import { recordStaffView } from '../services/security-audit.service.js';
 import { ok, created, paginated } from '../utils/response.js';
 
 // Public
@@ -27,13 +28,24 @@ export const setPhoto = async (req, res) =>
   ok(res, await applicationService.setPhoto(req.user.id, { body: req.body, contentType: req.headers['content-type'] }, req));
 export const removePhoto = async (req, res) => ok(res, await applicationService.removePhoto(req.user.id, req));
 export const myPhoto = async (req, res) => sendPhoto(res, await applicationService.getMyPhoto(req.user.id));
-export const reviewPhoto = async (req, res) =>
-  sendPhoto(res, await applicationService.getPhotoForReview(req.validated.params.id, req.validated.query.size));
+// Staff opening an applicant's photo is logged (full size only: lists load many thumbnails). Never the storage key.
+const recordPhotoView = (req, applicationEntity, via) => {
+  if (req.validated.query.size !== 'full') return undefined;
+  return recordStaffView(req, { action: 'application.photo_viewed', ...applicationEntity, metadata: { via } });
+};
+export const reviewPhoto = async (req, res) => {
+  const bytes = await applicationService.getPhotoForReview(req.validated.params.id, req.validated.query.size);
+  await recordPhotoView(req, { entityType: 'AdmissionApplication', entityId: req.validated.params.id }, 'review');
+  return sendPhoto(res, bytes);
+};
 
 // Staff viewing a student's record: the application they were admitted from, read-only (mounted in student.routes).
 export const studentApplication = async (req, res) => ok(res, await applicationService.getForStudent(req.validated.params.id));
-export const studentPhoto = async (req, res) =>
-  sendPhoto(res, await applicationService.getPhotoForStudent(req.validated.params.id, req.validated.query.size));
+export const studentPhoto = async (req, res) => {
+  const bytes = await applicationService.getPhotoForStudent(req.validated.params.id, req.validated.query.size);
+  await recordPhotoView(req, { entityType: 'Student', entityId: req.validated.params.id }, 'student_record');
+  return sendPhoto(res, bytes);
+};
 
 // Reviewers. Activation tokens returned by the service are never sent to the client.
 export const list = async (req, res) => {

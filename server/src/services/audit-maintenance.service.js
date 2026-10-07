@@ -5,7 +5,7 @@ import env from '../config/env.js';
 import logger from '../config/logger.js';
 import * as storage from './storage.service.js';
 import {
-  GENESIS_HASH, SIGN_IN_ACTIONS, STREAMS, computeRowHmac, computeSealHash, timingSafeEqualHex, verifyStream,
+  GENESIS_HASH, SHORT_RETENTION_ACTIONS, STREAMS, computeRowHmac, computeSealHash, timingSafeEqualHex, verifyStream,
 } from '../utils/audit-integrity.js';
 
 /**
@@ -23,8 +23,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const RETENTION_MONTHS = Object.freeze({ [STREAMS.MAIN]: 24, [STREAMS.SIGN_IN]: 12 });
 
 const streamWhere = (stream) => (stream === STREAMS.SIGN_IN
-  ? { action: { [Op.in]: SIGN_IN_ACTIONS } }
-  : { action: { [Op.notIn]: SIGN_IN_ACTIONS } });
+  ? { action: { [Op.in]: SHORT_RETENTION_ACTIONS } }
+  : { action: { [Op.notIn]: SHORT_RETENTION_ACTIONS } });
 
 const monthsAgo = (months, now = new Date()) => {
   const d = new Date(now);
@@ -142,10 +142,10 @@ export const purgeExpired = async ({ now = new Date() } = {}) => {
 
       await sequelize.transaction(async (transaction) => {
         // Raw SQL on purpose: the model refuses deletes (see AuditLog.js). Only this job removes rows.
-        const inList = SIGN_IN_ACTIONS.map(() => '?').join(',');
+        const inList = SHORT_RETENTION_ACTIONS.map(() => '?').join(',');
         await sequelize.query(
           `DELETE FROM audit_logs WHERE id BETWEEN ? AND ? AND action ${stream === STREAMS.SIGN_IN ? 'IN' : 'NOT IN'} (${inList})`,
-          { replacements: [seal.fromId, seal.toId, ...SIGN_IN_ACTIONS], transaction },
+          { replacements: [seal.fromId, seal.toId, ...SHORT_RETENTION_ACTIONS], transaction },
         );
         await seal.update({ archiveKey: key, purgedAt: now }, { transaction });
       });

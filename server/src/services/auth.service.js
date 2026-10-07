@@ -13,6 +13,7 @@ import { ROLES, USER_STATUS, ADMISSION_STATUS } from '../utils/constants.js';
 import { permissionsFor } from './permission.service.js';
 import * as audit from './audit.service.js';
 import { safeLoginIdentifier } from '../utils/redact.js';
+import { seenRecently } from '../utils/ttl-set.js';
 import * as sessionService from './session.service.js';
 import { sendTemplate, tokenKey } from './mail.service.js';
 import { issuePasswordReset } from './password-reset.service.js';
@@ -152,6 +153,20 @@ const recordFailedLogin = (userId) => sequelize.query(
   { replacements: { userId, max: MAX_FAILED_LOGINS, lockUntil: new Date(Date.now() + LOCKOUT_MS) } },
 );
 
+/**
+ * `recordFailedLogin` locks the account in the same statement that counts the failure, and does not say whether
+ * it did. Read the lock back rather than inferring it from a count read earlier, which parallel guesses make
+ * unreliable. Parallel requests can each see the lock and write a row; that is acceptable.
+ */
+const recordLockIfLocked = async (userId, meta) => {
+  const row = await User.findByPk(userId, { attributes: ['id', 'lockedUntil'] });
+  if (!row?.lockedUntil || row.lockedUntil <= new Date()) return;
+  await audit.log({
+    userId, action: 'security.account_locked', entityType: 'User', entityId: userId, req: meta.req,
+    metadata: { lockedUntil: row.lockedUntil, lockoutMinutes: Math.round(LOCKOUT_MS / 60000), userAgent: meta.userAgent },
+  });
+};
+
 export const lockedMessage = (until) =>
   `Too many failed sign-in attempts. Try again in ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} minute(s), or reset your PIN.`;
 
@@ -168,9 +183,17 @@ export const login = async ({ identifier, password }, meta) => {
   if (!user || !valid) {
     if (user) await recordFailedLogin(user.id);
     await audit.log({ userId: user?.id, action: 'auth.login_failed', metadata: { email: safeLoginIdentifier(identifier), userAgent: meta.userAgent }, req: meta.req });
+    if (user) await recordLockIfLocked(user.id, meta);
     throw new UnauthorizedError(failure);
   }
-  if (user.status !== USER_STATUS.ACTIVE) throw new ForbiddenError(`Account is ${user.status}`);
+  if (user.status !== USER_STATUS.ACTIVE) {
+    // The password was right, but the account may not sign in: worth knowing, e.g. a suspended user trying again.
+    await audit.log({
+      userId: user.id, action: 'security.login_blocked', entityType: 'User', entityId: user.id, req: meta.req,
+      metadata: { status: user.status, identifier: safeLoginIdentifier(identifier), userAgent: meta.userAgent },
+    });
+    throw new ForbiddenError(`Account is ${user.status}`);
+  }
 
   const tokens = await issueTokens(user, user.role.name, meta);
   await user.update({ lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null });
@@ -188,7 +211,14 @@ export const refresh = async (rawToken, meta) => {
   if (!rawToken) throw new UnauthorizedError('Refresh token missing');
 
   const stored = await RefreshToken.findOne({ where: { tokenHash: hashToken(rawToken) } });
-  if (!stored) throw new UnauthorizedError('Invalid refresh token');
+  if (!stored) {
+    // A cookie that matches nothing we issued: forged, or from a database restore. One row per address per
+    // ten minutes, because a client holding a stale cookie retries.
+    if (!seenRecently(`refresh-unknown|${meta.req?.ip}`, 10 * 60 * 1000)) {
+      await audit.log({ action: 'security.refresh_rejected', metadata: { reason: 'unknown_token', userAgent: meta.userAgent }, req: meta.req });
+    }
+    throw new UnauthorizedError('Invalid refresh token');
+  }
 
   if (stored.revokedAt) {
     if (stored.replacedByHash) {
@@ -196,13 +226,26 @@ export const refresh = async (rawToken, meta) => {
         await sessionService.endAllSessions(stored.userId, transaction);
         await audit.log({ userId: stored.userId, action: 'auth.refresh_reuse_detected', req: meta.req, transaction });
       });
+    } else {
+      // Signed out, or ended from another device, and the cookie came back anyway.
+      await audit.log({
+        userId: stored.userId, action: 'security.refresh_rejected', entityType: 'User', entityId: stored.userId, req: meta.req,
+        metadata: { reason: 'revoked', userAgent: meta.userAgent },
+      });
     }
     throw new UnauthorizedError('Refresh token has been revoked');
   }
   if (stored.expiresAt <= new Date()) throw new UnauthorizedError('Refresh token expired');
 
   const user = await User.findByPk(stored.userId, { include: [{ model: Role, as: 'role' }] });
-  if (!user || user.status !== USER_STATUS.ACTIVE) throw new UnauthorizedError('Account is not active');
+  if (!user || user.status !== USER_STATUS.ACTIVE) {
+    // A suspended or removed account still holding a live session token: the high-signal refusal.
+    await audit.log({
+      userId: user?.id ?? null, action: 'security.refresh_rejected', entityType: user ? 'User' : null, entityId: user?.id, req: meta.req,
+      metadata: { reason: 'inactive', status: user?.status ?? 'missing', userAgent: meta.userAgent },
+    });
+    throw new UnauthorizedError('Account is not active');
+  }
 
   return sequelize.transaction(async (transaction) => {
     const tokens = await issueTokens(user, user.role.name, meta, transaction);
@@ -291,8 +334,18 @@ export const resetPassword = async ({ token, password }) => {
     where: { passwordResetHash: hash, passwordResetExpires: { [Op.gt]: new Date() } },
     include: roleAndStudent,
   });
-  if (!user) throw new BadRequestError('Reset token is invalid or has expired');
-  if (hasPin(user)) throw new ForbiddenError('Students change their PIN instead (PATCH /auth/pin)');
+  if (!user) {
+    // Nothing identifies who tried, and the token itself is never recorded.
+    await audit.log({ action: 'security.token_invalid', metadata: { kind: 'password_reset', reason: 'invalid_or_expired' } });
+    throw new BadRequestError('Reset token is invalid or has expired');
+  }
+  if (hasPin(user)) {
+    await audit.log({
+      userId: user.id, action: 'security.token_invalid', entityType: 'User', entityId: user.id,
+      metadata: { kind: 'password_reset', reason: 'student_uses_pin' },
+    });
+    throw new ForbiddenError('Students change their PIN instead (PATCH /auth/pin)');
+  }
 
   const passwordHash = await hashPassword(password);
   await sequelize.transaction(async (transaction) => {
@@ -316,6 +369,8 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
     throw new ForbiddenError("Password changes need an administrator's approval — request a password reset from your profile");
   }
   if (!(await comparePassword(currentPassword, user.passwordHash))) {
+    // Does not count toward the sign-in lockout, so it is the only trace of someone guessing it.
+    await audit.log({ userId, action: 'security.credential_change_failed', entityType: 'User', entityId: userId, metadata: { kind: 'password' } });
     throw new BadRequestError('Current password is incorrect');
   }
 
@@ -396,12 +451,21 @@ export const verifyEmail = async ({ token }) => {
   const user = await User.findOne({
     where: { emailVerificationHash: hash, emailVerificationExpires: { [Op.gt]: new Date() } },
   });
-  if (!user) throw new BadRequestError('Verification link is invalid or has expired');
+  if (!user) {
+    await audit.log({ action: 'security.token_invalid', metadata: { kind: 'email_verification', reason: 'invalid_or_expired' } });
+    throw new BadRequestError('Verification link is invalid or has expired');
+  }
   const [consumed] = await User.update(
     { emailVerifiedAt: new Date(), emailVerificationHash: null, emailVerificationExpires: null },
     { where: { id: user.id, emailVerificationHash: hash, emailVerificationExpires: { [Op.gt]: new Date() } } },
   );
-  if (consumed !== 1) throw new BadRequestError('Verification link is invalid or has expired');
+  if (consumed !== 1) {
+    await audit.log({
+      userId: user.id, action: 'security.token_invalid', entityType: 'User', entityId: user.id,
+      metadata: { kind: 'email_verification', reason: 'already_used' },
+    });
+    throw new BadRequestError('Verification link is invalid or has expired');
+  }
   await audit.log({ userId: user.id, action: 'auth.verify_email', entityType: 'User', entityId: user.id });
 };
 

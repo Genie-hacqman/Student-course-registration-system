@@ -4,6 +4,7 @@ import {
 import { NotFoundError, BadRequestError } from '../utils/errors.js';
 import * as notificationService from './notification.service.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 
 const windowMatches = (window, student) =>
   (window.minLevel == null || student.level >= window.minLevel)
@@ -63,9 +64,11 @@ export const createWindow = async (semesterId, data, actor) => {
   const semester = await loadSemester(semesterId);
   assertWithinRegistration(semester, data.opensAt);
   if (data.programId && !(await Program.findByPk(data.programId))) throw new BadRequestError('Program does not exist');
-  const window = await RegistrationPriorityWindow.create({ ...data, semesterId });
-  await audit.log({ userId: actor.id, action: 'priority_window.create', entityType: 'Semester', entityId: semesterId, metadata: data });
-  return window;
+  return sequelize.transaction(async (transaction) => {
+    const window = await RegistrationPriorityWindow.create({ ...data, semesterId }, { transaction });
+    await audit.log({ userId: actor.id, action: 'priority_window.create', entityType: 'Semester', entityId: semesterId, metadata: { windowId: window.id, ...data }, transaction });
+    return window;
+  });
 };
 
 export const updateWindow = async (semesterId, windowId, data, actor) => {
@@ -74,15 +77,24 @@ export const updateWindow = async (semesterId, windowId, data, actor) => {
   if (!window) throw new NotFoundError('Priority window');
   if (data.opensAt) assertWithinRegistration(semester, data.opensAt);
   if (data.programId && !(await Program.findByPk(data.programId))) throw new BadRequestError('Program does not exist');
-  await window.update(data);
-  await audit.log({ userId: actor.id, action: 'priority_window.update', entityType: 'Semester', entityId: semesterId, metadata: { windowId, ...data } });
+  const fields = Object.keys(data);
+  const before = snapshot(window, fields);
+  await sequelize.transaction(async (transaction) => {
+    await window.update(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'priority_window.update', entityType: 'Semester', entityId: semesterId, transaction,
+      metadata: { windowId, ...diffFields(before, snapshot(window, fields)) },
+    });
+  });
   return window;
 };
 
 export const deleteWindow = async (semesterId, windowId, actor) => {
-  const deleted = await RegistrationPriorityWindow.destroy({ where: { id: windowId, semesterId } });
-  if (!deleted) throw new NotFoundError('Priority window');
-  await audit.log({ userId: actor.id, action: 'priority_window.delete', entityType: 'Semester', entityId: semesterId, metadata: { windowId } });
+  await sequelize.transaction(async (transaction) => {
+    const deleted = await RegistrationPriorityWindow.destroy({ where: { id: windowId, semesterId }, transaction });
+    if (!deleted) throw new NotFoundError('Priority window');
+    await audit.log({ userId: actor.id, action: 'priority_window.delete', entityType: 'Semester', entityId: semesterId, metadata: { windowId }, transaction });
+  });
 };
 
 export const listOverrides = async (semesterId) => {
@@ -128,7 +140,9 @@ export const setOverride = async (semesterId, { studentId, opensAt, reason }, ac
 };
 
 export const removeOverride = async (semesterId, studentId, actor) => {
-  const deleted = await RegistrationTimeOverride.destroy({ where: { semesterId, studentId } });
-  if (!deleted) throw new NotFoundError('Registration time override');
-  await audit.log({ userId: actor.id, action: 'registration_time.override_remove', entityType: 'Student', entityId: studentId, metadata: { semesterId } });
+  await sequelize.transaction(async (transaction) => {
+    const deleted = await RegistrationTimeOverride.destroy({ where: { semesterId, studentId }, transaction });
+    if (!deleted) throw new NotFoundError('Registration time override');
+    await audit.log({ userId: actor.id, action: 'registration_time.override_remove', entityType: 'Student', entityId: studentId, metadata: { semesterId }, transaction });
+  });
 };

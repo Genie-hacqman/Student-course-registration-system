@@ -16,6 +16,7 @@ import * as userService from './user.service.js';
 import * as settingService from './setting.service.js';
 import { assertDepartmentOpen } from './org-status.service.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 
 const includes = [
   { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'status', 'avatarThumb'] },
@@ -245,8 +246,14 @@ export const create = async (data, actor) => {
   if (!(await User.findByPk(data.userId))) throw new BadRequestError('User does not exist');
   await assertDepartmentOpen(data.departmentId, { what: 'new lecturers' });
   await assertStaffNumberFree(data.staffNumber);
-  const lecturer = await Lecturer.create(data);
-  await audit.log({ userId: actor.id, action: 'lecturer.create', entityType: 'Lecturer', entityId: lecturer.id });
+  const lecturer = await sequelize.transaction(async (transaction) => {
+    const created = await Lecturer.create(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'lecturer.create', entityType: 'Lecturer', entityId: created.id, transaction,
+      metadata: { staffNumber: created.staffNumber, departmentId: created.departmentId, userId: created.userId },
+    });
+    return created;
+  });
   return getById(lecturer.id);
 };
 
@@ -260,10 +267,20 @@ export const update = async (id, data, actor) => {
     }
     if (fields.staffNumber) await assertStaffNumberFree(fields.staffNumber, lecturer.id, transaction);
     await assertPersonalEmailFree(fields.personalEmail, lecturer.id, transaction);
-    await lecturer.update(fields, { transaction });
+    const fieldKeys = Object.keys(fields);
     const names = Object.fromEntries(Object.entries({ firstName, lastName }).filter(([, v]) => v !== undefined));
-    if (Object.keys(names).length) await User.update(names, { where: { id: lecturer.userId }, transaction });
-    await audit.log({ userId: actor.id, action: 'lecturer.update', entityType: 'Lecturer', entityId: id, metadata: data, transaction });
+    const nameKeys = Object.keys(names);
+    const before = snapshot(lecturer, fieldKeys);
+    if (nameKeys.length) {
+      Object.assign(before, snapshot(await User.findByPk(lecturer.userId, { attributes: nameKeys, transaction }), nameKeys));
+    }
+    await lecturer.update(fields, { transaction });
+    if (nameKeys.length) await User.update(names, { where: { id: lecturer.userId }, transaction });
+    await audit.log({
+      userId: actor.id, action: 'lecturer.update', entityType: 'Lecturer', entityId: id, transaction,
+      // Personal details are recorded as "changed" only, never their values.
+      metadata: { staffNumber: lecturer.staffNumber, ...diffFields(before, { ...snapshot(lecturer, fieldKeys), ...names }, { omitValues: ['phone', 'personalEmail'] }) },
+    });
   });
   return getById(id);
 };
@@ -272,8 +289,17 @@ export const update = async (id, data, actor) => {
 export const setActive = async (id, active, actor) => {
   const lecturer = await Lecturer.findByPk(id);
   if (!lecturer) throw new NotFoundError('Lecturer');
-  await userService.update(lecturer.userId, { status: active ? USER_STATUS.ACTIVE : USER_STATUS.SUSPENDED }, actor);
-  await audit.log({ userId: actor.id, action: active ? 'lecturer.activate' : 'lecturer.deactivate', entityType: 'Lecturer', entityId: id });
+  const status = active ? USER_STATUS.ACTIVE : USER_STATUS.SUSPENDED;
+  // One action, one row, in one transaction: the account change (with its guards and ended sessions) is made by
+  // userService.update without its own audit row, and this entry records it with the lecturer.
+  await sequelize.transaction(async (transaction) => {
+    const account = await User.findByPk(lecturer.userId, { attributes: ['id', 'status'], transaction });
+    await userService.update(lecturer.userId, { status }, actor, undefined, { transaction, audit: false });
+    await audit.log({
+      userId: actor.id, action: active ? 'lecturer.activate' : 'lecturer.deactivate', entityType: 'Lecturer', entityId: id, transaction,
+      metadata: { userId: lecturer.userId, statusBefore: account?.status ?? null, statusAfter: status },
+    });
+  });
   return getById(id);
 };
 

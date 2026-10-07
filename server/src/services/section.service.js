@@ -12,6 +12,7 @@ import * as waitlistService from './waitlist.service.js';
 import * as notificationService from './notification.service.js';
 import * as teachingService from './teaching.service.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 import { hasPermission } from './permission.service.js';
 import { assignLocked, unassignLocked } from './lecturer-assignment.service.js';
 
@@ -133,6 +134,8 @@ export const update = async (id, data, actor) => {
       throw new BadRequestError(`Capacity cannot be below the ${section.seatsTaken} seats already taken`);
     }
     const { lecturerId, ...fields } = data;
+    const fieldKeys = Object.keys(fields);
+    const before = { ...snapshot(section, fieldKeys), lecturerId: section.lecturerId };
     if (lecturerId !== undefined && lecturerId !== section.lecturerId) {
       assertCanAssign(actor);
       if (lecturerId) await assignLocked(section, lecturerId, actor, { transaction });
@@ -149,7 +152,10 @@ export const update = async (id, data, actor) => {
       await waitlistService.notifyNext(section, { transaction, count: section.capacity - section.seatsTaken });
     }
     await notifySectionChanges(section, { previousLecturerId, previousStatus, transaction });
-    await audit.log({ userId: actor.id, action: 'section.update', entityType: 'CourseSection', entityId: id, metadata: data, transaction });
+    await audit.log({
+      userId: actor.id, action: 'section.update', entityType: 'CourseSection', entityId: id, transaction,
+      metadata: diffFields(before, { ...snapshot(section, fieldKeys), lecturerId: section.lecturerId }),
+    });
     transaction.afterCommit(() => emitCapacityUpdated(section));
     return section;
   });
@@ -158,17 +164,28 @@ export const update = async (id, data, actor) => {
 
 /** Sections with registered students are cancelled rather than deleted. */
 export const remove = async (id, actor) => {
-  const section = await CourseSection.findByPk(id);
-  if (!section) throw new NotFoundError('Section');
+  await sequelize.transaction(async (transaction) => {
+    const section = await CourseSection.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!section) throw new NotFoundError('Section');
 
-  const registered = await RegistrationItem.count({
-    where: { courseSectionId: id, status: REGISTRATION_ITEM_STATUS.REGISTERED },
+    const registered = await RegistrationItem.count({
+      where: { courseSectionId: id, status: REGISTRATION_ITEM_STATUS.REGISTERED }, transaction,
+    });
+    if (registered > 0) {
+      throw new ConflictError(`Section has ${registered} registered students; set its status to cancelled instead`);
+    }
+    const everUsed = await RegistrationItem.count({ where: { courseSectionId: id }, transaction });
+    // A section that was ever used is cancelled, not deleted, and the log must not say it was deleted.
+    if (everUsed > 0) {
+      const previousStatus = section.status;
+      await section.update({ status: SECTION_STATUS.CANCELLED }, { transaction });
+      await audit.log({
+        userId: actor.id, action: 'section.cancel', entityType: 'CourseSection', entityId: id, transaction,
+        metadata: { reason: 'has_registration_history', changes: { status: { from: previousStatus, to: SECTION_STATUS.CANCELLED } } },
+      });
+    } else {
+      await section.destroy({ transaction });
+      await audit.log({ userId: actor.id, action: 'section.delete', entityType: 'CourseSection', entityId: id, transaction });
+    }
   });
-  if (registered > 0) {
-    throw new ConflictError(`Section has ${registered} registered students; set its status to cancelled instead`);
-  }
-  const everUsed = await RegistrationItem.count({ where: { courseSectionId: id } });
-  if (everUsed > 0) await section.update({ status: SECTION_STATUS.CANCELLED });
-  else await section.destroy();
-  await audit.log({ userId: actor.id, action: 'section.delete', entityType: 'CourseSection', entityId: id });
 };

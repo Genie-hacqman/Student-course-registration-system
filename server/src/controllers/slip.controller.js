@@ -1,13 +1,21 @@
 import * as slipService from '../services/slip.service.js';
 import * as audit from '../services/audit.service.js';
 import { renderSlipPdf } from '../utils/pdf/registrationSlip.js';
+import { recordStaffView } from '../services/security-audit.service.js';
 import { ok } from '../utils/response.js';
 
 /** Sends the slip as a PDF download (default) or as JSON (?format=json) for a frontend to render. */
 const wantsJson = (req) => req.validated.query.format === 'json';
 
-const send = async (req, res, slip) => {
-  if (wantsJson(req)) return ok(res, slip);
+const send = async (req, res, slip, { staff = false } = {}) => {
+  if (wantsJson(req)) {
+    // The PDF is audited below; the same data as JSON would not be, so staff reading it are recorded here.
+    // A student reading their own slip is not.
+    if (staff) {
+      await recordStaffView(req, { action: 'registration.slip_viewed', entityType: 'Registration', entityId: req.validated.params.id, metadata: { referenceNumber: slip.referenceNumber } });
+    }
+    return ok(res, slip);
+  }
 
   await audit.log({
     userId: req.user.id,
@@ -27,6 +35,6 @@ const send = async (req, res, slip) => {
 export const mySlip = async (req, res) =>
   send(req, res, await slipService.getSlipForStudent(req.user.id, req.validated.params.id, { withPhoto: !wantsJson(req) }));
 export const staffSlip = async (req, res) =>
-  send(req, res, await slipService.getSlipForStaff(req.validated.params.id, { withPhoto: !wantsJson(req) }));
+  send(req, res, await slipService.getSlipForStaff(req.validated.params.id, { withPhoto: !wantsJson(req) }), { staff: true });
 export const verify = async (req, res) =>
   ok(res, await slipService.verify(req.validated.params.reference, req.validated.query.code));

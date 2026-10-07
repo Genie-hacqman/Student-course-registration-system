@@ -654,7 +654,12 @@ export const activate = async ({ token, pin }, req) => sequelize.transaction(asy
     transaction,
     lock: transaction.LOCK.UPDATE,
   });
-  if (!user) throw new BadRequestError('This activation link is invalid or has expired. Ask the admissions office for a new one.');
+  if (!user) {
+    // No row matched, so no lock is held and a plain insert cannot wait on this transaction. Nothing identifies the
+    // caller, and the token is never recorded.
+    await audit.log({ action: 'security.token_invalid', req, metadata: { kind: 'activation', reason: 'invalid_or_expired' } });
+    throw new BadRequestError('This activation link is invalid or has expired. Ask the admissions office for a new one.');
+  }
 
   const student = await Student.findOne({ where: { userId: user.id }, attributes: ['studentNumber'], transaction });
   const problem = pinProblem(pin, { studentNumber: student?.studentNumber });
