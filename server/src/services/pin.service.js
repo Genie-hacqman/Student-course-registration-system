@@ -8,6 +8,7 @@ import { ROLES, USER_STATUS } from '../utils/constants.js';
 import * as sessionService from './session.service.js';
 import { sendTemplate } from './mail.service.js';
 import * as audit from './audit.service.js';
+import { safeLoginIdentifier } from '../utils/redact.js';
 import { issueTokens, loadProfile } from './auth.service.js';
 
 /**
@@ -72,7 +73,11 @@ export const changePin = async (userId, { currentPin, newPin }, meta) => {
   if (user.role.name !== ROLES.STUDENT || !user.student) {
     throw new ForbiddenError('Only admitted students have a PIN; everyone else changes their password instead');
   }
-  if (!(await comparePassword(currentPin, user.passwordHash))) throw new BadRequestError('Current PIN is incorrect');
+  if (!(await comparePassword(currentPin, user.passwordHash))) {
+    // Does not count toward the sign-in lockout, so this is the only trace of someone guessing the PIN.
+    await audit.log({ userId, action: 'security.credential_change_failed', entityType: 'User', entityId: userId, metadata: { kind: 'pin' } });
+    throw new BadRequestError('Current PIN is incorrect');
+  }
   if (currentPin === newPin) throw new BadRequestError('New PIN must differ from the current PIN');
   assertPin(newPin, user.student?.studentNumber);
 
@@ -124,11 +129,26 @@ export const resetPinWithOtp = async ({ studentNumber, otp, newPin }) => {
     const student = await Student.findOne({ where: { studentNumber }, attributes: ['userId'], transaction });
     // Row lock: parallel guesses are counted one at a time.
     const user = student && await User.scope('withSecrets').findByPk(student.userId, { transaction, lock: transaction.LOCK.UPDATE });
-    if (!user?.pinOtpHash || user.pinOtpExpires <= new Date() || user.pinOtpAttempts >= OTP_MAX_ATTEMPTS) return 'invalid';
+
+    // Written with the same transaction, which commits even though the request fails: the row lock on the user
+    // is held here, and a separate connection inserting an audit row for that user would wait on it forever.
+    // Never the code that was typed, the stored hash, or the new PIN.
+    const rejected = async (reason, extra = {}) => {
+      await audit.log({
+        userId: user?.id ?? null, action: 'security.pin_otp_failed', entityType: user ? 'User' : null, entityId: user?.id, transaction,
+        metadata: { studentNumber: safeLoginIdentifier(studentNumber), reason, ...extra },
+      });
+      return 'invalid';
+    };
+    if (!user) return rejected('unknown_student');
+    if (!user.pinOtpHash) return rejected('no_code_requested');
+    if (user.pinOtpExpires <= new Date()) return rejected('expired');
+    if (user.pinOtpAttempts >= OTP_MAX_ATTEMPTS) return rejected('too_many_attempts');
 
     if (!timingSafeEqual(Buffer.from(user.pinOtpHash, 'hex'), Buffer.from(hashOtp(user.id, otp), 'hex'))) {
-      await user.update({ pinOtpAttempts: user.pinOtpAttempts + 1 }, { transaction });
-      return 'invalid';
+      const attempts = user.pinOtpAttempts + 1;
+      await user.update({ pinOtpAttempts: attempts }, { transaction });
+      return rejected('wrong_code', { attempts, codeBurned: attempts >= OTP_MAX_ATTEMPTS });
     }
     await setPin(user, newPin, { mustChange: false, action: 'auth.reset_pin', transaction });
     return 'ok';

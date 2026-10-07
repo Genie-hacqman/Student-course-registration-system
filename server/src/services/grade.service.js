@@ -15,6 +15,7 @@ import * as lecturerService from './lecturer.service.js';
 import * as settingService from './setting.service.js';
 import * as notificationService from './notification.service.js';
 import * as audit from './audit.service.js';
+import { summariseEntries } from '../utils/audit-diff.js';
 
 const passingGrade = (transaction) => settingService.get('grades.passingGrade', { transaction });
 
@@ -113,6 +114,7 @@ export const enterGrades = async (sectionId, grades, actor, req) => {
     }
 
     const existing = new Map((await sectionResults(section, grades.map((g) => g.studentId), transaction)).map((r) => [r.studentId, r]));
+    const changes = [];
     for (const { studentId, grade } of grades) {
       const fields = {
         ...(await gradeFields(grade, transaction)),
@@ -122,13 +124,14 @@ export const enterGrades = async (sectionId, grades, actor, req) => {
       };
       const current = existing.get(studentId);
       if (current?.status === 'final') throw new ConflictError(`Student ${studentId} already has a final result for this course`);
+      if ((current?.grade ?? null) !== fields.grade) changes.push({ studentId, from: current?.grade ?? null, to: fields.grade });
       if (current) await current.update(fields, { transaction });
       else await Result.create({ studentId, courseId: section.courseId, semesterId: section.semesterId, ...fields }, { transaction });
     }
 
     await audit.log({
       userId: actor.id, action: 'grades.enter', entityType: 'CourseSection', entityId: section.id,
-      metadata: { count: grades.length }, req, transaction,
+      metadata: { count: grades.length, ...summariseEntries(changes) }, req, transaction,
     });
   });
   return getSectionGrades(sectionId, actor);
@@ -210,6 +213,7 @@ export const amendResult = async (resultId, { grade, reason }, actor, req) => {
  */
 export const importResults = async (rows, actor, req) => {
   const errors = [];
+  const overwritten = [];
   let imported = 0;
 
   for (const [index, row] of rows.entries()) {
@@ -231,9 +235,12 @@ export const importResults = async (rows, actor, req) => {
         };
         const where = { studentId: student.id, courseId: course.id, semesterId: row.semesterId ?? null };
         const existing = await Result.findOne({ where, transaction });
+        // Read before the update below overwrites it.
+        const previousGrade = existing?.grade;
         if (existing) await existing.update(fields, { transaction });
         else await Result.create({ ...where, ...fields }, { transaction });
-      });
+        return existing && previousGrade !== fields.grade ? { studentNumber: row.studentNumber, courseCode: course.code, from: previousGrade, to: fields.grade } : null;
+      }).then((replaced) => { if (replaced) overwritten.push(replaced); });
       imported += 1;
     } catch (err) {
       errors.push({ row: index, studentNumber: row.studentNumber, courseCode: row.courseCode, message: err.message });
@@ -241,7 +248,9 @@ export const importResults = async (rows, actor, req) => {
   }
 
   await audit.log({
-    userId: actor.id, action: 'results.import', entityType: 'Result', metadata: { imported, failed: errors.length }, req,
+    userId: actor.id, action: 'results.import', entityType: 'Result', req,
+    // Importing silently replaces an existing result, so each replaced grade is recorded (first 50).
+    metadata: { imported, failed: errors.length, overwritten: summariseEntries(overwritten), errors: summariseEntries(errors.map(({ row, studentNumber, courseCode }) => ({ row, studentNumber, courseCode }))) },
   });
   return { imported, failed: errors.length, errors };
 };

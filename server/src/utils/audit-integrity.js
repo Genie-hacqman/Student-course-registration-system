@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { SHORT_RETENTION_ACTIONS } from './audit-actions.js';
 
 /**
  * Pure integrity helpers for the audit log (no database, no config), so they can be unit tested.
@@ -10,10 +11,12 @@ import crypto from 'node:crypto';
  * actor's email and role snapshot, which are covered, keep the attribution.
  */
 
-// Sign-in noise is kept for a shorter time than everything else, so each kind gets its own chain.
-export const SIGN_IN_ACTIONS = Object.freeze(['auth.login', 'auth.login_failed', 'auth.login_locked']);
+// Routine and noisy events (sign-ins, security signals) are kept for a shorter time than everything else, so
+// they get their own chain. Which actions those are is decided by the catalogue (`shortRetention`). Adding an
+// action to that list is safe only if no row with it exists yet: stream membership is part of what a seal covers.
+export { SHORT_RETENTION_ACTIONS };
 export const STREAMS = Object.freeze({ MAIN: 'main', SIGN_IN: 'signin' });
-export const streamOf = (action) => (SIGN_IN_ACTIONS.includes(action) ? STREAMS.SIGN_IN : STREAMS.MAIN);
+export const streamOf = (action) => (SHORT_RETENTION_ACTIONS.includes(action) ? STREAMS.SIGN_IN : STREAMS.MAIN);
 
 export const GENESIS_HASH = '0'.repeat(64);
 

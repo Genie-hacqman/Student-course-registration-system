@@ -6,8 +6,6 @@ import * as slips from '../controllers/slip.controller.js';
 import * as accountRequests from '../controllers/account-request.controller.js';
 import * as roles from '../controllers/role.controller.js';
 import * as timetable from '../controllers/timetable.controller.js';
-import * as emailWebhook from '../services/email-webhook.service.js';
-import { paginated } from '../utils/response.js';
 import { emailDeliveriesQuery } from '../validators/registration.validator.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requirePermission } from '../middleware/permission.middleware.js';
@@ -51,10 +49,7 @@ router.get('/reports/overview', requirePermission(PERMISSIONS.REPORT_VIEW), vali
 router.get('/reports/registration-summary', requirePermission(PERMISSIONS.REPORT_VIEW), validate({ query: reportQuery }), reports.registrationSummary);
 
 // Email delivery log (ADMIN, audit:view): what was sent, accepted, delivered or failed. No bodies.
-router.get('/email-deliveries', requirePermission(PERMISSIONS.AUDIT_VIEW), validate({ query: emailDeliveriesQuery }), async (req, res) => {
-  const { result, page, limit } = await emailWebhook.listDeliveries(req.validated.query);
-  return paginated(res, result, { page, limit });
-});
+router.get('/email-deliveries', requirePermission(PERMISSIONS.AUDIT_VIEW), validate({ query: emailDeliveriesQuery }), admin.emailDeliveries);
 
 // Roles & permissions (ADMIN, role:manage)
 router.get('/roles', requirePermission(PERMISSIONS.ROLE_MANAGE), roles.list);

@@ -1,8 +1,9 @@
 import { Op } from 'sequelize';
-import { Program, Department, Course, ProgramCourse, AcademicYear } from '../models/index.js';
+import { sequelize, Program, Department, Course, ProgramCourse, AcademicYear } from '../models/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { ORG_STATUS } from '../utils/constants.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 import { assertDepartmentOpen } from './org-status.service.js';
 
 const include = [{ model: Department, as: 'department', attributes: ['id', 'name', 'code', 'status'] }];
@@ -24,8 +25,11 @@ export const getById = async (id) => {
 
 export const create = async (data, actor, req) => {
   await assertDepartmentOpen(data.departmentId, { what: 'new programmes' });
-  const program = await Program.create(data);
-  await audit.log({ userId: actor.id, action: 'program.create', entityType: 'Program', entityId: program.id, metadata: { code: program.code }, req });
+  const program = await sequelize.transaction(async (transaction) => {
+    const created = await Program.create(data, { transaction });
+    await audit.log({ userId: actor.id, action: 'program.create', entityType: 'Program', entityId: created.id, metadata: { code: created.code }, req, transaction });
+    return created;
+  });
   return getById(program.id);
 };
 
@@ -34,8 +38,15 @@ export const update = async (id, data, actor, req) => {
   if (data.departmentId && data.departmentId !== program.departmentId) {
     await assertDepartmentOpen(data.departmentId, { what: 'new programmes' });
   }
-  await program.update(data);
-  await audit.log({ userId: actor.id, action: 'program.update', entityType: 'Program', entityId: id, metadata: data, req });
+  const fields = Object.keys(data);
+  const before = snapshot(program, fields);
+  await sequelize.transaction(async (transaction) => {
+    await program.update(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'program.update', entityType: 'Program', entityId: id, transaction,
+      metadata: { code: program.code, ...diffFields(before, snapshot(program, fields)) }, req,
+    });
+  });
   return getById(id);
 };
 
@@ -46,18 +57,23 @@ export const setStatus = async (id, status, actor, req) => {
   if (status === ORG_STATUS.ACTIVE && program.department?.status === ORG_STATUS.ARCHIVED) {
     throw new ConflictError(`Activate ${program.department.name} first: it is archived`, { code: 'DEPARTMENT_ARCHIVED' });
   }
-  await program.update({ status });
-  await audit.log({
-    userId: actor.id, action: status === ORG_STATUS.ARCHIVED ? 'program.archive' : 'program.activate',
-    entityType: 'Program', entityId: id, metadata: { code: program.code }, req,
+  const previousStatus = program.status;
+  await sequelize.transaction(async (transaction) => {
+    await program.update({ status }, { transaction });
+    await audit.log({
+      userId: actor.id, action: status === ORG_STATUS.ARCHIVED ? 'program.archive' : 'program.activate', transaction,
+      entityType: 'Program', entityId: id, metadata: { code: program.code, changes: { status: { from: previousStatus, to: status } } }, req,
+    });
   });
   return getById(id);
 };
 
 export const remove = async (id, actor, req) => {
   const program = await getById(id);
-  await program.destroy();
-  await audit.log({ userId: actor.id, action: 'program.delete', entityType: 'Program', entityId: id, metadata: { code: program.code }, req });
+  await sequelize.transaction(async (transaction) => {
+    await program.destroy({ transaction });
+    await audit.log({ userId: actor.id, action: 'program.delete', entityType: 'Program', entityId: id, metadata: { code: program.code }, req, transaction });
+  });
 };
 
 // ── Curriculum: which courses the program's students may register for ─────────
@@ -78,13 +94,17 @@ export const addCourse = async (programId, { courseId, type, recommendedLevel, s
   if (await ProgramCourse.findOne({ where: { programId, courseId } })) {
     throw new ConflictError('Course is already on this program');
   }
-  await ProgramCourse.create({ programId, courseId, type, recommendedLevel, semester, academicYearId });
-  await audit.log({ userId: actor.id, action: 'program.course_add', entityType: 'Program', entityId: programId, metadata: { courseId, type } });
+  await sequelize.transaction(async (transaction) => {
+    await ProgramCourse.create({ programId, courseId, type, recommendedLevel, semester, academicYearId }, { transaction });
+    await audit.log({ userId: actor.id, action: 'program.course_add', entityType: 'Program', entityId: programId, metadata: { courseId, type }, transaction });
+  });
   return listCourses(programId);
 };
 
 export const removeCourse = async (programId, courseId, actor) => {
-  const deleted = await ProgramCourse.destroy({ where: { programId, courseId } });
-  if (!deleted) throw new NotFoundError('Program course');
-  await audit.log({ userId: actor.id, action: 'program.course_remove', entityType: 'Program', entityId: programId, metadata: { courseId } });
+  await sequelize.transaction(async (transaction) => {
+    const deleted = await ProgramCourse.destroy({ where: { programId, courseId }, transaction });
+    if (!deleted) throw new NotFoundError('Program course');
+    await audit.log({ userId: actor.id, action: 'program.course_remove', entityType: 'Program', entityId: programId, metadata: { courseId }, transaction });
+  });
 };

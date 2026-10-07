@@ -1,9 +1,10 @@
 import { Op } from 'sequelize';
-import { Schedule, CourseSection, Course, Lecturer } from '../models/index.js';
+import { sequelize, Schedule, CourseSection, Course, Lecturer } from '../models/index.js';
 import { NotFoundError, ConflictError, ValidationError } from '../utils/errors.js';
 import { SECTION_STATUS } from '../utils/constants.js';
 import { slotsOverlap } from '../utils/time.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 import * as notificationService from './notification.service.js';
 import * as teachingService from './teaching.service.js';
 
@@ -101,8 +102,11 @@ export const create = async (data, actor) => {
   });
   if (conflicts.length) throw new ConflictError('Schedule conflicts with existing classes', conflicts);
 
-  const schedule = await Schedule.create(data);
-  await audit.log({ userId: actor.id, action: 'schedule.create', entityType: 'Schedule', entityId: schedule.id, metadata: data });
+  const schedule = await sequelize.transaction(async (transaction) => {
+    const created = await Schedule.create(data, { transaction });
+    await audit.log({ userId: actor.id, action: 'schedule.create', entityType: 'Schedule', entityId: created.id, metadata: data, transaction });
+    return created;
+  });
   return getById(schedule.id);
 };
 
@@ -131,8 +135,15 @@ export const update = async (id, data, actor) => {
   const changed = next.day !== schedule.day || next.startTime !== schedule.startTime
     || next.endTime !== schedule.endTime || next.room !== schedule.room;
 
-  await schedule.update(data);
-  await audit.log({ userId: actor.id, action: 'schedule.update', entityType: 'Schedule', entityId: id, metadata: data });
+  const fields = Object.keys(data);
+  const before = snapshot(schedule, fields);
+  await sequelize.transaction(async (transaction) => {
+    await schedule.update(data, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'schedule.update', entityType: 'Schedule', entityId: id, transaction,
+      metadata: { courseSectionId: schedule.courseSectionId, ...diffFields(before, snapshot(schedule, fields)) },
+    });
+  });
 
   if (changed) {
     const course = await Course.findByPk(section.courseId, { attributes: ['code'] });
@@ -153,6 +164,8 @@ export const update = async (id, data, actor) => {
 
 export const remove = async (id, actor) => {
   const schedule = await getById(id);
-  await schedule.destroy();
-  await audit.log({ userId: actor.id, action: 'schedule.delete', entityType: 'Schedule', entityId: id });
+  await sequelize.transaction(async (transaction) => {
+    await schedule.destroy({ transaction });
+    await audit.log({ userId: actor.id, action: 'schedule.delete', entityType: 'Schedule', entityId: id, metadata: { courseSectionId: schedule.courseSectionId }, transaction });
+  });
 };

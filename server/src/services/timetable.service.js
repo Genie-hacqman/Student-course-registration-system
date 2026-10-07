@@ -202,10 +202,13 @@ export const recordIssues = async (registrationId, issues, actor) => sequelize.t
 });
 
 /** On successful approval: anything still open for this registration is now confirmed clear. */
-export const closeIssues = (registrationId, actor, transaction) => TimetableIssue.update(
-  { status: TIMETABLE_ISSUE_STATUS.RESOLVED, resolvedBy: actor.id, resolvedAt: new Date(), resolutionNote: 'Timetable confirmed on approval' },
-  { where: { registrationId, status: TIMETABLE_ISSUE_STATUS.OPEN }, transaction },
-);
+export const closeIssues = async (registrationId, actor, transaction) => {
+  const [closed] = await TimetableIssue.update(
+    { status: TIMETABLE_ISSUE_STATUS.RESOLVED, resolvedBy: actor.id, resolvedAt: new Date(), resolutionNote: 'Timetable confirmed on approval' },
+    { where: { registrationId, status: TIMETABLE_ISSUE_STATUS.OPEN }, transaction },
+  );
+  return closed;
+};
 
 const issueInclude = [
   {

@@ -709,7 +709,7 @@ const review = async (id, decision, remarks, actor, req) => {
       status: decision, reviewedAt: new Date(), reviewedBy: actor.id, remarks: remarks ?? null,
       ...(approved ? { timetableConfirmedAt: new Date() } : {}),
     }, { transaction });
-    if (approved) await timetableService.closeIssues(reg.id, actor, transaction);
+    const issuesClosed = approved ? await timetableService.closeIssues(reg.id, actor, transaction) : 0;
 
     await notificationService.create({
       userId: reg.student.userId,
@@ -720,7 +720,7 @@ const review = async (id, decision, remarks, actor, req) => {
         : `Your course registration was not approved.${remarks ? ` Reason: ${remarks}` : ''} Please update it and resubmit.`,
       data: { registrationId: reg.id, ...(remarks ? { reason: remarks } : {}) },
     }, { transaction });
-    await audit.log({ userId: actor.id, action: `registration.${decision}`, entityType: 'Registration', entityId: reg.id, metadata: { remarks }, req, transaction });
+    await audit.log({ userId: actor.id, action: `registration.${decision}`, entityType: 'Registration', entityId: reg.id, req, transaction, metadata: { remarks, ...(issuesClosed ? { timetableIssuesClosed: issuesClosed } : {}) } });
 
     return { registration: reg, studentUserId: reg.student.userId };
   });

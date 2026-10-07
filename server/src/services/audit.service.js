@@ -5,7 +5,8 @@ import logger from '../config/logger.js';
 import { captureException } from '../config/sentry.js';
 import { buildPagination } from '../utils/pagination.js';
 import { redactSecrets } from '../utils/redact.js';
-import { computeRowHmac, SIGN_IN_ACTIONS } from '../utils/audit-integrity.js';
+import { computeRowHmac } from '../utils/audit-integrity.js';
+import { isKnownAction, actionLabel, actionGroup } from '../utils/audit-actions.js';
 import { currentRequest } from '../middleware/request-context.middleware.js';
 
 const clip = (value, max) => (value == null ? null : String(value).slice(0, max));
@@ -23,6 +24,13 @@ const clip = (value, max) => (value == null ? null : String(value).slice(0, max)
  *  - without one, a failure must not fail the business action: it is logged and reported, never thrown.
  */
 export const log = async ({ userId, action, entityType, entityId, metadata, req, transaction, actor } = {}) => {
+  // An action missing from the catalogue (utils/audit-actions.js) has no label in the UI and no retention rule.
+  // Caught loudly in development and tests, reported but never blocking in production. `test.*` is free in tests.
+  if (typeof action === 'string' && !isKnownAction(action) && !(env.isTest && action.startsWith('test.'))) {
+    const message = `Unknown audit action "${action}": add it to utils/audit-actions.js`;
+    if (!env.isProduction) throw new Error(message);
+    logger.warn(message);
+  }
   try {
     const request = req ?? currentRequest();
     const signedIn = request?.user;
@@ -77,6 +85,8 @@ export const list = async (query) => {
     // Rows from the same second would otherwise repeat or vanish between pages.
     order: [...order, ['id', order[0][1]]],
   });
+  // The label is looked up here so every client shows the same wording as the catalogue.
+  result.rows = result.rows.map((row) => ({ ...row.toJSON(), actionLabel: actionLabel(row.action) }));
   return { result, page, limit };
 };
 
@@ -86,10 +96,14 @@ export const filterOptions = async () => {
     AuditLog.findAll({ attributes: ['entityType'], group: ['entity_type'], where: { entityType: { [Op.ne]: null } }, order: [['entityType', 'ASC']], raw: true }),
     AuditLog.findAll({ attributes: ['action'], group: ['action'], order: [['action', 'ASC']], raw: true }),
   ]);
-  return { entityTypes: types.map((t) => t.entityType), actions: actions.map((a) => a.action) };
+  return {
+    entityTypes: types.map((t) => t.entityType),
+    actions: actions.map((a) => ({ action: a.action, label: actionLabel(a.action), group: actionGroup(a.action) })),
+  };
 };
 
-const SIGN_IN_LIST_ACTIONS = SIGN_IN_ACTIONS.filter((a) => a !== 'auth.login_locked');
+// The Sign-ins page shows attempts, not the refusals that follow a lock.
+const SIGN_IN_LIST_ACTIONS = ['auth.login', 'auth.login_failed'];
 
 /**
  * Sign-in history built from the audit log: every successful and failed sign-in, with time, IP and

@@ -9,6 +9,7 @@ import * as studentService from './student.service.js';
 import * as semesterService from './semester.service.js';
 import * as notificationService from './notification.service.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields, summariseEntries } from '../utils/audit-diff.js';
 
 const loadForTeacher = async (sectionId, actor, options) => {
   const section = await teaching.loadSection(sectionId, options);
@@ -83,9 +84,12 @@ export const update = async (id, data, actor, req) => sequelize.transaction(asyn
     });
     if (over) throw new ValidationError(`${over} existing score(s) are above the new maximum`, [{ field: 'maxScore', message: 'Lower than existing scores' }]);
   }
+  const fields = Object.keys(data);
+  const before = snapshot(assessment, fields);
   await assessment.update(data, { transaction });
   await audit.log({
-    userId: actor.id, action: 'assessment.update', entityType: 'Assessment', entityId: assessment.id, metadata: data, req, transaction,
+    userId: actor.id, action: 'assessment.update', entityType: 'Assessment', entityId: assessment.id, req, transaction,
+    metadata: { title: assessment.title, ...diffFields(before, snapshot(assessment, fields), { omitValues: ['description'] }) },
   });
   return assessment;
 });
@@ -132,15 +136,23 @@ export const setScores = async (id, scores, actor, req) => {
 
     const existing = new Map((await AssessmentScore.findAll({ where: { assessmentId: assessment.id }, transaction })).map((s) => [s.studentId, s]));
     const gradedAt = new Date();
+    const changes = [];
     for (const { studentId, score, feedback } of scores) {
       const fields = { score, feedback: feedback ?? null, gradedBy: actor.id, gradedAt };
       const current = existing.get(studentId);
+      const previousScore = current?.score == null ? null : Number(current.score);
+      if (!current || previousScore !== score || (current.feedback ?? null) !== fields.feedback) {
+        changes.push({
+          studentId, from: previousScore, to: score,
+          ...(current && previousScore === score ? { feedbackChanged: true } : {}),
+        });
+      }
       if (current) await current.update(fields, { transaction });
       else await AssessmentScore.create({ assessmentId: assessment.id, studentId, ...fields }, { transaction });
     }
     await audit.log({
       userId: actor.id, action: 'assessment.score', entityType: 'Assessment', entityId: assessment.id,
-      metadata: { count: scores.length }, req, transaction,
+      metadata: { count: scores.length, ...summariseEntries(changes) }, req, transaction,
     });
   });
   return getScores(id, actor);

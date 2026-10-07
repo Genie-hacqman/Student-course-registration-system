@@ -9,6 +9,7 @@ import * as teaching from './teaching.service.js';
 import * as studentService from './student.service.js';
 import * as semesterService from './semester.service.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields, summariseEntries } from '../utils/audit-diff.js';
 
 const STATUSES = Object.values(ATTENDANCE_STATUS);
 const emptyCounts = () => Object.fromEntries(STATUSES.map((s) => [s, 0]));
@@ -140,7 +141,13 @@ export const createSession = async (sectionId, { date, scheduleId, topic, record
 export const updateSession = async (sessionId, { topic, records }, actor, req) => {
   await sequelize.transaction(async (transaction) => {
     const { session, section } = await loadSession(sessionId, actor, { transaction });
-    if (topic !== undefined) await session.update({ topic: topic || null }, { transaction });
+    const changes = [];
+    let topicDiff = {};
+    if (topic !== undefined) {
+      const before = snapshot(session, ['topic']);
+      await session.update({ topic: topic || null }, { transaction });
+      topicDiff = diffFields(before, snapshot(session, ['topic']));
+    }
     if (records?.length) {
       checkOnRoster(records, await teaching.rosterStudents(section.id, { transaction }));
       const existing = new Map((await AttendanceRecord.findAll({
@@ -149,13 +156,19 @@ export const updateSession = async (sessionId, { topic, records }, actor, req) =
       for (const r of records) {
         const fields = { status: r.status, remark: r.remark ?? null };
         const current = existing.get(r.studentId);
+        if (!current || current.status !== fields.status || (current.remark ?? null) !== fields.remark) {
+          changes.push({
+            studentId: r.studentId, from: current?.status ?? null, to: fields.status,
+            ...(current && current.status === fields.status ? { remarkChanged: true } : {}),
+          });
+        }
         if (current) await current.update(fields, { transaction });
         else await AttendanceRecord.create({ attendanceSessionId: session.id, studentId: r.studentId, ...fields }, { transaction });
       }
     }
     await audit.log({
       userId: actor.id, action: 'attendance.update', entityType: 'AttendanceSession', entityId: session.id,
-      metadata: { changed: records?.length ?? 0 }, req, transaction,
+      metadata: { ...summariseEntries(changes), ...topicDiff }, req, transaction,
     });
   });
   return getSession(sessionId, actor);

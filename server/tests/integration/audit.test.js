@@ -173,7 +173,7 @@ describe('querying', () => {
     assert.equal(res.status, 200);
     assert.ok(res.body.data.entityTypes.includes('Course'));
     assert.ok(res.body.data.entityTypes.includes('Probe'));
-    assert.ok(res.body.data.actions.includes('course.create'));
+    assert.ok(res.body.data.actions.some((a) => a.action === 'course.create' && a.label === 'Course created'));
     assert.equal((await api().get('/api/admin/audit-logs/options').set(auth(registrar.token))).status, 403);
   });
 });
@@ -239,18 +239,35 @@ describe('seals, verification and tampering', () => {
   });
 });
 
+// The archive goes to object storage. A developer's .env may point that at a real bucket, so these tests never
+// use the configured driver: they archive into memory.
+const memoryStorage = () => {
+  const objects = new Map();
+  return {
+    name: 'memory',
+    put: async (key, body) => { objects.set(key, Buffer.from(body)); },
+    get: async (key) => objects.get(key) ?? null,
+    remove: async (key) => { objects.delete(key); },
+  };
+};
+
 describe('retention', () => {
+  const archive = memoryStorage();
+  before(() => storage.useDriverForTests(archive));
+  after(() => storage.useDriverForTests(undefined));
+
   test('sign-ins are archived and purged after 12 months, everything else after 24; the chain still verifies', async () => {
     await maintenance.sealPending({ now: later(30 * MINUTES) });
-    const signInsBefore = (await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action LIKE 'auth.login%'"))[0].n;
-    const othersBefore = (await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action NOT LIKE 'auth.login%'"))[0].n;
+    const SHORT = "(action LIKE 'auth.login%' OR action LIKE 'security.%')"; // the short-retention actions in the catalogue
+    const signInsBefore = (await query(`SELECT COUNT(*) AS n FROM audit_logs WHERE ${SHORT}`))[0].n;
+    const othersBefore = (await query(`SELECT COUNT(*) AS n FROM audit_logs WHERE NOT ${SHORT}`))[0].n;
     assert.ok(signInsBefore > 0 && othersBefore > 0);
 
     // 13 months on: only the sign-in stream has expired.
     const first = await maintenance.purgeExpired({ now: later(13 * 30 * DAYS) });
     assert.equal(first.purged, Number(signInsBefore));
-    assert.equal((await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action LIKE 'auth.login%'"))[0].n, 0);
-    assert.equal((await query("SELECT COUNT(*) AS n FROM audit_logs WHERE action NOT LIKE 'auth.login%'"))[0].n, othersBefore);
+    assert.equal((await query(`SELECT COUNT(*) AS n FROM audit_logs WHERE ${SHORT}`))[0].n, 0);
+    assert.equal((await query(`SELECT COUNT(*) AS n FROM audit_logs WHERE NOT ${SHORT}`))[0].n, othersBefore);
     assert.ok((await maintenance.verify()).ok, 'purged seals still anchor the chain');
 
     // Each purged seal points at an archive that holds exactly its rows.
@@ -279,7 +296,7 @@ describe('retention', () => {
     try {
       assert.deepEqual(await maintenance.purgeExpired({ now: later(3 * 365 * DAYS) }), { purged: 0 });
     } finally {
-      storage.useDriverForTests(undefined);
+      storage.useDriverForTests(archive);
     }
     assert.equal((await rowsFor('test.keep')).length, 1);
   });

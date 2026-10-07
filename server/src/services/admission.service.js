@@ -77,7 +77,7 @@ export const assignStudentIdentity = async (user, row, program, ctx, transaction
  * The school email depends on the Student ID, which depends on the new row's id, so the user is
  * created with a throwaway placeholder address and given the real one in the same transaction.
  */
-const createAdmission = async (row, program, ctx, transaction) => {
+const createAdmission = async (row, program, ctx, transaction, { via = 'single' } = {}) => {
   if (row.admissionNumber && await Student.findOne({ where: { admissionNumber: row.admissionNumber }, transaction })) {
     throw new ConflictError(`Admission number ${row.admissionNumber} has already been admitted`);
   }
@@ -98,19 +98,22 @@ const createAdmission = async (row, program, ctx, transaction) => {
   const pin = generatePin({ studentNumber: student.studentNumber });
   await user.update({ email, passwordHash: await hashTemporaryPin(pin) }, { transaction });
 
+  // Inside the row's transaction, so the admission and its record stand or fall together (and a dry run rolls
+  // both back). Never the PIN: only who was admitted and how.
+  await audit.log({
+    userId: ctx.actor?.id, action: 'student.admit', entityType: 'Student', entityId: student.id, transaction,
+    metadata: { studentNumber: student.studentNumber, admissionNumber: row.admissionNumber ?? null, via },
+  });
+
   return { student, credentials: { studentNumber: student.studentNumber, schoolEmail: email, pin } };
 };
 
 /** Admits one student. Returns the student profile and the one-time credentials. */
 export const admit = async (data, actor) => {
   const { student, credentials } = await sequelize.transaction(async (transaction) => {
-    const ctx = { domain: await studentEmailDomain(transaction) };
+    const ctx = { domain: await studentEmailDomain(transaction), actor };
     const program = await findProgram(data, transaction);
     return createAdmission(data, program, ctx, transaction);
-  });
-  await audit.log({
-    userId: actor.id, action: 'student.admit', entityType: 'Student', entityId: student.id,
-    metadata: { studentNumber: credentials.studentNumber, admissionNumber: data.admissionNumber ?? null },
   });
   return { student: await getStudent(student.id), credentials };
 };
@@ -129,7 +132,7 @@ export const admitMany = async (body, actor) => {
     const where = row.studentNumber ? { studentNumber: row.studentNumber } : { admissionNumber: row.admissionNumber };
     const existing = await Student.findOne({ where, include: [{ model: User, as: 'user' }], transaction });
     if (!existing) {
-      const { credentials } = await createAdmission(row, program, ctx, transaction);
+      const { credentials } = await createAdmission(row, program, ctx, transaction, { via: 'bulk' });
       return { outcome: 'created', credentials };
     }
 

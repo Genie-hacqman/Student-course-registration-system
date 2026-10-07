@@ -220,10 +220,12 @@ export const add = async (courseId, body, actor) => {
 
 /** `prerequisiteId` is the id of the required course; it is removed from whichever group it is in. */
 export const remove = async (courseId, prerequisiteId, actor) => {
-  const deleted = await CoursePrerequisite.destroy({ where: { courseId, prerequisiteCourseId: prerequisiteId } });
-  if (!deleted) throw new NotFoundError('Prerequisite');
-  await audit.log({
-    userId: actor.id, action: 'prerequisite.remove', entityType: 'Course', entityId: courseId, metadata: { prerequisiteId },
+  await sequelize.transaction(async (transaction) => {
+    const deleted = await CoursePrerequisite.destroy({ where: { courseId, prerequisiteCourseId: prerequisiteId }, transaction });
+    if (!deleted) throw new NotFoundError('Prerequisite');
+    await audit.log({
+      userId: actor.id, action: 'prerequisite.remove', entityType: 'Course', entityId: courseId, metadata: { prerequisiteId }, transaction,
+    });
   });
 };
 
@@ -301,10 +303,12 @@ export const grantOverride = async (studentId, { courseId, semesterId = null, re
 };
 
 export const revokeOverride = async (studentId, overrideId, actor, req) => {
-  const deleted = await PrerequisiteOverride.destroy({ where: { id: overrideId, studentId } });
-  if (!deleted) throw new NotFoundError('Override');
-  await audit.log({
-    userId: actor.id, action: 'prerequisite.override_revoke', entityType: 'Student', entityId: studentId,
-    metadata: { overrideId }, req,
+  await sequelize.transaction(async (transaction) => {
+    const deleted = await PrerequisiteOverride.destroy({ where: { id: overrideId, studentId }, transaction });
+    if (!deleted) throw new NotFoundError('Override');
+    await audit.log({
+      userId: actor.id, action: 'prerequisite.override_revoke', entityType: 'Student', entityId: studentId,
+      metadata: { overrideId }, req, transaction,
+    });
   });
 };

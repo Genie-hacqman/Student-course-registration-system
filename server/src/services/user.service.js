@@ -7,6 +7,7 @@ import { buildPagination } from '../utils/pagination.js';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors.js';
 import { PERMISSION_CATALOG, ROLES, USER_STATUS } from '../utils/constants.js';
 import * as audit from './audit.service.js';
+import { snapshot, diffFields } from '../utils/audit-diff.js';
 import { permissionsFor } from './permission.service.js';
 import * as sessionService from './session.service.js';
 import { issueInvite } from './password-reset.service.js';
@@ -95,20 +96,25 @@ export const create = async (data, actor, req) => {
     throw new ConflictError('An account with this email already exists');
   }
   const role = await findRole(data.role);
-  const user = await User.create({
-    roleId: role.id,
-    firstName: data.firstName,
-    lastName: data.lastName,
-    email: data.email,
-    // Without a password the person gets an invite link and chooses their own.
-    passwordHash: data.password ? await hashPassword(data.password) : UNUSABLE_PASSWORD_HASH,
-    status: data.status,
-    // Staff create accounts for real people they know, so no verification email is needed.
-    emailVerifiedAt: new Date(),
+  const passwordHash = data.password ? await hashPassword(data.password) : UNUSABLE_PASSWORD_HASH;
+  const user = await sequelize.transaction(async (transaction) => {
+    const created = await User.create({
+      roleId: role.id,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      // Without a password the person gets an invite link and chooses their own.
+      passwordHash,
+      status: data.status,
+      // Staff create accounts for real people they know, so no verification email is needed.
+      emailVerifiedAt: new Date(),
+    }, { transaction });
+    await audit.log({
+      userId: actor.id, action: 'user.create', entityType: 'User', entityId: created.id, metadata: { role: role.name, invited: !data.password }, req, transaction,
+    });
+    return created;
   });
-  await audit.log({
-    userId: actor.id, action: 'user.create', entityType: 'User', entityId: user.id, metadata: { role: role.name, invited: !data.password }, req,
-  });
+  // After commit: the invite email must never be sent for an account that was rolled back.
   if (!data.password) await issueInvite(user, { actor });
   return getById(user.id);
 };
@@ -129,9 +135,13 @@ export const invite = async (id, actor) => {
  * Account edits. Guards: only an ADMIN may touch administrator or registrar accounts or give anyone those roles;
  * nobody may change their own role or status; the last active administrator can't be demoted or suspended.
  */
-export const update = async (id, data, actor, req) => {
+export const update = async (id, data, actor, req, { transaction: outer, audit: writeAudit = true } = {}) => {
   const user = await getById(id);
   const currentRole = user.role?.name;
+  // Read before the write below: `user.update` overwrites the loaded values.
+  const previousStatus = user.status;
+  const nameKeys = ['firstName', 'lastName'].filter((k) => k in data);
+  const nameBefore = snapshot(user, nameKeys);
   const roleChanges = data.role && data.role !== currentRole;
   const statusChanges = data.status && data.status !== user.status;
   if (Number(id) === actor.id && (roleChanges || statusChanges)) {
@@ -152,22 +162,27 @@ export const update = async (id, data, actor, req) => {
   delete changes.role;
   if (data.role) changes.roleId = (await findRole(data.role)).id;
 
-  await sequelize.transaction(async (transaction) => {
+  // A caller that audits the change itself (lecturer activate/deactivate) passes its own transaction and
+  // `audit: false`, so one action is one row and the write commits or rolls back with that row.
+  const apply = async (transaction) => {
     await user.update(changes, { transaction });
     // Suspending an account or changing its role ends its existing sessions.
     if ((data.status && data.status !== USER_STATUS.ACTIVE) || data.role) {
       await sessionService.endAllSessions(id, transaction);
     }
+    if (!writeAudit) return;
     await audit.log({
       userId: actor.id, action: 'user.update', entityType: 'User', entityId: id, transaction, req,
       metadata: {
-        ...data,
+        ...diffFields(nameBefore, snapshot(user, nameKeys)),
         ...(roleChanges ? { roleBefore: currentRole, roleAfter: data.role } : {}),
-        ...(statusChanges ? { statusBefore: user.status, statusAfter: data.status } : {}),
+        ...(statusChanges ? { statusBefore: previousStatus, statusAfter: data.status } : {}),
       },
     });
-  });
-  return getById(id);
+  };
+  if (outer) await apply(outer);
+  else await sequelize.transaction(apply);
+  return outer ? user : getById(id);
 };
 
 /** Soft delete: accounts are suspended rather than removed so registration history stays intact. */
