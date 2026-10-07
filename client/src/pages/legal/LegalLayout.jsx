@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { GraduationCap } from 'lucide-react'
+import BrandMark from '../../components/BrandMark'
 import { ContactDetails } from '../../components/SiteFooter'
 import { hasContact } from '../../lib/site'
 
@@ -10,9 +10,7 @@ export default function LegalLayout({ title, updated, intro, children }) {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link to="/login" className="flex items-center gap-2 font-semibold tracking-tight text-slate-900">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-brand-600 text-white">
-              <GraduationCap className="size-5" aria-hidden />
-            </span>
+            <BrandMark className="size-8 rounded-lg ring-1 ring-slate-200" />
             UniReg
           </Link>
           <Link to="/login" className="text-sm font-medium text-brand-600 hover:text-brand-700">Back to sign in</Link>

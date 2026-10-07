@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { GraduationCap } from 'lucide-react'
+import BrandMark from '../components/BrandMark'
 import { ContactDetails } from '../components/SiteFooter'
 import { hasContact } from '../lib/site'
 
@@ -10,9 +10,7 @@ import { hasContact } from '../lib/site'
 export default function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-linear-to-b from-slate-900 to-brand-900 px-4 py-12 text-center text-white">
-      <span className="flex size-14 items-center justify-center rounded-2xl bg-brand-600 shadow-lg shadow-brand-950/40 ring-1 ring-white/20">
-        <GraduationCap className="size-7" aria-hidden />
-      </span>
+      <BrandMark className="size-14 rounded-2xl shadow-lg shadow-brand-950/40 ring-1 ring-white/30" />
       <p className="mt-8 text-6xl font-bold tracking-tight text-white/90">404</p>
       <h1 className="mt-3 text-2xl font-semibold tracking-tight">We can't find that page</h1>
       <p className="mt-2 max-w-sm text-sm text-white/80">
