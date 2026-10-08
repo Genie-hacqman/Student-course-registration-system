@@ -24,12 +24,10 @@ const createSchema = z.object({
   level: optionalNumber(z.number().int().min(100).max(900)),
   studentNumber: z.string().trim().max(30).optional(),
   departmentId: optionalNumber(z.number().int().positive()),
-  staffNumber: z.string().trim().max(30).optional(),
   title: z.string().trim().max(50).optional(),
 })
   .refine((d) => d.role !== 'STUDENT' || d.programId, { message: 'Choose a program', path: ['programId'] })
   .refine((d) => d.role !== 'LECTURER' || d.departmentId, { message: 'Choose a department', path: ['departmentId'] })
-  .refine((d) => d.role !== 'LECTURER' || (d.staffNumber?.length ?? 0) >= 2, { message: 'At least 2 characters', path: ['staffNumber'] })
   .refine((d) => !d.studentNumber || d.studentNumber.length >= 3, { message: 'At least 3 characters', path: ['studentNumber'] })
 
 function CreateUser({ open, onClose }) {
@@ -45,7 +43,7 @@ function CreateUser({ open, onClose }) {
         await http.post('/students', { userId: user.id, programId: v.programId, level: v.level ?? 100, ...(v.studentNumber ? { studentNumber: v.studentNumber } : {}) })
       }
       if (v.role === 'LECTURER') {
-        await http.post('/lecturers', { userId: user.id, departmentId: v.departmentId, staffNumber: v.staffNumber, ...(v.title ? { title: v.title } : {}) })
+        await http.post('/lecturers', { userId: user.id, departmentId: v.departmentId, ...(v.title ? { title: v.title } : {}) })
       }
     } catch (err) {
       toast.error(`Account created, but the ${v.role === 'STUDENT' ? 'student' : 'lecturer'} profile failed: ${err.message}`)
@@ -60,7 +58,7 @@ function CreateUser({ open, onClose }) {
       wide
       title="New user"
       schema={createSchema}
-      defaultValues={{ firstName: '', lastName: '', email: '', password: '', role: 'STUDENT', programId: '', level: 100, studentNumber: '', departmentId: '', staffNumber: '', title: '' }}
+      defaultValues={{ firstName: '', lastName: '', email: '', password: '', role: 'STUDENT', programId: '', level: 100, studentNumber: '', departmentId: '', title: '' }}
       onSubmit={async (v) => {
         const user = await create.mutateAsync(v)
         navigate(`/staff/users/${user.id}`)
@@ -100,7 +98,7 @@ function CreateUser({ open, onClose }) {
                   <option value="">Select department</option>
                   {departments.data?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </Select>
-                <Input label="Staff number" error={errors.staffNumber?.message} {...register('staffNumber')} />
+                <Input label="Staff number" value="Generated automatically" disabled readOnly />
                 <Input label="Title (optional)" placeholder="e.g. Dr." error={errors.title?.message} {...register('title')} />
               </fieldset>
             )}
