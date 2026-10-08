@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, login, auth, query, sectionIdFor, createStudent, sequelize,
+  resetDatabase, requireManualApproval, api, loginAs, login, auth, query, sectionIdFor, createStudent, sequelize,
 } from './helpers.js';
 import { AuditLog } from '../../src/models/index.js';
 
@@ -25,6 +25,7 @@ const withBrokenAudit = async (fn) => {
 
 before(async () => {
   resetDatabase();
+  await requireManualApproval();
   [admin, registrar, lecturer] = await Promise.all(['admin', 'registrar', 'lecturer'].map((w) => loginAs(w)));
   math201 = await sectionIdFor('MATH201');
 });

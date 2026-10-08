@@ -32,7 +32,7 @@ const DEFAULTS = {
   'institution.studentEmailDomain': '',
   'institution.staffEmailDomain': '',
   'teaching.restrictLecturerDepartment': true,
-  'registration.requireApproval': true,
+  'registration.requireApproval': false,
   'registration.waitlistEnabled': true,
   'registration.defaultMaxCredits': 24,
   'grades.passingGrade': 'D',

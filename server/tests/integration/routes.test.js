@@ -6,7 +6,7 @@ import apiRouter from '../../src/routes/index.js';
 import env from '../../src/config/env.js';
 import * as pinService from '../../src/services/pin.service.js';
 import {
-  resetDatabase, api, loginAs, login, auth, query, courseIdFor, sectionIdFor, createStudent, approvedResetToken, sequelize,
+  resetDatabase, requireManualApproval, api, loginAs, login, auth, query, courseIdFor, sectionIdFor, createStudent, approvedResetToken, sequelize,
   createApplicant, submitApplication, plantActivationToken, uploadAvatar, uploadApplicationPhoto,
 } from './helpers.js';
 
@@ -47,6 +47,7 @@ const ids = {};
 
 before(async () => {
   resetDatabase();
+  await requireManualApproval();
   [admin, registrar, lecturer, student] = await Promise.all(
     ['admin', 'registrar', 'lecturer', 'student'].map((who) => loginAs(who)),
   );

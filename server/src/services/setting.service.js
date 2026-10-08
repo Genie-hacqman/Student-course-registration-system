@@ -2,7 +2,7 @@ import { sequelize, Setting } from '../models/index.js';
 import * as audit from './audit.service.js';
 
 export const DEFAULTS = Object.freeze({
-  'registration.requireApproval': true,
+  'registration.requireApproval': false,
   'registration.defaultMaxCredits': 24,
   'registration.waitlistEnabled': true,
   'grades.passingGrade': 'D',

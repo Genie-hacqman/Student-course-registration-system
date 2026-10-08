@@ -1,13 +1,14 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, auth, query, sectionIdFor, createStudent, sequelize,
+  resetDatabase, requireManualApproval, api, loginAs, auth, query, sectionIdFor, createStudent, sequelize,
   STUDENT_PIN,
 } from './helpers.js';
 
 let student;
 before(async () => {
   resetDatabase();
+  await requireManualApproval();
   student = await loginAs('student');
 });
 after(() => sequelize.close());

@@ -46,6 +46,10 @@ export const auth = (token) => ({ Authorization: `Bearer ${token}` });
 
 export const query = async (sql, replacements = {}) => (await sequelize.query(sql, { replacements }))[0];
 
+// Auto-approval is the default; files that test the registrar's approval path opt back in.
+export const requireManualApproval = () =>
+  query("UPDATE settings SET value = 'true' WHERE `key` = 'registration.requireApproval'");
+
 export const sectionIdFor = async (code) =>
   (await query('SELECT s.id FROM course_sections s JOIN courses c ON c.id = s.course_id WHERE c.code = :code', { code }))[0].id;
 
