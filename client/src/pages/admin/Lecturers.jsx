@@ -18,7 +18,7 @@ export const lecturerSchema = z.object({
   title: optionalText(50),
   firstName: z.string().trim().min(1, 'Required').max(100),
   lastName: z.string().trim().min(1, 'Required').max(100),
-  staffNumber: z.string().trim().min(2, 'At least 2 characters').max(30),
+  staffNumber: z.union([z.literal(''), z.string().trim().min(2, 'At least 2 characters').max(30)]).optional().transform((v) => v || undefined),
   departmentId: requiredNumber(z.number().int().positive('Choose a department'), 'Choose a department'),
   schoolEmail: optionalEmail,
   personalEmail: optionalEmail,
@@ -41,7 +41,9 @@ export function LecturerFields({ register, errors, departments, creating }) {
         <Input label="Last name" className="sm:col-span-2" error={errors.lastName?.message} {...register('lastName')} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Input label="Staff ID" error={errors.staffNumber?.message} {...register('staffNumber')} />
+        {creating
+          ? <Input label="Staff ID" value="Generated automatically" disabled readOnly hint="A unique ID is assigned when the lecturer is saved." />
+          : <Input label="Staff ID" error={errors.staffNumber?.message} {...register('staffNumber')} />}
         <Select label="Department" error={errors.departmentId?.message} {...register('departmentId')}>
           <option value="">Select department</option>
           {departments?.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}

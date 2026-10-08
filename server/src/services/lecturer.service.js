@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { Op } from 'sequelize';
 import {
   sequelize, Lecturer, User, Role, Department, CourseSection, Course, Semester, AcademicYear, Schedule, Registration, RegistrationItem, Student,
@@ -154,6 +155,24 @@ const assertStaffNumberFree = async (staffNumber, exceptId, transaction) => {
   if (taken && taken.id !== exceptId) throw new ConflictError(`Staff ID ${staffNumber} is already used by another lecturer`);
 };
 
+export const buildStaffNumber = (id) => `STF${String(id).padStart(6, '0')}`;
+
+// Without a staff number, derive one from the row id; skip past any hand-entered number that already took it.
+const createLecturerRecord = async ({ staffNumber, ...data }, transaction) => {
+  const lecturer = await Lecturer.create(
+    { ...data, staffNumber: staffNumber ?? `PENDING-${randomBytes(8).toString('hex')}` },
+    { transaction },
+  );
+  if (staffNumber) return lecturer;
+  for (let n = lecturer.id; ; n += 1) {
+    const candidate = buildStaffNumber(n);
+    if (!(await Lecturer.findOne({ where: { staffNumber: candidate }, attributes: ['id'], transaction }))) {
+      await lecturer.update({ staffNumber: candidate }, { transaction });
+      return lecturer;
+    }
+  }
+};
+
 const assertPersonalEmailFree = async (personalEmail, exceptId, transaction) => {
   if (!personalEmail) return;
   const email = personalEmail.toLowerCase();
@@ -184,7 +203,7 @@ const resolveSchoolEmail = async ({ schoolEmail, firstName, lastName }, transact
 
 const createAccount = async (data, actor) => {
   const { user, lecturer } = await sequelize.transaction(async (transaction) => {
-    await assertStaffNumberFree(data.staffNumber, null, transaction);
+    if (data.staffNumber) await assertStaffNumberFree(data.staffNumber, null, transaction);
     await assertPersonalEmailFree(data.personalEmail, null, transaction);
     await assertDepartmentOpen(data.departmentId, { transaction, what: 'new lecturers' });
     const email = await resolveSchoolEmail(data, transaction);
@@ -199,7 +218,7 @@ const createAccount = async (data, actor) => {
       status: USER_STATUS.ACTIVE,
       emailVerifiedAt: new Date(),
     }, { transaction });
-    const createdLecturer = await Lecturer.create({
+    const createdLecturer = await createLecturerRecord({
       userId: createdUser.id,
       departmentId: data.departmentId,
       staffNumber: data.staffNumber,
@@ -207,10 +226,10 @@ const createAccount = async (data, actor) => {
       phone: data.phone,
       specialization: data.specialization,
       personalEmail: data.personalEmail,
-    }, { transaction });
+    }, transaction);
     await audit.log({
       userId: actor.id, action: 'lecturer.create', entityType: 'Lecturer', entityId: createdLecturer.id,
-      metadata: { staffNumber: data.staffNumber, email, departmentId: data.departmentId }, transaction,
+      metadata: { staffNumber: createdLecturer.staffNumber, email, departmentId: data.departmentId }, transaction,
     });
     return { user: createdUser, lecturer: createdLecturer };
   });
@@ -222,9 +241,9 @@ export const create = async (data, actor) => {
   if (!data.userId) return createAccount(data, actor);
   if (!(await User.findByPk(data.userId))) throw new BadRequestError('User does not exist');
   await assertDepartmentOpen(data.departmentId, { what: 'new lecturers' });
-  await assertStaffNumberFree(data.staffNumber);
+  if (data.staffNumber) await assertStaffNumberFree(data.staffNumber);
   const lecturer = await sequelize.transaction(async (transaction) => {
-    const created = await Lecturer.create(data, { transaction });
+    const created = await createLecturerRecord(data, transaction);
     await audit.log({
       userId: actor.id, action: 'lecturer.create', entityType: 'Lecturer', entityId: created.id, transaction,
       metadata: { staffNumber: created.staffNumber, departmentId: created.departmentId, userId: created.userId },

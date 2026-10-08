@@ -84,14 +84,14 @@ export const createLecturerSchema = z.union([
   z.object({
     userId: id,
     departmentId: id,
-    staffNumber,
+    staffNumber: staffNumber.optional(),
     title: lecturerProfile.title.optional(),
   }),
   z.object({
     firstName: z.string().trim().min(1).max(100),
     lastName: z.string().trim().min(1).max(100),
     departmentId: id,
-    staffNumber,
+    staffNumber: staffNumber.optional(),
     schoolEmail: optionalEmail.optional(),
     personalEmail: lecturerProfile.personalEmail.optional(),
     title: lecturerProfile.title.optional(),

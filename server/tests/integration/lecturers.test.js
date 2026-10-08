@@ -97,6 +97,40 @@ describe('lecturer accounts (ADMIN)', () => {
     assert.equal(Number((await query('SELECT COUNT(*) AS n FROM users'))[0].n), before);
   });
 
+  test('the staff ID is generated when omitted, and is unique across every department', async () => {
+    await setSetting('institution.staffEmailDomain', 'staff.scrs.edu');
+    const make = (i, departmentId) => createLecturer({ firstName: 'Gen', lastName: `Erated${i}`, departmentId });
+    const results = await Promise.all([make(1, dept.CS), make(2, dept.CS), make(3, dept.MATH), make(4, dept.MATH), make(5, dept.CS)]);
+    for (const res of results) assert.equal(res.status, 201, JSON.stringify(res.body));
+    const ids = results.map((r) => r.body.data.staffNumber);
+    for (const id of ids) assert.match(id, /^STF\d{6,7}$/);
+    assert.equal(new Set(ids).size, ids.length, 'every lecturer has a different ID');
+    const [{ n }] = await query("SELECT COUNT(*) AS n FROM lecturers WHERE staff_number LIKE 'PENDING-%'");
+    assert.equal(Number(n), 0, 'no placeholder is left behind');
+  });
+
+  test('a generated ID skips a number somebody already entered by hand', async () => {
+    await setSetting('institution.staffEmailDomain', 'staff.scrs.edu');
+    const [{ next }] = await query('SELECT COALESCE(MAX(id), 0) + 1 AS next FROM lecturers');
+    const taken = `STF${String(next).padStart(6, '0')}`;
+    const manual = await createLecturer({ firstName: 'By', lastName: 'Hand', staffNumber: taken, departmentId: dept.CS, schoolEmail: 'byhand@staff.scrs.edu' });
+    assert.equal(manual.status, 201, JSON.stringify(manual.body));
+    assert.equal(manual.body.data.staffNumber, taken);
+    const generated = await createLecturer({ firstName: 'Auto', lastName: 'Matic', departmentId: dept.MATH });
+    assert.equal(generated.status, 201, JSON.stringify(generated.body));
+    assert.notEqual(generated.body.data.staffNumber, taken);
+    assert.match(generated.body.data.staffNumber, /^STF\d{6,7}$/);
+  });
+
+  test('a duplicate staff ID is refused on create and on edit', async () => {
+    const a = await newLecturer();
+    const b = await newLecturer();
+    const dup = await createLecturer({ firstName: 'Dup', lastName: 'Id', staffNumber: a.staffNumber.toLowerCase(), departmentId: dept.MATH, schoolEmail: 'dupid@staff.scrs.edu' });
+    assert.equal(dup.status, 409, 'a different letter case is still the same ID');
+    const edit = await api().patch(`/api/lecturers/${b.id}`).set(auth(admin.token)).send({ staffNumber: a.staffNumber });
+    assert.equal(edit.status, 409);
+  });
+
   test('only admins manage lecturers; the registry can view them', async () => {
     const body = { firstName: 'X', lastName: 'Y', staffNumber: 'STF-9200', departmentId: dept.CS, schoolEmail: 'xy@staff.scrs.edu' };
     for (const who of [registrar, student, demoLecturer]) assert.equal((await createLecturer(body, who)).status, 403);
