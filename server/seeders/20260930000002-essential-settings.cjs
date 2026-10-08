@@ -1,7 +1,7 @@
 'use strict';
 
 const DEFAULTS = [
-  { key: 'registration.requireApproval', value: true, description: 'Submitted registrations need registrar approval' },
+  { key: 'registration.requireApproval', value: false, description: 'Submitted registrations need registrar approval (off: approved automatically unless the timetable clashes)' },
   { key: 'registration.defaultMaxCredits', value: 24, description: 'Fallback credit limit when semester and program do not set one' },
   { key: 'registration.waitlistEnabled', value: true, description: 'Offer waitlists for full sections (each section can also opt out)' },
   { key: 'grades.passingGrade', value: 'D', description: 'Lowest grade that counts as a pass' },

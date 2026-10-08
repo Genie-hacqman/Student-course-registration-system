@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, login, auth, query, sectionIdFor, sequelize,
+  resetDatabase, requireManualApproval, api, loginAs, login, auth, query, sectionIdFor, sequelize,
   createApplicant, completeApplication, submitApplication, plantActivationToken, SIGN_UP_PASSWORD,
 } from './helpers.js';
 import { admissionEmail, useTransporterForTests } from '../../src/services/application.service.js';
@@ -12,6 +12,7 @@ let student;
 
 before(async () => {
   resetDatabase();
+  await requireManualApproval();
   [admin, registrar, student] = await Promise.all(['admin', 'registrar', 'student'].map((who) => loginAs(who)));
 });
 after(() => sequelize.close());

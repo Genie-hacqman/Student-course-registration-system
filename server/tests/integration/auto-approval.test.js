@@ -9,12 +9,14 @@ let registrar;
 let math201;
 let program;
 let n = 0;
+let seededRequireApproval;
 
 before(async () => {
   resetDatabase();
   [admin, registrar] = await Promise.all([loginAs('admin'), loginAs('registrar')]);
   math201 = await sectionIdFor('MATH201');
   program = await programId();
+  seededRequireApproval = (await query("SELECT value FROM settings WHERE `key` = 'registration.requireApproval'"))[0].value;
 });
 after(() => sequelize.close());
 
@@ -152,6 +154,16 @@ describe('programme auto-approval', () => {
 });
 
 describe('the global approval switch', () => {
+  test('is off by default, so a clean submit is approved by the system', async () => {
+    assert.equal(JSON.parse(JSON.stringify(seededRequireApproval)), false, 'the seeded default');
+    await query("DELETE FROM settings WHERE `key` = 'registration.requireApproval'");
+    const student = await newStudent();
+    const res = await submit(student);
+    assert.equal(res.body.data.status, 'approved', 'no setting row: the code default applies');
+    assert.equal((await rowOf(res.body.data.id)).reviewed_by, null);
+  });
+
+
   test('switched off, it approves every programme, now through the full approval path', async () => {
     await setRequireApproval(false);
     const student = await newStudent();

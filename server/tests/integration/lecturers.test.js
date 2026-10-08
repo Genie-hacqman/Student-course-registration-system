@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, login, auth, query, sectionIdFor, createStudent, sequelize,
+  resetDatabase, requireManualApproval, api, loginAs, login, auth, query, sectionIdFor, createStudent, sequelize,
 } from './helpers.js';
 import { hashToken } from '../../src/utils/jwt.js';
 
@@ -43,6 +43,7 @@ const newLecturer = async (overrides = {}) => {
 
 before(async () => {
   resetDatabase();
+  await requireManualApproval();
   [admin, registrar, student, demoLecturer] = await Promise.all(['admin', 'registrar', 'student', 'lecturer'].map((w) => loginAs(w)));
   for (const { id, code } of await query('SELECT id, code FROM departments')) dept[code] = id;
 });

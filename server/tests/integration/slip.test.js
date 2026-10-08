@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, auth, query, sectionIdFor, createStudent, sequelize, uploadAvatar, makePhoto,
+  resetDatabase, requireManualApproval, api, loginAs, auth, query, sectionIdFor, createStudent, sequelize, uploadAvatar, makePhoto,
 } from './helpers.js';
 import * as storage from '../../src/services/storage.service.js';
 
@@ -23,6 +23,7 @@ const add = async (who, code) =>
 
 before(async () => {
   resetDatabase();
+  await requireManualApproval();
   [student, registrar] = await Promise.all([loginAs('student'), loginAs('registrar')]);
   await add(student, 'CS201');
   const res = await add(student, 'CS203');

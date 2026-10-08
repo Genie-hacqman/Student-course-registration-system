@@ -1,10 +1,13 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, login, auth, query, sectionIdFor, createStudent, sequelize,
+  resetDatabase, requireManualApproval, api, loginAs, login, auth, query, sectionIdFor, createStudent, sequelize,
 } from './helpers.js';
 
-before(resetDatabase);
+before(async () => {
+  resetDatabase();
+  await requireManualApproval();
+});
 after(() => sequelize.close());
 
 const staffAdd = (token, sectionId, body) => api().post(`/api/admin/sections/${sectionId}/students`).set(auth(token)).send(body);

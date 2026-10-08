@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resetDatabase, api, loginAs, auth, query, sectionIdFor, createStudent, sequelize,
+  resetDatabase, requireManualApproval, api, loginAs, auth, query, sectionIdFor, createStudent, sequelize,
 } from './helpers.js';
 
 let registrar;
@@ -11,6 +11,7 @@ let cs201;
 
 before(async () => {
   resetDatabase();
+  await requireManualApproval();
   [registrar, lecturer] = await Promise.all([loginAs('registrar'), loginAs('lecturer')]);
   [math201, cs201] = await Promise.all([sectionIdFor('MATH201'), sectionIdFor('CS201')]);
 });

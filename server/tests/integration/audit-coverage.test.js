@@ -73,7 +73,7 @@ describe('edits record what changed, not the request body', () => {
     const res = await api().patch('/api/admin/settings').set(auth(admin.token)).send({
       settings: [
         { key: 'registration.defaultMaxCredits', value: 21 },
-        { key: 'registration.requireApproval', value: true },
+        { key: 'registration.requireApproval', value: false },
       ],
     });
     assert.equal(res.status, 200, JSON.stringify(res.body));

@@ -2,7 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { Webhook } from 'standardwebhooks';
 import {
-  resetDatabase, api, loginAs, login, auth, query, sectionIdFor, createStudent, createAdmin, sequelize, STUDENT_PIN,
+  resetDatabase, requireManualApproval, api, loginAs, login, auth, query, sectionIdFor, createStudent, createAdmin, sequelize, STUDENT_PIN,
 } from './helpers.js';
 import env from '../../src/config/env.js';
 import { hashToken } from '../../src/utils/jwt.js';
@@ -39,6 +39,7 @@ let admin;
 
 before(async () => {
   resetDatabase();
+  await requireManualApproval();
   setEmailProviderForTests(provider);
   [registrar, admin] = await Promise.all([loginAs('registrar'), loginAs('admin')]);
 });
